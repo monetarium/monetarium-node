@@ -25,7 +25,8 @@ import (
 
 const (
 	// currentUtxoDatabaseVersion indicates the current UTXO database version.
-	currentUtxoDatabaseVersion = 3
+	// Version 4 adds dual-coin support with coin type field in UTXO entries.
+	currentUtxoDatabaseVersion = 4
 
 	// utxoDbName is the name of the UTXO database.
 	utxoDbName = "utxodb"

@@ -34,13 +34,14 @@ import (
 //
 // The serialized value format is:
 //
-//   <block height><block index><flags><compressed txout>
+//   <block height><block index><flags><coin type><compressed txout>
 //   OPTIONAL: [<ticket min outs>]
 //
 //   Field                Type     Size
 //   block height         VLQ      variable
 //   block index          VLQ      variable
 //   flags                VLQ      variable
+//   coin type            VLQ      variable (new for dual-coin support)
 //   compressed txout
 //     compressed amount   VLQ      variable
 //     script version      VLQ      variable
@@ -159,6 +160,7 @@ func serializeUtxoEntry(entry *UtxoEntry) []byte {
 	size := serializeSizeVLQ(uint64(entry.blockHeight)) +
 		serializeSizeVLQ(uint64(entry.blockIndex)) +
 		serializeSizeVLQ(uint64(flags)) +
+		serializeSizeVLQ(uint64(entry.coinType)) +
 		compressedTxOutSize(uint64(entry.amount), entry.scriptVersion,
 			entry.pkScript, hasAmount)
 
@@ -171,6 +173,7 @@ func serializeUtxoEntry(entry *UtxoEntry) []byte {
 	offset := putVLQ(serialized, uint64(entry.blockHeight))
 	offset += putVLQ(serialized[offset:], uint64(entry.blockIndex))
 	offset += putVLQ(serialized[offset:], uint64(flags))
+	offset += putVLQ(serialized[offset:], uint64(entry.coinType))
 	offset += putCompressedTxOut(serialized[offset:], uint64(entry.amount),
 		entry.scriptVersion, entry.pkScript, hasAmount)
 
@@ -184,6 +187,9 @@ func serializeUtxoEntry(entry *UtxoEntry) []byte {
 // deserializeUtxoEntry decodes a utxo entry from the passed serialized byte
 // slice into a new UtxoEntry using a format that is suitable for long-term
 // storage.  The format is described in detail above.
+//
+// This function automatically detects whether the entry is in version 3 format
+// (without coin type) or version 4+ format (with coin type) and handles both.
 func deserializeUtxoEntry(serialized []byte, txOutIndex uint32) (*UtxoEntry, error) {
 	// Deserialize the block height.
 	blockHeight, bytesRead := deserializeVLQ(serialized)
@@ -207,6 +213,25 @@ func deserializeUtxoEntry(serialized []byte, txOutIndex uint32) (*UtxoEntry, err
 	}
 	isCoinBase, hasExpiry, txType := decodeFlags(txOutFlags(flags))
 
+	// Try to deserialize coin type for version 4+ format.
+	// If this fails, we assume it's a version 3 entry and default to VAR.
+	var coinType CoinType = CoinTypeVAR // Default for legacy entries
+	
+	coinTypeVal, bytesRead := deserializeVLQ(serialized[offset:])
+	nextOffset := offset + bytesRead
+	
+	// Check if we have enough data for a coin type field
+	if nextOffset < len(serialized) {
+		// Try to decode the compressed txout with coin type
+		_, _, _, _, err := decodeCompressedTxOut(serialized[nextOffset:], true)
+		if err == nil {
+			// Successfully decoded with coin type, this is version 4+ format
+			coinType = CoinType(coinTypeVal)
+			offset = nextOffset
+		}
+		// If decoding failed, this is likely version 3 format, continue without coin type
+	}
+
 	// Decode the compressed unspent transaction output.
 	amount, scriptVersion, script, bytesRead, err :=
 		decodeCompressedTxOut(serialized[offset:], true)
@@ -223,6 +248,7 @@ func deserializeUtxoEntry(serialized []byte, txOutIndex uint32) (*UtxoEntry, err
 		blockHeight:   uint32(blockHeight),
 		blockIndex:    uint32(blockIndex),
 		scriptVersion: scriptVersion,
+		coinType:      coinType,
 		packedFlags:   encodeUtxoFlags(isCoinBase, hasExpiry, txType),
 	}
 

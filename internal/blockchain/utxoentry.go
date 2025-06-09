@@ -8,12 +8,41 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/v5"
 )
 
+// CoinType represents the type of native coin in UTXO entries.
+// This is defined in blockchain package to avoid import cycles.
+type CoinType uint8
+
+const (
+	// CoinTypeVAR represents Varta coins - the original mined cryptocurrency.
+	CoinTypeVAR CoinType = 0
+
+	// CoinTypeSKA represents Skarb coins - pre-emitted asset-backed tokens.
+	CoinTypeSKA CoinType = 1
+)
+
+// String returns the string representation of the coin type.
+func (ct CoinType) String() string {
+	switch ct {
+	case CoinTypeVAR:
+		return "VAR"
+	case CoinTypeSKA:
+		return "SKA"
+	default:
+		return "Unknown"
+	}
+}
+
+// IsValid returns whether the coin type is valid.
+func (ct CoinType) IsValid() bool {
+	return ct <= CoinTypeSKA
+}
+
 const (
 	// baseEntrySize is the base size of a utxo entry on a 64-bit platform,
 	// excluding the contents of the script and ticket minimal outputs.  It is
 	// equivalent to what unsafe.Sizeof(UtxoEntry{}) returns on a 64-bit
-	// platform.
-	baseEntrySize = 56
+	// platform. Updated for dual-coin support (+1 byte for CoinType).
+	baseEntrySize = 57
 )
 
 // utxoState defines the in-memory state of a utxo entry.
@@ -104,7 +133,7 @@ type ticketMinimalOutputs struct {
 // UtxoEntry houses details about an individual transaction output in a utxo
 // view such as whether or not it was contained in a coinbase tx, the height of
 // the block that contains the tx, whether or not it is spent, its public key
-// script, and how much it pays.
+// script, how much it pays, and which coin type it represents.
 //
 // The struct is aligned for memory efficiency.
 type UtxoEntry struct {
@@ -123,6 +152,10 @@ type UtxoEntry struct {
 	blockHeight   uint32
 	blockIndex    uint32
 	scriptVersion uint16
+
+	// coinType represents the type of coin (VAR or SKA) for this UTXO.
+	// This field is essential for dual-coin support.
+	coinType CoinType
 
 	// state contains info for the in-memory state of the output as defined by
 	// utxoState.
@@ -224,6 +257,16 @@ func (entry *UtxoEntry) ScriptVersion() uint16 {
 	return entry.scriptVersion
 }
 
+// CoinType returns the coin type (VAR or SKA) for the output.
+func (entry *UtxoEntry) CoinType() CoinType {
+	return entry.coinType
+}
+
+// AmountWithCoinType returns both the amount and coin type for the output.
+func (entry *UtxoEntry) AmountWithCoinType() (int64, CoinType) {
+	return entry.amount, entry.coinType
+}
+
 // TicketMinimalOutputs returns the minimal outputs for the ticket transaction
 // that the output is contained in.  Note that the ticket minimal outputs are
 // only stored in ticket submission outputs and nil will be returned for all
@@ -252,6 +295,7 @@ func (entry *UtxoEntry) Clone() *UtxoEntry {
 		blockHeight:   entry.blockHeight,
 		blockIndex:    entry.blockIndex,
 		scriptVersion: entry.scriptVersion,
+		coinType:      entry.coinType,
 		state:         entry.state,
 		packedFlags:   entry.packedFlags,
 	}

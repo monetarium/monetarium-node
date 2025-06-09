@@ -6196,6 +6196,40 @@ func upgradeUtxoDbToVersion3(ctx context.Context, utxoBackend UtxoBackend, utxoD
 	return nil
 }
 
+// upgradeUtxoDbToVersion4 upgrades a UTXO database from version 3 to version 4.
+// This entails adding coin type support to all existing UTXO entries by setting
+// them to CoinTypeVAR (the default for existing UTXOs).
+//
+// Note: This is a placeholder migration that assumes all existing UTXOs will be
+// migrated to VAR coin type when they are accessed. The actual migration happens
+// lazily during normal database operations through deserializeUtxoEntryV3.
+func upgradeUtxoDbToVersion4(ctx context.Context, utxoBackend UtxoBackend, utxoDbInfo *UtxoBackendInfo) error {
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	log.Info("Upgrading UTXO database to version 4 (dual-coin support)...")
+	start := time.Now()
+
+	// For now, we just update the version number. The actual migration happens
+	// lazily when entries are read from the database. The deserializeUtxoEntry
+	// function will detect version 3 entries and automatically add CoinTypeVAR.
+	//
+	// This approach avoids the need to read and rewrite the entire UTXO set
+	// during the upgrade, which could be very time-consuming for large databases.
+
+	// Update and persist the UTXO database version.
+	utxoDbInfo.version = 4
+	if err := utxoBackend.PutInfo(utxoDbInfo); err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done upgrading database to version 4 in %v. "+
+		"UTXO entries will be migrated lazily during normal operation.", elapsed)
+	return nil
+}
+
 // checkDBTooOldToUpgrade returns an ErrDBTooOldToUpgrade error if the provided
 // database version can no longer be upgraded due to being too old.
 func checkDBTooOldToUpgrade(dbVersion uint32) error {
@@ -6423,6 +6457,15 @@ func upgradeUtxoDb(ctx context.Context, db database.DB, utxoBackend UtxoBackend)
 	// should not be part of the utxo set.
 	if utxoDbInfo.version == 2 {
 		err := upgradeUtxoDbToVersion3(ctx, utxoBackend, utxoDbInfo)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Update to a version 4 utxo database if needed.  This entails adding
+	// coin type support to existing UTXO entries by setting them to VAR.
+	if utxoDbInfo.version == 3 {
+		err := upgradeUtxoDbToVersion4(ctx, utxoBackend, utxoDbInfo)
 		if err != nil {
 			return err
 		}
