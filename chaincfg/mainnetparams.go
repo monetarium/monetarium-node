@@ -579,5 +579,12 @@ func MainNetParams() *Params {
 			"mainnet-seed.dcrdata.org",
 			"mainnet-seed.jholdstock.uk",
 		},
+
+		// SKA (Skarb) dual-coin system parameters for mainnet
+		SKAEmissionAmount:   10e6 * 1e8, // 10 million SKA total supply
+		SKAEmissionHeight:   100000,     // Emit at block 100k
+		SKAActivationHeight: 100000,     // Activate immediately
+		SKAMaxAmount:        10e6 * 1e8, // 10 million SKA maximum
+		SKAMinRelayTxFee:    1e4,        // 0.0001 SKA minimum relay fee
 	}
 }

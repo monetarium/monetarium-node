@@ -607,5 +607,12 @@ func SimNetParams() *Params {
 		TreasuryVoteRequiredDivisor:    5,
 
 		seeders: nil, // NOTE: There must NOT be any seeds.
+
+		// SKA (Skarb) dual-coin system parameters for simnet testing
+		SKAEmissionAmount:   1e6 * 1e8,  // 1 million SKA for testing
+		SKAEmissionHeight:   10,         // Emit early for testing
+		SKAActivationHeight: 10,         // Activate immediately 
+		SKAMaxAmount:        10e6 * 1e8, // 10 million SKA max
+		SKAMinRelayTxFee:    1e3,        // 0.00001 SKA minimum fee
 	}
 }

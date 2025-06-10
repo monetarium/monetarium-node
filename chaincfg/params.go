@@ -613,6 +613,31 @@ type Params struct {
 	// seeders defines a list of seeders for the network that are used
 	// as one method to discover peers.
 	seeders []string
+
+	// -------------------------------------------------------------------------
+	// SKA (Skarb) dual-coin system parameters
+	// -------------------------------------------------------------------------
+
+	// SKAEmissionAmount is the total amount of SKA coins to be emitted at
+	// the activation height. This is a one-time emission event.
+	SKAEmissionAmount int64
+
+	// SKAEmissionHeight is the block height at which SKA emission occurs.
+	// At this height, the total SKAEmissionAmount will be created and
+	// distributed according to the emission rules.
+	SKAEmissionHeight int64
+
+	// SKAActivationHeight is the block height at which SKA transactions
+	// become valid. This may be the same as SKAEmissionHeight or later.
+	SKAActivationHeight int64
+
+	// SKAMaxAmount is the maximum amount of SKA that can be handled in a
+	// single transaction output. This prevents overflow issues.
+	SKAMaxAmount int64
+
+	// SKAMinRelayTxFee is the minimum fee rate for SKA transactions to be
+	// relayed by the network. This is separate from VAR transaction fees.
+	SKAMinRelayTxFee int64
 }
 
 // HDPrivKeyVersion returns the hierarchical deterministic extended private key

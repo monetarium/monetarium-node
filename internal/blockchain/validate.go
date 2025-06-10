@@ -3392,16 +3392,45 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 		}
 	}
 
-	// Calculate the total output amount for this transaction.  It is safe
-	// to ignore overflow and out of range errors here because those error
-	// conditions would have already been caught by the transaction sanity
+	// Calculate the total output amount for this transaction by coin type.
+	// It is safe to ignore overflow and out of range errors here because those 
+	// error conditions would have already been caught by the transaction sanity
 	// checks.
-	var totalAtomOut int64
+	var totalVAROut, totalSKAOut int64
 	for _, txOut := range tx.MsgTx().TxOut {
-		totalAtomOut += txOut.Value
+		switch txOut.CoinType {
+		case wire.CoinTypeVAR:
+			totalVAROut += txOut.Value
+		case wire.CoinTypeSKA:
+			totalSKAOut += txOut.Value
+		default:
+			// This should have been caught by transaction sanity checks
+			str := fmt.Sprintf("transaction output has invalid coin type %d", txOut.CoinType)
+			return 0, ruleError(ErrBadTxOutValue, str)
+		}
 	}
 
-	// Ensure the transaction does not spend more than its inputs.
+	// For backwards compatibility, if this is a VAR-only transaction,
+	// calculate fees using the original logic
+	if totalSKAOut == 0 {
+		// Original VAR-only validation logic
+		if totalAtomIn < totalVAROut {
+			str := fmt.Sprintf("total value of all VAR transaction inputs for "+
+				"transaction %v is %v which is less than the amount "+
+				"spent of %v", txHash, totalAtomIn, totalVAROut)
+			return 0, ruleError(ErrSpendTooHigh, str)
+		}
+		txFeeInAtom := totalAtomIn - totalVAROut
+		return txFeeInAtom, nil
+	}
+
+	// For dual-coin transactions, we need to separate input tracking by coin type
+	// For now, we'll implement a simplified approach:
+	// TODO: Implement proper dual-coin input/output validation
+	// This requires tracking UTXO coin types in the UtxoViewpoint
+	
+	// Temporary validation: ensure total inputs >= total outputs
+	totalAtomOut := totalVAROut + totalSKAOut
 	if totalAtomIn < totalAtomOut {
 		str := fmt.Sprintf("total value of all transaction inputs for "+
 			"transaction %v is %v which is less than the amount "+
@@ -3409,6 +3438,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 		return 0, ruleError(ErrSpendTooHigh, str)
 	}
 
+	// Return combined fee for now (will be refined in later phases)
 	txFeeInAtom := totalAtomIn - totalAtomOut
 	return txFeeInAtom, nil
 }
