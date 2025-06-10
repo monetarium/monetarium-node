@@ -2305,6 +2305,12 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		}
 	}
 
+	// Validate SKA emission rules for this block
+	err = CheckSKAEmissionInBlock(block, blockHeight, b.chainParams)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -3101,6 +3107,11 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 
 	// Treasurybase transactions have no inputs.
 	if isTreasuryEnabled && standalone.IsTreasuryBase(msgTx) {
+		return 0, nil
+	}
+
+	// SKA emission transactions have no real inputs (only null input).
+	if IsSKAEmissionTransaction(msgTx) {
 		return 0, nil
 	}
 
