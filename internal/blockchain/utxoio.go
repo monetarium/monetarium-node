@@ -216,10 +216,10 @@ func deserializeUtxoEntry(serialized []byte, txOutIndex uint32) (*UtxoEntry, err
 	// Try to deserialize coin type for version 4+ format.
 	// If this fails, we assume it's a version 3 entry and default to VAR.
 	var coinType CoinType = CoinTypeVAR // Default for legacy entries
-	
+
 	coinTypeVal, bytesRead := deserializeVLQ(serialized[offset:])
 	nextOffset := offset + bytesRead
-	
+
 	// Check if we have enough data for a coin type field
 	if nextOffset < len(serialized) {
 		// Try to decode the compressed txout with coin type

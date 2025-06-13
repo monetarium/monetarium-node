@@ -138,6 +138,7 @@ var helpDescsEnUS = map[string]string{
 	"vout-value":        "The amount in VAR",
 	"vout-n":            "The index of this transaction output",
 	"vout-version":      "The version of the public key script",
+	"vout-cointype":     "The coin type (0=VAR, 1=SKA)",
 	"vout-scriptPubKey": "The public key script used to pay coins as a JSON object",
 
 	// TxRawDecodeResult help.

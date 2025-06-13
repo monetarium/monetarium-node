@@ -33,18 +33,18 @@ func isSKAActive(blockHeight int64, chainParams *chaincfg.Params) bool {
 // - Single input: null input (similar to coinbase)
 // - Multiple outputs: SKA distribution to specified addresses
 // - Total output value equals chainParams.SKAEmissionAmount
-func CreateSKAEmissionTransaction(emissionAddresses []string, amounts []int64, 
+func CreateSKAEmissionTransaction(emissionAddresses []string, amounts []int64,
 	chainParams *chaincfg.Params) (*wire.MsgTx, error) {
-	
+
 	// Validate inputs
 	if len(emissionAddresses) != len(amounts) {
 		return nil, fmt.Errorf("emission addresses and amounts length mismatch")
 	}
-	
+
 	if len(emissionAddresses) == 0 {
 		return nil, fmt.Errorf("no emission addresses specified")
 	}
-	
+
 	// Calculate total emission amount
 	var totalAmount int64
 	for _, amount := range amounts {
@@ -53,13 +53,13 @@ func CreateSKAEmissionTransaction(emissionAddresses []string, amounts []int64,
 		}
 		totalAmount += amount
 	}
-	
+
 	// Verify total matches chain parameters
 	if totalAmount != chainParams.SKAEmissionAmount {
 		return nil, fmt.Errorf("total emission amount %d does not match chain parameter %d",
 			totalAmount, chainParams.SKAEmissionAmount)
 	}
-	
+
 	// Create the emission transaction
 	tx := &wire.MsgTx{
 		SerType:  wire.TxSerializeFull,
@@ -67,12 +67,12 @@ func CreateSKAEmissionTransaction(emissionAddresses []string, amounts []int64,
 		LockTime: 0,
 		Expiry:   0,
 	}
-	
+
 	// Add null input (similar to coinbase)
 	tx.TxIn = append(tx.TxIn, &wire.TxIn{
 		PreviousOutPoint: wire.OutPoint{
 			Hash:  chainhash.Hash{}, // All zeros
-			Index: 0xffffffff,      // Max value indicates null
+			Index: 0xffffffff,       // Max value indicates null
 			Tree:  wire.TxTreeRegular,
 		},
 		SignatureScript: []byte{0x01, 0x53, 0x4b, 0x41}, // "SKA" marker
@@ -81,17 +81,17 @@ func CreateSKAEmissionTransaction(emissionAddresses []string, amounts []int64,
 		BlockIndex:      wire.NullBlockIndex,
 		ValueIn:         wire.NullValueIn,
 	})
-	
+
 	// Add output for each emission address
 	for i, addressStr := range emissionAddresses {
 		addr, err := stdaddr.DecodeAddress(addressStr, chainParams)
 		if err != nil {
-			return nil, fmt.Errorf("invalid emission address %s: %v", addressStr, err)
+			return nil, fmt.Errorf("invalid emission address %s: %w", addressStr, err)
 		}
-		
+
 		// Create script for the address
 		_, pkScript := addr.PaymentScript()
-		
+
 		// Add SKA output
 		tx.TxOut = append(tx.TxOut, &wire.TxOut{
 			Value:    amounts[i],
@@ -100,78 +100,78 @@ func CreateSKAEmissionTransaction(emissionAddresses []string, amounts []int64,
 			PkScript: pkScript,
 		})
 	}
-	
+
 	return tx, nil
 }
 
 // ValidateSKAEmissionTransaction validates that a transaction is a valid SKA
 // emission transaction for the given block height and chain parameters.
-func ValidateSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64, 
+func ValidateSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
 	chainParams *chaincfg.Params) error {
-	
+
 	// Check if this is the correct block for SKA emission
 	if !isSKAEmissionBlock(blockHeight, chainParams) {
 		return fmt.Errorf("SKA emission transaction at invalid height %d, expected %d",
 			blockHeight, chainParams.SKAEmissionHeight)
 	}
-	
+
 	// Validate transaction structure
 	if len(tx.TxIn) != 1 {
-		return fmt.Errorf("SKA emission transaction must have exactly 1 input, got %d", 
+		return fmt.Errorf("SKA emission transaction must have exactly 1 input, got %d",
 			len(tx.TxIn))
 	}
-	
+
 	if len(tx.TxOut) == 0 {
 		return fmt.Errorf("SKA emission transaction must have at least 1 output")
 	}
-	
+
 	// Validate null input (similar to coinbase validation)
 	prevOut := tx.TxIn[0].PreviousOutPoint
 	if !prevOut.Hash.IsEqual(&chainhash.Hash{}) || prevOut.Index != 0xffffffff {
 		return fmt.Errorf("SKA emission transaction input is not null")
 	}
-	
+
 	// Validate signature script contains SKA marker
 	sigScript := tx.TxIn[0].SignatureScript
 	if len(sigScript) < 4 || string(sigScript[len(sigScript)-3:]) != "SKA" {
 		return fmt.Errorf("SKA emission transaction missing SKA marker in signature script")
 	}
-	
+
 	// Validate all outputs are SKA outputs
 	var totalEmissionAmount int64
 	for i, txOut := range tx.TxOut {
 		if txOut.CoinType != wire.CoinTypeSKA {
 			return fmt.Errorf("SKA emission transaction output %d is not SKA coin type", i)
 		}
-		
+
 		if txOut.Value <= 0 {
-			return fmt.Errorf("SKA emission transaction output %d has invalid amount %d", 
+			return fmt.Errorf("SKA emission transaction output %d has invalid amount %d",
 				i, txOut.Value)
 		}
-		
+
 		if txOut.Value > chainParams.SKAMaxAmount {
-			return fmt.Errorf("SKA emission transaction output %d exceeds maximum %d", 
+			return fmt.Errorf("SKA emission transaction output %d exceeds maximum %d",
 				i, chainParams.SKAMaxAmount)
 		}
-		
+
 		totalEmissionAmount += txOut.Value
 	}
-	
+
 	// Validate total emission amount
 	if totalEmissionAmount != chainParams.SKAEmissionAmount {
 		return fmt.Errorf("SKA emission total %d does not match chain parameter %d",
 			totalEmissionAmount, chainParams.SKAEmissionAmount)
 	}
-	
+
 	// Validate transaction parameters
 	if tx.LockTime != 0 {
 		return fmt.Errorf("SKA emission transaction must have LockTime 0")
 	}
-	
+
 	if tx.Expiry != 0 {
 		return fmt.Errorf("SKA emission transaction must have Expiry 0")
 	}
-	
+
 	return nil
 }
 
@@ -182,31 +182,31 @@ func IsSKAEmissionTransaction(tx *wire.MsgTx) bool {
 	if len(tx.TxIn) != 1 {
 		return false
 	}
-	
+
 	// Must have at least one output
 	if len(tx.TxOut) == 0 {
 		return false
 	}
-	
+
 	// Input must be null (similar to coinbase)
 	prevOut := tx.TxIn[0].PreviousOutPoint
 	if !prevOut.Hash.IsEqual(&chainhash.Hash{}) || prevOut.Index != 0xffffffff {
 		return false
 	}
-	
+
 	// Check for SKA marker in signature script
 	sigScript := tx.TxIn[0].SignatureScript
 	if len(sigScript) < 4 || string(sigScript[len(sigScript)-3:]) != "SKA" {
 		return false
 	}
-	
+
 	// All outputs must be SKA outputs
 	for _, txOut := range tx.TxOut {
 		if txOut.CoinType != wire.CoinTypeSKA {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -215,29 +215,29 @@ func IsSKAEmissionTransaction(tx *wire.MsgTx) bool {
 // 1. SKA emission block must contain exactly one SKA emission transaction
 // 2. Non-emission blocks must not contain any SKA emission transactions
 // 3. No SKA transactions are allowed before activation height
-func CheckSKAEmissionInBlock(block *dcrutil.Block, blockHeight int64, 
+func CheckSKAEmissionInBlock(block *dcrutil.Block, blockHeight int64,
 	chainParams *chaincfg.Params) error {
-	
+
 	isEmissionBlock := isSKAEmissionBlock(blockHeight, chainParams)
 	isActive := isSKAActive(blockHeight, chainParams)
-	
+
 	var emissionTxCount int
 	var skaTxCount int
-	
+
 	// Check all transactions in the block
 	for i, tx := range block.Transactions() {
 		msgTx := tx.MsgTx()
-		
+
 		// Count SKA emission transactions
 		if IsSKAEmissionTransaction(msgTx) {
 			emissionTxCount++
-			
+
 			// Validate the emission transaction
 			if err := ValidateSKAEmissionTransaction(msgTx, blockHeight, chainParams); err != nil {
-				return fmt.Errorf("invalid SKA emission transaction at index %d: %v", i, err)
+				return fmt.Errorf("invalid SKA emission transaction at index %d: %w", i, err)
 			}
 		}
-		
+
 		// Count transactions with SKA outputs (excluding emission transactions)
 		if !IsSKAEmissionTransaction(msgTx) {
 			for _, txOut := range msgTx.TxOut {
@@ -248,7 +248,7 @@ func CheckSKAEmissionInBlock(block *dcrutil.Block, blockHeight int64,
 			}
 		}
 	}
-	
+
 	// Validate emission rules based on block height
 	if isEmissionBlock {
 		// Emission block must have exactly one emission transaction
@@ -263,12 +263,12 @@ func CheckSKAEmissionInBlock(block *dcrutil.Block, blockHeight int64,
 				blockHeight, emissionTxCount)
 		}
 	}
-	
+
 	// Before activation, no SKA transactions are allowed (except emission)
 	if !isActive && !isEmissionBlock && skaTxCount > 0 {
 		return fmt.Errorf("SKA transactions not allowed before activation height %d (current: %d)",
 			chainParams.SKAActivationHeight, blockHeight)
 	}
-	
+
 	return nil
 }

@@ -106,7 +106,7 @@ func calcMinRequiredSKATxRelayFee(serializedSize int64, minRelayTxFee dcrutil.Am
 
 // calcMinRequiredTxRelayFeeForCoinType returns the minimum transaction fee for the
 // specified coin type.
-func calcMinRequiredTxRelayFeeForCoinType(serializedSize int64, coinType wire.CoinType, 
+func calcMinRequiredTxRelayFeeForCoinType(serializedSize int64, coinType wire.CoinType,
 	minRelayTxFee dcrutil.Amount, chainParams *chaincfg.Params) int64 {
 	switch coinType {
 	case wire.CoinTypeVAR:

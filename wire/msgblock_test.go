@@ -119,7 +119,7 @@ func TestBlock(t *testing.T) {
 // hashes from a block accurately.
 func TestBlockTxHashes(t *testing.T) {
 	// Block 1, transaction 1 hash.
-	hashStr := "55a25248c04dd8b6599ca2a708413c00d79ae90ce075c54e8a967a647d7e4bea"
+	hashStr := "b7c3565764c9e3d773087be183560e847e2488573bd3e5af706813e2ef92d2a7"
 	wantHash, err := chainhash.NewHashFromStr(hashStr)
 	if err != nil {
 		t.Errorf("NewHashFromStr: %v", err)
@@ -138,7 +138,7 @@ func TestBlockTxHashes(t *testing.T) {
 // transaction hashes from a block accurately.
 func TestBlockSTxHashes(t *testing.T) {
 	// Block 1, transaction 1 hash.
-	hashStr := "ae208a69f3ee088d0328126e3d9bef7652b108d1904f27b166c5999233a801d4"
+	hashStr := "a1a8d21973cc887c2e8e9de0f797c333feb008542b2fd3040acb03848c334f71"
 	wantHash, err := chainhash.NewHashFromStr(hashStr)
 	if err != nil {
 		t.Errorf("NewHashFromStr: %v", err)
@@ -625,8 +625,9 @@ var testBlock = MsgBlock{
 			},
 			TxOut: []*TxOut{
 				{
-					Value:   0x3333333333333333,
-					Version: 0x9898,
+					Value:    0x3333333333333333,
+					CoinType: CoinTypeVAR,
+					Version:  0x9898,
 					PkScript: []byte{
 						0x41, // OP_DATA_65
 						0x04, 0x96, 0xb5, 0x38, 0xe8, 0x53, 0x51, 0x9c,
@@ -668,8 +669,9 @@ var testBlock = MsgBlock{
 			},
 			TxOut: []*TxOut{
 				{
-					Value:   0x3333333333333333,
-					Version: 0x1212,
+					Value:    0x3333333333333333,
+					CoinType: CoinTypeVAR,
+					Version:  0x1212,
 					PkScript: []byte{
 						0x41, // OP_DATA_65
 						0x04, 0x96, 0xb5, 0x38, 0xe8, 0x53, 0x51, 0x9c,
@@ -738,6 +740,7 @@ var testBlockBytes = []byte{
 	0xff, 0xff, 0xff, 0xff, // Sequence [223]
 	0x01,                                           // Varint for number of transaction outputs [227]
 	0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, // Transaction amount [228]
+	0x00,       // CoinType (VAR) [236]
 	0x98, 0x98, // Script version
 	0x43, // Varint for length of pk script
 	0x41, // OP_DATA_65
@@ -773,6 +776,7 @@ var testBlockBytes = []byte{
 	0xff, 0xff, 0xff, 0xff, // Sequence
 	0x01,                                           // Varint for number of transaction outputs
 	0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, // Transaction amount
+	0x00,       // CoinType (VAR)
 	0x12, 0x12, // Script version
 	0x43, // Varint for length of pk script
 	0x41, // OP_DATA_65
@@ -798,10 +802,10 @@ var testBlockBytes = []byte{
 
 // Transaction location information for the test block transactions.
 var testBlockTxLocs = []TxLoc{
-	{TxStart: 181, TxLen: 158},
+	{TxStart: 181, TxLen: 159},
 }
 
 // Transaction location information for the test block stake transactions.
 var testBlockSTxLocs = []TxLoc{
-	{TxStart: 340, TxLen: 158},
+	{TxStart: 341, TxLen: 159},
 }

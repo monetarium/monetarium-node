@@ -112,8 +112,8 @@ func TestCalcPriority(t *testing.T) {
 				amount: dummyTxIn.ValueIn,
 			}},
 		nextHeight: int64(dummyTxIn.BlockHeight) + 100,
-		wantSize:   216,
-		want:       19607.843137254902,
+		wantSize:   217,
+		want:       19230.76923076923,
 	}, {
 		name: "p2pkh spend (input age 100) with two outputs",
 		tx: wire.MsgTx{
@@ -135,8 +135,8 @@ func TestCalcPriority(t *testing.T) {
 				amount: dummyTxIn.ValueIn,
 			}},
 		nextHeight: int64(dummyTxIn.BlockHeight) + 100,
-		wantSize:   252,
-		want:       11494.252873563218,
+		wantSize:   254,
+		want:       11235.955056179775,
 	}, {
 		name: "p2pkh spend (input age 350) with one output",
 		tx: wire.MsgTx{
@@ -152,8 +152,8 @@ func TestCalcPriority(t *testing.T) {
 				amount: dummyTxIn.ValueIn,
 			}},
 		nextHeight: int64(dummyTxIn.BlockHeight) + 350,
-		wantSize:   216,
-		want:       68627.45098039215,
+		wantSize:   217,
+		want:       67307.69230769231,
 	}, {
 		name: "p2pkh spend (input age 350) with two outputs",
 		tx: wire.MsgTx{
@@ -175,8 +175,8 @@ func TestCalcPriority(t *testing.T) {
 				amount: dummyTxIn.ValueIn,
 			}},
 		nextHeight: int64(dummyTxIn.BlockHeight) + 350,
-		wantSize:   252,
-		want:       40229.88505747126,
+		wantSize:   254,
+		want:       39325.84269662921,
 	}, {
 		name: "p2sh spend (input age 50) with one output",
 		tx: wire.MsgTx{
@@ -192,8 +192,8 @@ func TestCalcPriority(t *testing.T) {
 				amount: dummyTxInP2SH.ValueIn,
 			}},
 		nextHeight: int64(dummyTxInP2SH.BlockHeight) + 50,
-		wantSize:   254,
-		want:       11627.906976744186,
+		wantSize:   255,
+		want:       11494.252873563219,
 	}, {
 		name: "p2pkh and p2sh spends (input age 50 and 100) with one output",
 		tx: wire.MsgTx{
@@ -215,8 +215,8 @@ func TestCalcPriority(t *testing.T) {
 				amount: dummyTxInP2SH.ValueIn,
 			}},
 		nextHeight: int64(dummyTxIn.BlockHeight) + 50,
-		wantSize:   419,
-		want:       29069.767441860465,
+		wantSize:   420,
+		want:       28735.632183908045,
 	}, {
 		name: "p2pkh and p2sh spends (input age 50 and 100) with one output",
 		tx: wire.MsgTx{
@@ -238,8 +238,8 @@ func TestCalcPriority(t *testing.T) {
 				amount: dummyTxInP2SH.ValueIn,
 			}},
 		nextHeight: int64(dummyTxIn.BlockHeight) + 50,
-		wantSize:   419,
-		want:       29069.767441860465,
+		wantSize:   420,
+		want:       28735.632183908045,
 	}}
 
 	for _, test := range tests {

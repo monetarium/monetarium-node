@@ -873,10 +873,9 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32) error {
 // difference and separating the two allows the API to be flexible enough to
 // deal with changes.
 func (msg *MsgTx) Deserialize(r io.Reader) error {
-	// At the current time, there is no difference between the wire encoding
-	// at protocol version 0 and the stable long-term storage format.  As
-	// a result, make use of BtcDecode.
-	return msg.BtcDecode(r, 0)
+	// Use current protocol version for deserialization to include dual-coin support.
+	// This ensures CoinType field is read from the serialized input.
+	return msg.BtcDecode(r, ProtocolVersion)
 }
 
 // FromBytes deserializes a transaction byte slice.
@@ -995,10 +994,9 @@ func (msg *MsgTx) BtcEncode(w io.Writer, pver uint32) error {
 // difference and separating the two allows the API to be flexible enough to
 // deal with changes.
 func (msg *MsgTx) Serialize(w io.Writer) error {
-	// At the current time, there is no difference between the wire encoding
-	// at protocol version 0 and the stable long-term storage format.  As
-	// a result, make use of BtcEncode.
-	return msg.BtcEncode(w, 0)
+	// Use current protocol version for serialization to include dual-coin support.
+	// This ensures CoinType field is included in the serialized output.
+	return msg.BtcEncode(w, ProtocolVersion)
 }
 
 // Bytes returns the serialized form of the transaction in bytes.
@@ -1120,9 +1118,9 @@ func (msg *MsgTx) PkScriptLocs() []int {
 	for i, txOut := range msg.TxOut {
 		// The offset of the script in the transaction output is:
 		//
-		// Value 8 bytes + version 2 bytes + serialized varint size
+		// Value 8 bytes + CoinType 1 byte + version 2 bytes + serialized varint size
 		// for the length of PkScript.
-		n += 8 + 2 + VarIntSerializeSize(uint64(len(txOut.PkScript)))
+		n += 8 + 1 + 2 + VarIntSerializeSize(uint64(len(txOut.PkScript)))
 		pkScriptLocs[i] = n
 		n += len(txOut.PkScript)
 	}
@@ -1273,11 +1271,17 @@ func readTxOut(r io.Reader, pver uint32, version uint16, to *TxOut) error {
 	}
 	to.Value = int64(value)
 
-	coinType, err := binarySerializer.Uint8(r)
-	if err != nil {
-		return err
+	// CoinType field was added in DualCoinVersion
+	if pver >= DualCoinVersion {
+		coinType, err := binarySerializer.Uint8(r)
+		if err != nil {
+			return err
+		}
+		to.CoinType = CoinType(coinType)
+	} else {
+		// Default to VAR for backward compatibility
+		to.CoinType = CoinTypeVAR
 	}
-	to.CoinType = CoinType(coinType)
 
 	to.Version, err = binarySerializer.Uint16(r, littleEndian)
 	if err != nil {
@@ -1297,9 +1301,12 @@ func writeTxOut(w io.Writer, pver uint32, version uint16, to *TxOut) error {
 		return err
 	}
 
-	err = binarySerializer.PutUint8(w, uint8(to.CoinType))
-	if err != nil {
-		return err
+	// CoinType field was added in DualCoinVersion
+	if pver >= DualCoinVersion {
+		err = binarySerializer.PutUint8(w, uint8(to.CoinType))
+		if err != nil {
+			return err
+		}
 	}
 
 	err = binarySerializer.PutUint16(w, littleEndian, to.Version)

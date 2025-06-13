@@ -88,7 +88,7 @@ func TestSKAActivation(t *testing.T) {
 	}
 }
 
-// TestCreateSKAEmissionTransactionValidation tests the validation logic 
+// TestCreateSKAEmissionTransactionValidation tests the validation logic
 // for SKA emission transaction creation without requiring valid addresses.
 func TestCreateSKAEmissionTransactionValidation(t *testing.T) {
 	params := chaincfg.SimNetParams()
@@ -165,7 +165,7 @@ func TestIsSKAEmissionTransaction(t *testing.T) {
 				TxIn: []*wire.TxIn{{
 					PreviousOutPoint: wire.OutPoint{
 						Hash:  chainhash.Hash{}, // Null hash
-						Index: 0xffffffff,      // Null index
+						Index: 0xffffffff,       // Null index
 					},
 					SignatureScript: []byte{0x01, 0x53, 0x4b, 0x41}, // Contains "SKA"
 				}},
@@ -410,13 +410,13 @@ func TestValidateSKAEmissionTransaction(t *testing.T) {
 
 // contains checks if a string contains a substring.
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && 
-		   (substr == "" || 
-		    (len(s) > 0 && (s == substr || 
-		                    (len(s) > len(substr) && 
-		                     (s[:len(substr)] == substr || 
-		                      s[len(s)-len(substr):] == substr || 
-		                      indexStr(s, substr) >= 0)))))
+	return len(s) >= len(substr) &&
+		(substr == "" ||
+			(len(s) > 0 && (s == substr ||
+				(len(s) > len(substr) &&
+					(s[:len(substr)] == substr ||
+						s[len(s)-len(substr):] == substr ||
+						indexStr(s, substr) >= 0)))))
 }
 
 // indexStr finds the index of substr in s, returns -1 if not found.

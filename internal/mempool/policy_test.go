@@ -223,64 +223,64 @@ func TestDust(t *testing.T) {
 		{
 			// Any value is allowed with a zero relay fee.
 			"zero value with zero relay fee",
-			wire.TxOut{Value: 0, Version: 0, PkScript: pkScript},
+			wire.TxOut{Value: 0, Version: 0, PkScript: pkScript, CoinType: wire.CoinTypeVAR},
 			0,
 			true,
 		},
 		{
 			// Zero value is dust with any relay fee"
 			"zero value with very small tx fee",
-			wire.TxOut{Value: 0, Version: 0, PkScript: pkScript},
+			wire.TxOut{Value: 0, Version: 0, PkScript: pkScript, CoinType: wire.CoinTypeVAR},
 			1,
 			true,
 		},
 		{
 			"25 byte public key script with value 602, relay fee 1e3",
-			wire.TxOut{Value: 602, Version: 0, PkScript: pkScript},
+			wire.TxOut{Value: 602, Version: 0, PkScript: pkScript, CoinType: wire.CoinTypeVAR},
 			1000,
 			true,
 		},
 		{
-			"25 byte public key script with value 603, relay fee 1e3",
-			wire.TxOut{Value: 603, Version: 0, PkScript: pkScript},
+			"25 byte public key script with value 606, relay fee 1e3",
+			wire.TxOut{Value: 606, Version: 0, PkScript: pkScript, CoinType: wire.CoinTypeVAR},
 			1000,
 			false,
 		},
 		{
 			"25 byte public key script with value 60299, relay fee 1e5",
-			wire.TxOut{Value: 60299, Version: 0, PkScript: pkScript},
+			wire.TxOut{Value: 60299, Version: 0, PkScript: pkScript, CoinType: wire.CoinTypeVAR},
 			1e5,
 			true,
 		},
 		{
-			"25 byte public key script with value 60300, relay fee 1e5",
-			wire.TxOut{Value: 60300, Version: 0, PkScript: pkScript},
+			"25 byte public key script with value 60601, relay fee 1e5",
+			wire.TxOut{Value: 60601, Version: 0, PkScript: pkScript, CoinType: wire.CoinTypeVAR},
 			1e5,
 			false,
 		},
 		{
 			"25 byte public key script with value 6029, relay fee 1e4",
-			wire.TxOut{Value: 6029, Version: 0, PkScript: pkScript},
+			wire.TxOut{Value: 6029, Version: 0, PkScript: pkScript, CoinType: wire.CoinTypeVAR},
 			1e4,
 			true,
 		},
 		{
-			"25 byte public key script with value 6030, relay fee 1e4",
-			wire.TxOut{Value: 6030, Version: 0, PkScript: pkScript},
+			"25 byte public key script with value 6061, relay fee 1e4",
+			wire.TxOut{Value: 6061, Version: 0, PkScript: pkScript, CoinType: wire.CoinTypeVAR},
 			1e4,
 			false,
 		},
 		{
 			// Maximum allowed value is never dust.
 			"max amount is never dust",
-			wire.TxOut{Value: dcrutil.MaxAmount, Version: 0, PkScript: pkScript},
+			wire.TxOut{Value: dcrutil.MaxAmount, Version: 0, PkScript: pkScript, CoinType: wire.CoinTypeVAR},
 			dcrutil.MaxAmount,
 			false,
 		},
 		{
 			// Maximum int64 value causes overflow.
 			"maximum int64 value",
-			wire.TxOut{Value: 1<<63 - 1, Version: 0, PkScript: pkScript},
+			wire.TxOut{Value: 1<<63 - 1, Version: 0, PkScript: pkScript, CoinType: wire.CoinTypeVAR},
 			1<<63 - 1,
 			true,
 		},
@@ -288,7 +288,7 @@ func TestDust(t *testing.T) {
 			// Unspendable pkScript due to an invalid public key
 			// script.
 			"unspendable pkScript",
-			wire.TxOut{Value: 5000, Version: 0, PkScript: []byte{0x01}},
+			wire.TxOut{Value: 5000, Version: 0, PkScript: []byte{0x01}, CoinType: wire.CoinTypeVAR},
 			0, // no relay fee
 			true,
 		},
@@ -330,6 +330,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 		Value:    100000000, // 1 BTC
 		Version:  dummyPkScriptVer,
 		PkScript: dummyPkScript,
+		CoinType: wire.CoinTypeVAR,
 	}
 
 	tests := []struct {
@@ -391,6 +392,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 					Value: 0,
 					PkScript: bytes.Repeat([]byte{0x00},
 						MaxStandardTxSize+1),
+					CoinType: wire.CoinTypeVAR,
 				}},
 				LockTime: 0,
 			},
@@ -443,6 +445,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 				TxOut: []*wire.TxOut{{
 					Value:    100000000,
 					PkScript: []byte{txscript.OP_TRUE},
+					CoinType: wire.CoinTypeVAR,
 				}},
 				LockTime: 0,
 			},
@@ -459,15 +462,19 @@ func TestCheckTransactionStandard(t *testing.T) {
 				TxOut: []*wire.TxOut{{
 					Value:    0,
 					PkScript: []byte{txscript.OP_RETURN},
+					CoinType: wire.CoinTypeVAR,
 				}, {
 					Value:    0,
 					PkScript: []byte{txscript.OP_RETURN},
+					CoinType: wire.CoinTypeVAR,
 				}, {
 					Value:    0,
 					PkScript: []byte{txscript.OP_RETURN},
+					CoinType: wire.CoinTypeVAR,
 				}, {
 					Value:    0,
 					PkScript: []byte{txscript.OP_RETURN},
+					CoinType: wire.CoinTypeVAR,
 				}, {
 					Value:    0,
 					PkScript: []byte{txscript.OP_RETURN},

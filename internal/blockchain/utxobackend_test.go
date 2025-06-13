@@ -120,7 +120,7 @@ func TestFetchEntryFromBackend(t *testing.T) {
 	}, {
 		name: "entry is in the backend",
 		backendEntries: map[wire.OutPoint][]byte{
-			outpoint: hexToBytes("812b010080fba8a41b0000454017705ab80470d089c" +
+			outpoint: hexToBytes("812b01000080fba8a41b0000454017705ab80470d089c" +
 				"7f644e39cc9e0fd308e"),
 		},
 		outpoint:  outpoint,

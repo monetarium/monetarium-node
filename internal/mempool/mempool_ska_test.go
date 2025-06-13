@@ -29,7 +29,7 @@ func TestSKATransactionValidation(t *testing.T) {
 				TxIn: []*wire.TxIn{{
 					PreviousOutPoint: wire.OutPoint{
 						Hash:  chainhash.Hash{}, // Null hash
-						Index: 0xffffffff,      // Null index
+						Index: 0xffffffff,       // Null index
 					},
 					SignatureScript: []byte{0x01, 0x53, 0x4b, 0x41}, // "SKA" marker
 				}},
@@ -59,7 +59,7 @@ func TestSKATransactionValidation(t *testing.T) {
 					PkScript: []byte{0x76, 0xa9, 0x14, 0x01, 0x02, 0x03},
 				}},
 			},
-			blockHeight: params.SKAActivationHeight - 1,
+			blockHeight: 8, // Before activation height of 10
 			expectError: true,
 			errorMsg:    "SKA is not active",
 		},
@@ -102,10 +102,10 @@ func TestSKATransactionValidation(t *testing.T) {
 			if len(test.tx.TxIn) == 1 {
 				prevOut := test.tx.TxIn[0].PreviousOutPoint
 				sigScript := test.tx.TxIn[0].SignatureScript
-				
-				isEmission := prevOut.Hash.IsEqual(&chainhash.Hash{}) && 
+
+				isEmission := prevOut.Hash.IsEqual(&chainhash.Hash{}) &&
 					prevOut.Index == 0xffffffff &&
-					len(sigScript) >= 4 && 
+					len(sigScript) >= 4 &&
 					string(sigScript[len(sigScript)-3:]) == "SKA"
 
 				if isEmission && !test.expectError {
@@ -123,10 +123,14 @@ func TestSKATransactionValidation(t *testing.T) {
 				if nextBlockHeight < params.SKAActivationHeight {
 					if !test.expectError {
 						t.Errorf("Expected SKA transaction before activation to be rejected")
-					}
-					if test.expectError && test.errorMsg == "SKA is not active" {
-						// This is the expected case
+					} else if test.errorMsg == "SKA is not active" {
+						// This is the expected case - test passed
 						return
+					}
+				} else {
+					// SKA is active, so transaction should be allowed (unless it's an emission)
+					if test.expectError && test.errorMsg == "SKA is not active" {
+						t.Errorf("SKA transaction should be allowed after activation height")
 					}
 				}
 			}
@@ -145,28 +149,28 @@ func TestSKAFeeCalculation(t *testing.T) {
 	minRelayTxFee := DefaultMinRelayTxFee
 
 	tests := []struct {
-		name         string
+		name           string
 		serializedSize int64
-		coinType     wire.CoinType
-		expectMinFee int64
+		coinType       wire.CoinType
+		expectMinFee   int64
 	}{
 		{
-			name:         "VAR transaction fee",
+			name:           "VAR transaction fee",
 			serializedSize: 250, // 250 bytes
-			coinType:     wire.CoinTypeVAR,
-			expectMinFee: 2500, // (250 * 10000) / 1000 = 2500 atoms
+			coinType:       wire.CoinTypeVAR,
+			expectMinFee:   2500, // (250 * 10000) / 1000 = 2500 atoms
 		},
 		{
-			name:         "SKA transaction fee",
-			serializedSize: 250, // 250 bytes  
-			coinType:     wire.CoinTypeSKA,
-			expectMinFee: 250, // SKA uses 1e3 fee rate, so (250 * 1000) / 1000 = 250
+			name:           "SKA transaction fee",
+			serializedSize: 250, // 250 bytes
+			coinType:       wire.CoinTypeSKA,
+			expectMinFee:   250, // SKA uses 1e3 fee rate, so (250 * 1000) / 1000 = 250
 		},
 		{
-			name:         "Large transaction fee",
+			name:           "Large transaction fee",
 			serializedSize: 1000, // 1000 bytes
-			coinType:     wire.CoinTypeVAR,
-			expectMinFee: 10000, // (1000 * 10000) / 1000 = 10000 atoms
+			coinType:       wire.CoinTypeVAR,
+			expectMinFee:   10000, // (1000 * 10000) / 1000 = 10000 atoms
 		},
 	}
 
@@ -185,28 +189,28 @@ func TestSKAFeeCalculation(t *testing.T) {
 // TestMixedCoinTypeTransaction tests transactions with both VAR and SKA outputs.
 func TestMixedCoinTypeTransaction(t *testing.T) {
 	tests := []struct {
-		name              string
-		varOutputCount    int
-		skaOutputCount    int
-		expectedPrimary   wire.CoinType
+		name            string
+		varOutputCount  int
+		skaOutputCount  int
+		expectedPrimary wire.CoinType
 	}{
 		{
-			name:              "More VAR outputs",
-			varOutputCount:    3,
-			skaOutputCount:    1,
-			expectedPrimary:   wire.CoinTypeVAR,
+			name:            "More VAR outputs",
+			varOutputCount:  3,
+			skaOutputCount:  1,
+			expectedPrimary: wire.CoinTypeVAR,
 		},
 		{
-			name:              "More SKA outputs", 
-			varOutputCount:    1,
-			skaOutputCount:    3,
-			expectedPrimary:   wire.CoinTypeSKA,
+			name:            "More SKA outputs",
+			varOutputCount:  1,
+			skaOutputCount:  3,
+			expectedPrimary: wire.CoinTypeSKA,
 		},
 		{
-			name:              "Equal outputs (default to VAR)",
-			varOutputCount:    2,
-			skaOutputCount:    2,
-			expectedPrimary:   wire.CoinTypeVAR,
+			name:            "Equal outputs (default to VAR)",
+			varOutputCount:  2,
+			skaOutputCount:  2,
+			expectedPrimary: wire.CoinTypeVAR,
 		},
 	}
 
@@ -214,7 +218,7 @@ func TestMixedCoinTypeTransaction(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Create transaction with mixed outputs
 			tx := &wire.MsgTx{}
-			
+
 			// Add VAR outputs
 			for i := 0; i < test.varOutputCount; i++ {
 				tx.TxOut = append(tx.TxOut, &wire.TxOut{
@@ -223,8 +227,8 @@ func TestMixedCoinTypeTransaction(t *testing.T) {
 					PkScript: []byte{0x76, 0xa9, 0x14, 0x01, 0x02, 0x03},
 				})
 			}
-			
-			// Add SKA outputs  
+
+			// Add SKA outputs
 			for i := 0; i < test.skaOutputCount; i++ {
 				tx.TxOut = append(tx.TxOut, &wire.TxOut{
 					Value:    100000000,

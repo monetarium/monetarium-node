@@ -13,6 +13,30 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+// parseTxWithFallback attempts to parse a transaction using protocol version fallback.
+// It tries legacy version first (CFilterV2Version) then current version (ProtocolVersion).
+// For coinbase/treasury validation, we add CoinType field for compatibility.
+func parseTxWithFallback(txBytes []byte) (*wire.MsgTx, error) {
+	var tx wire.MsgTx
+
+	// Try legacy protocol version first for old transaction data
+	err := tx.BtcDecode(bytes.NewReader(txBytes), wire.CFilterV2Version)
+	if err != nil {
+		// Try current protocol version
+		err = tx.BtcDecode(bytes.NewReader(txBytes), wire.ProtocolVersion)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// Legacy transaction data - need to add CoinType field for compatibility
+		for i := range tx.TxOut {
+			tx.TxOut[i].CoinType = wire.CoinTypeVAR
+		}
+	}
+
+	return &tx, nil
+}
+
 // TestIsCoinbaseTx ensures the coinbase identification works as intended.
 func TestIsCoinbaseTx(t *testing.T) {
 	tests := []struct {
@@ -132,20 +156,20 @@ func TestIsCoinbaseTx(t *testing.T) {
 			continue
 		}
 
-		var tx wire.MsgTx
-		if err := tx.FromBytes(txBytes); err != nil {
+		tx, err := parseTxWithFallback(txBytes)
+		if err != nil {
 			t.Errorf("%q: unexpected err parsing tx: %v", test.name, err)
 			continue
 		}
 
-		result := IsCoinBaseTx(&tx, noTreasury)
+		result := IsCoinBaseTx(tx, noTreasury)
 		if result != test.wantPreTrsy {
 			t.Errorf("%s: unexpected result pre treasury -- got %v, want %v",
 				test.name, result, test.wantPreTrsy)
 			continue
 		}
 
-		result = IsCoinBaseTx(&tx, withTreasury)
+		result = IsCoinBaseTx(tx, withTreasury)
 		if result != test.wantPostTrsy {
 			t.Errorf("%s: unexpected result post treasury -- got %v, want %v",
 				test.name, result, test.wantPostTrsy)
@@ -267,13 +291,13 @@ func TestIsTreasurybaseTx(t *testing.T) {
 			continue
 		}
 
-		var tx wire.MsgTx
-		if err := tx.FromBytes(txBytes); err != nil {
+		tx, err := parseTxWithFallback(txBytes)
+		if err != nil {
 			t.Errorf("%q: unexpected err parsing tx: %v", test.name, err)
 			continue
 		}
 
-		result := IsTreasuryBase(&tx)
+		result := IsTreasuryBase(tx)
 		if result != test.want {
 			t.Errorf("%s: unexpected result -- got %v, want %v", test.name,
 				result, test.want)
@@ -306,8 +330,8 @@ func TestCheckTransactionSanity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected err parsing base tx hex: %v", err)
 	}
-	var baseTx wire.MsgTx
-	if err := baseTx.FromBytes(txBytes); err != nil {
+	baseTx, err := parseTxWithFallback(txBytes)
+	if err != nil {
 		t.Fatalf("nexpected err parsing base tx: %v", err)
 	}
 
@@ -318,7 +342,7 @@ func TestCheckTransactionSanity(t *testing.T) {
 		err  error       // expected error
 	}{{
 		name: "ok",
-		tx:   &baseTx,
+		tx:   baseTx,
 		err:  nil,
 	}, {
 		name: "transaction has no inputs",

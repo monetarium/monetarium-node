@@ -231,13 +231,13 @@ func TestCheckTransactionSanityDualCoin(t *testing.T) {
 				},
 				TxOut: []*wire.TxOut{
 					{
-						Value:    maxAtoms / 2 + 1,
+						Value:    maxAtoms/2 + 1,
 						CoinType: wire.CoinType(CoinTypeVAR),
 						Version:  0,
 						PkScript: []byte{0x76, 0xa9, 0x14, 0x01, 0x02, 0x03},
 					},
 					{
-						Value:    maxAtoms / 2 + 1,
+						Value:    maxAtoms/2 + 1,
 						CoinType: wire.CoinType(CoinTypeVAR),
 						Version:  0,
 						PkScript: []byte{0x76, 0xa9, 0x14, 0x01, 0x02, 0x03},
@@ -264,13 +264,13 @@ func TestCheckTransactionSanityDualCoin(t *testing.T) {
 				},
 				TxOut: []*wire.TxOut{
 					{
-						Value:    maxSKAAtoms / 2 + 1,
+						Value:    maxSKAAtoms/2 + 1,
 						CoinType: wire.CoinType(CoinTypeSKA),
 						Version:  0,
 						PkScript: []byte{0x76, 0xa9, 0x14, 0x04, 0x05, 0x06},
 					},
 					{
-						Value:    maxSKAAtoms / 2 + 1,
+						Value:    maxSKAAtoms/2 + 1,
 						CoinType: wire.CoinType(CoinTypeSKA),
 						Version:  0,
 						PkScript: []byte{0x76, 0xa9, 0x14, 0x04, 0x05, 0x06},
@@ -285,7 +285,7 @@ func TestCheckTransactionSanityDualCoin(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := CheckTransactionSanity(test.tx, maxTxSize)
-			
+
 			if test.expectError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
@@ -323,7 +323,7 @@ func TestCoinTypeValidation(t *testing.T) {
 			// Test isValidCoinType
 			isValid := isValidCoinType(test.coinType)
 			if isValid != test.isValid {
-				t.Errorf("isValidCoinType(%d): expected %t, got %t", 
+				t.Errorf("isValidCoinType(%d): expected %t, got %t",
 					test.coinType, test.isValid, isValid)
 			}
 
@@ -339,6 +339,6 @@ func TestCoinTypeValidation(t *testing.T) {
 
 // containsString checks if s contains substr (helper function).
 func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && s[:len(substr)] == substr || 
-		   len(s) > len(substr) && containsString(s[1:], substr)
+	return len(s) >= len(substr) && s[:len(substr)] == substr ||
+		len(s) > len(substr) && containsString(s[1:], substr)
 }

@@ -17,7 +17,7 @@ const (
 	InitialProcotolVersion uint32 = 1
 
 	// ProtocolVersion is the latest protocol version this package supports.
-	ProtocolVersion uint32 = 11
+	ProtocolVersion uint32 = 12
 
 	// NodeBloomVersion is the protocol version which added the SFNodeBloom
 	// service flag (unused).
@@ -58,6 +58,10 @@ const (
 	// BatchedCFiltersV2Version is the protocol version which adds support
 	// for the batched getcfsv2 and cfiltersv2 messages.
 	BatchedCFiltersV2Version uint32 = 11
+
+	// DualCoinVersion is the protocol version which added dual-coin support
+	// with CoinType field in transaction outputs.
+	DualCoinVersion uint32 = 12
 )
 
 // ServiceFlag identifies services supported by a Decred peer.

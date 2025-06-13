@@ -146,7 +146,7 @@ func TestTx(t *testing.T) {
 // TestTxHash tests the ability to generate the hash of a transaction accurately.
 func TestTxHash(t *testing.T) {
 	// Hash of first transaction from block 113875.
-	hashStr := "4538fc1618badd058ee88fd020984451024858796be0a1ed111877f887e1bd53"
+	hashStr := "37d1c626ee8fbf1de07374cff01f05b0541d4555a7cbc766f25a40f15f1796ce"
 	wantHash, err := chainhash.NewHashFromStr(hashStr)
 	if err != nil {
 		t.Errorf("NewHashFromStr: %v", err)
@@ -167,8 +167,9 @@ func TestTxHash(t *testing.T) {
 		SignatureScript: []byte{0x04, 0x31, 0xdc, 0x00, 0x1b, 0x01, 0x62},
 	}
 	txOut := TxOut{
-		Value:   5000000000,
-		Version: 0xf0f0,
+		Value:    5000000000,
+		CoinType: CoinTypeVAR,
+		Version:  0xf0f0,
 		PkScript: []byte{
 			0x41, // OP_DATA_65
 			0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
@@ -300,25 +301,25 @@ func TestTxWireErrors(t *testing.T) {
 		// Force error in transaction output script version.
 		{multiTx, multiTxEncoded, pver, 55, io.ErrShortWrite, io.EOF}, // 8
 		// Force error in transaction output pk script length.
-		{multiTx, multiTxEncoded, pver, 57, io.ErrShortWrite, io.EOF}, // 9
+		{multiTx, multiTxEncoded, pver, 57, io.ErrShortWrite, io.ErrUnexpectedEOF}, // 9
 		// Force error in transaction output pk script.
 		{multiTx, multiTxEncoded, pver, 58, io.ErrShortWrite, io.EOF}, // 10
 		// Force error in transaction output lock time.
-		{multiTx, multiTxEncoded, pver, 203, io.ErrShortWrite, io.EOF}, // 11
+		{multiTx, multiTxEncoded, pver, 203, io.ErrShortWrite, io.ErrUnexpectedEOF}, // 11
 		// Force error in transaction output expiry.
-		{multiTx, multiTxEncoded, pver, 207, io.ErrShortWrite, io.EOF}, // 12
+		{multiTx, multiTxEncoded, pver, 207, io.ErrShortWrite, io.ErrUnexpectedEOF}, // 12
 		// Force error in transaction num sig varint.
-		{multiTx, multiTxEncoded, pver, 211, io.ErrShortWrite, io.EOF}, // 13
+		{multiTx, multiTxEncoded, pver, 213, io.ErrShortWrite, io.EOF}, // 13
 		// Force error in transaction sig 0 AmountIn.
-		{multiTx, multiTxEncoded, pver, 212, io.ErrShortWrite, io.EOF}, // 14
+		{multiTx, multiTxEncoded, pver, 214, io.ErrShortWrite, io.EOF}, // 14
 		// Force error in transaction sig 0 BlockHeight.
-		{multiTx, multiTxEncoded, pver, 220, io.ErrShortWrite, io.EOF}, // 15
+		{multiTx, multiTxEncoded, pver, 222, io.ErrShortWrite, io.EOF}, // 15
 		// Force error in transaction sig 0 BlockIndex.
-		{multiTx, multiTxEncoded, pver, 224, io.ErrShortWrite, io.EOF}, // 16
+		{multiTx, multiTxEncoded, pver, 226, io.ErrShortWrite, io.EOF}, // 16
 		// Force error in transaction sig 0 length.
-		{multiTx, multiTxEncoded, pver, 228, io.ErrShortWrite, io.EOF}, // 17
+		{multiTx, multiTxEncoded, pver, 230, io.ErrShortWrite, io.EOF}, // 17
 		// Force error in transaction sig 0 signature script.
-		{multiTx, multiTxEncoded, pver, 229, io.ErrShortWrite, io.EOF}, // 18
+		{multiTx, multiTxEncoded, pver, 231, io.ErrShortWrite, io.EOF}, // 18
 	}
 
 	t.Logf("Running %d tests", len(tests))
@@ -652,25 +653,25 @@ func TestTxSerializeErrors(t *testing.T) {
 		// Force error in transaction output version.
 		{multiTx, multiTxEncoded, 55, io.ErrShortWrite, io.EOF},
 		// Force error in transaction output pk script length.
-		{multiTx, multiTxEncoded, 57, io.ErrShortWrite, io.EOF},
+		{multiTx, multiTxEncoded, 57, io.ErrShortWrite, io.ErrUnexpectedEOF},
 		// Force error in transaction output pk script.
 		{multiTx, multiTxEncoded, 58, io.ErrShortWrite, io.EOF},
 		// Force error in transaction lock time.
-		{multiTx, multiTxEncoded, 203, io.ErrShortWrite, io.EOF},
+		{multiTx, multiTxEncoded, 203, io.ErrShortWrite, io.ErrUnexpectedEOF},
 		// Force error in transaction expiry.
-		{multiTx, multiTxEncoded, 207, io.ErrShortWrite, io.EOF},
+		{multiTx, multiTxEncoded, 207, io.ErrShortWrite, io.ErrUnexpectedEOF},
 		// Force error in transaction num sig varint.
-		{multiTx, multiTxEncoded, 211, io.ErrShortWrite, io.EOF},
+		{multiTx, multiTxEncoded, 213, io.ErrShortWrite, io.EOF},
 		// Force error in transaction sig 0 ValueIn.
-		{multiTx, multiTxEncoded, 212, io.ErrShortWrite, io.EOF},
+		{multiTx, multiTxEncoded, 214, io.ErrShortWrite, io.EOF},
 		// Force error in transaction sig 0 BlockHeight.
-		{multiTx, multiTxEncoded, 220, io.ErrShortWrite, io.EOF},
+		{multiTx, multiTxEncoded, 222, io.ErrShortWrite, io.EOF},
 		// Force error in transaction sig 0 BlockIndex.
-		{multiTx, multiTxEncoded, 224, io.ErrShortWrite, io.EOF},
+		{multiTx, multiTxEncoded, 226, io.ErrShortWrite, io.EOF},
 		// Force error in transaction sig 0 length.
-		{multiTx, multiTxEncoded, 228, io.ErrShortWrite, io.EOF},
+		{multiTx, multiTxEncoded, 230, io.ErrShortWrite, io.EOF},
 		// Force error in transaction sig 0 signature script.
-		{multiTx, multiTxEncoded, 229, io.ErrShortWrite, io.EOF},
+		{multiTx, multiTxEncoded, 231, io.ErrShortWrite, io.EOF},
 	}
 
 	t.Logf("Running %d tests", len(tests))
@@ -839,7 +840,7 @@ func TestTxSerializeSize(t *testing.T) {
 		{noTx, 15},
 
 		// Transaction with an input and an output.
-		{multiTx, 236},
+		{multiTx, 238},
 	}
 
 	t.Logf("Running %d tests", len(tests))
@@ -874,8 +875,9 @@ var multiTx = &MsgTx{
 	},
 	TxOut: []*TxOut{
 		{
-			Value:   0x12a05f200,
-			Version: 0xabab,
+			Value:    0x12a05f200,
+			CoinType: CoinTypeVAR,
+			Version:  0xabab,
 			PkScript: []byte{
 				0x41, // OP_DATA_65
 				0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
@@ -891,8 +893,9 @@ var multiTx = &MsgTx{
 			},
 		},
 		{
-			Value:   0x5f5e100,
-			Version: 0xbcbc,
+			Value:    0x5f5e100,
+			CoinType: CoinTypeVAR,
+			Version:  0xbcbc,
 			PkScript: []byte{
 				0x41, // OP_DATA_65
 				0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
@@ -927,8 +930,9 @@ var multiTxPrefix = &MsgTx{
 	},
 	TxOut: []*TxOut{
 		{
-			Value:   0x12a05f200,
-			Version: 0xabab,
+			Value:    0x12a05f200,
+			CoinType: CoinTypeVAR,
+			Version:  0xabab,
 			PkScript: []byte{
 				0x41, // OP_DATA_65
 				0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
@@ -944,8 +948,9 @@ var multiTxPrefix = &MsgTx{
 			},
 		},
 		{
-			Value:   0x5f5e100,
-			Version: 0xbcbc,
+			Value:    0x5f5e100,
+			CoinType: CoinTypeVAR,
+			Version:  0xbcbc,
 			PkScript: []byte{
 				0x41, // OP_DATA_65
 				0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
@@ -996,7 +1001,8 @@ var multiTxEncoded = []byte{
 	0xff, 0xff, 0xff, 0xff, // Sequence [42]
 	0x02,                                           // Varint for number of output transactions [46]
 	0x00, 0xf2, 0x05, 0x2a, 0x01, 0x00, 0x00, 0x00, // Transaction amount [47]
-	0xab, 0xab, // Script version [55]
+	0x00,       // CoinType (VAR) [55]
+	0xab, 0xab, // Script version [56]
 	0x43, // Varint for length of pk script [57]
 	0x41, // OP_DATA_65 [58]
 	0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
@@ -1010,7 +1016,8 @@ var multiTxEncoded = []byte{
 	0xa6,                                           // 65-byte pubkey
 	0xac,                                           // OP_CHECKSIG
 	0x00, 0xe1, 0xf5, 0x05, 0x00, 0x00, 0x00, 0x00, // Transaction amount [123]
-	0xbc, 0xbc, // Script version [134]
+	0x00,       // CoinType (VAR) [131]
+	0xbc, 0xbc, // Script version [132]
 	0x43, // Varint for length of pk script [136]
 	0x41, // OP_DATA_65
 	0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
@@ -1047,6 +1054,7 @@ var multiTxPrefixEncoded = []byte{
 	0xff, 0xff, 0xff, 0xff, // Sequence [43]
 	0x02,                                           // Varint for number of output transactions [47]
 	0x00, 0xf2, 0x05, 0x2a, 0x01, 0x00, 0x00, 0x00, // Transaction amount [48]
+	0x00,       // CoinType (VAR) [56]
 	0xab, 0xab, // Script version
 	0x43, // Varint for length of pk script [56]
 	0x41, // OP_DATA_65 [57]
@@ -1061,6 +1069,7 @@ var multiTxPrefixEncoded = []byte{
 	0xa6,                                           // 65-byte signature
 	0xac,                                           // OP_CHECKSIG
 	0x00, 0xe1, 0xf5, 0x05, 0x00, 0x00, 0x00, 0x00, // Transaction amount [124]
+	0x00,       // CoinType (VAR) [132]
 	0xbc, 0xbc, // Script version
 	0x43, // Varint for length of pk script [132]
 	0x41, // OP_DATA_65
@@ -1092,4 +1101,4 @@ var multiTxWitnessEncoded = []byte{
 
 // multiTxPkScriptLocs is the location information for the public key scripts
 // located in multiTx.
-var multiTxPkScriptLocs = []int{58, 136}
+var multiTxPkScriptLocs = []int{59, 138}

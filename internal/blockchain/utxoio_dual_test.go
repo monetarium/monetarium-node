@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// TestUtxoSerializationDualCoin tests UTXO serialization/deserialization 
+// TestUtxoSerializationDualCoin tests UTXO serialization/deserialization
 // with coin type support.
 func TestUtxoSerializationDualCoin(t *testing.T) {
 	tests := []struct {
@@ -124,18 +124,17 @@ func TestUtxoSerializationBackwardCompatibility(t *testing.T) {
 	// Manually create version 3 format serialization (without coin type)
 	flags := encodeFlags(entry.IsCoinBase(), entry.HasExpiry(), entry.TransactionType())
 	var buf bytes.Buffer
-	
+
 	// Version 3 format: height + index + flags + compressed txout (no coin type)
 	putVLQ(append(buf.Bytes(), make([]byte, serializeSizeVLQ(uint64(entry.blockHeight)))...), uint64(entry.blockHeight))
-	offset := serializeSizeVLQ(uint64(entry.blockHeight))
-	
-	serialized := make([]byte, 
+
+	serialized := make([]byte,
 		serializeSizeVLQ(uint64(entry.blockHeight))+
-		serializeSizeVLQ(uint64(entry.blockIndex))+
-		serializeSizeVLQ(uint64(flags))+
-		compressedTxOutSize(uint64(entry.amount), entry.scriptVersion, entry.pkScript, true))
-	
-	offset = putVLQ(serialized, uint64(entry.blockHeight))
+			serializeSizeVLQ(uint64(entry.blockIndex))+
+			serializeSizeVLQ(uint64(flags))+
+			compressedTxOutSize(uint64(entry.amount), entry.scriptVersion, entry.pkScript, true))
+
+	offset := putVLQ(serialized, uint64(entry.blockHeight))
 	offset += putVLQ(serialized[offset:], uint64(entry.blockIndex))
 	offset += putVLQ(serialized[offset:], uint64(flags))
 	putCompressedTxOut(serialized[offset:], uint64(entry.amount), entry.scriptVersion, entry.pkScript, true)
@@ -208,7 +207,7 @@ func TestUtxoSerializationSize(t *testing.T) {
 				serializeSizeVLQ(uint64(test.entry.coinType)) + // New coin type field
 				compressedTxOutSize(uint64(test.entry.amount), test.entry.scriptVersion, test.entry.pkScript, true)
 
-			if len(serialized) != int(expectedSize) {
+			if len(serialized) != expectedSize {
 				t.Errorf("Serialization size mismatch: expected %d, got %d", expectedSize, len(serialized))
 			}
 		})

@@ -3404,7 +3404,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	}
 
 	// Calculate the total output amount for this transaction by coin type.
-	// It is safe to ignore overflow and out of range errors here because those 
+	// It is safe to ignore overflow and out of range errors here because those
 	// error conditions would have already been caught by the transaction sanity
 	// checks.
 	var totalVAROut, totalSKAOut int64
@@ -3439,7 +3439,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	// For now, we'll implement a simplified approach:
 	// TODO: Implement proper dual-coin input/output validation
 	// This requires tracking UTXO coin types in the UtxoViewpoint
-	
+
 	// Temporary validation: ensure total inputs >= total outputs
 	totalAtomOut := totalVAROut + totalSKAOut
 	if totalAtomIn < totalAtomOut {

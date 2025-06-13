@@ -1360,10 +1360,23 @@ func hexToUint256(s string) uint256.Uint256 {
 // with hard-coded values.
 func hexToMsgTx(s string) *wire.MsgTx {
 	var msgTx wire.MsgTx
-	err := msgTx.Deserialize(bytes.NewReader(hexToBytes(s)))
+	// First try with legacy protocol version for old test data
+	err := msgTx.BtcDecode(bytes.NewReader(hexToBytes(s)), wire.CFilterV2Version)
 	if err != nil {
-		panic("invalid tx hex in source file: " + s)
+		// Try with current protocol version
+		err = msgTx.BtcDecode(bytes.NewReader(hexToBytes(s)), wire.ProtocolVersion)
+		if err != nil {
+			panic("invalid tx hex in source file: " + s)
+		}
+		// Already includes CoinType field
+		return &msgTx
 	}
+
+	// Legacy test data - need to add CoinType field
+	for i := range msgTx.TxOut {
+		msgTx.TxOut[i].CoinType = wire.CoinTypeVAR
+	}
+
 	return &msgTx
 }
 
@@ -1393,10 +1406,12 @@ var block432100 = func() wire.MsgBlock {
 	}
 	defer fi.Close()
 	var block wire.MsgBlock
-	err = block.Deserialize(bzip2.NewReader(fi))
+	// Use current protocol version for test data that includes CoinType field
+	err = block.BtcDecode(bzip2.NewReader(fi), wire.ProtocolVersion)
 	if err != nil {
 		panic(err)
 	}
+
 	return block
 }()
 
@@ -1408,7 +1423,7 @@ func hexFromFile(filename string) string {
 	if err != nil {
 		panic(err)
 	}
-	return string(hex)
+	return strings.TrimSpace(string(hex))
 }
 
 type rpcTest struct {
@@ -1885,7 +1900,7 @@ func defaultMockConfig(chainParams *chaincfg.Params) *Config {
 			ProxyRandomizeCredentials: false,
 		}},
 		MinRelayTxFee:      dcrutil.Amount(10000),
-		MaxProtocolVersion: wire.CFilterV2Version,
+		MaxProtocolVersion: wire.DualCoinVersion,
 		UserAgentVersion: fmt.Sprintf("%d.%d.%d", version.Major, version.Minor,
 			version.Patch),
 	}
@@ -1981,11 +1996,11 @@ func TestHandleCreateRawSStx(t *testing.T) {
 			COuts:  defaultCmdCOuts,
 		},
 		result: "01000000010d33d3840e9074183dc9a8d82a5031075a98135bfe182840ddaf575" +
-			"aa2032fe00000000000ffffffff0300e1f50500000000000018baa914f0b4e851" +
-			"00aee1a996f22915eb3c3f764d53779a8700000000000000000000206a1e06c4a" +
-			"66cc56478aeaa01744ab8ba0d8cc47110a400e1f5050000000000000000000000" +
-			"00000000001abd76a914a23634e90541542fe2ac2a79e6064333a09b558188ac0" +
-			"0000000000000000100e1f5050000000000000000ffffffff00",
+			"aa2032fe00000000000ffffffff0300e1f5050000000000000018baa914f0b4e851" +
+			"00aee1a996f22915eb3c3f764d53779a870000000000000000000000206a1e06c4a" +
+			"66cc56478aeaa01744ab8ba0d8cc47110a400e1f50500000000000000000000000000" +
+			"000000001abd76a914a23634e90541542fe2ac2a79e6064333a09b558188ac00000000" +
+			"000000000100e1f5050000000000000000ffffffff00",
 	}, {
 		name:    "handleCreateRawSStx: num inputs != num outputs",
 		handler: handleCreateRawSStx,
@@ -2271,7 +2286,7 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 			Fee:    defaultFee,
 		},
 		result: "0100000001395ebc9af44c4a696fa8e6287bdbf0a89a4d6207f191cb0f1eefc25" +
-			"6e6cb89110000000001ffffffff01804a5d050000000000001abc76a914355c96" +
+			"6e6cb89110000000001ffffffff01804a5d05000000000000001abc76a914355c96" +
 			"f48612d57509140e9a049981d5f9970f9488ac00000000000000000100e1f5050" +
 			"000000000000000ffffffff00",
 	}, {
@@ -2319,7 +2334,7 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 			return chain
 		}(),
 		result: "0100000001395ebc9af44c4a696fa8e6287bdbf0a89a4d6207f191cb0f1eefc25" +
-			"6e6cb89110000000001ffffffff01804a5d0500000000000018bca914355c96f4" +
+			"6e6cb89110000000001ffffffff01804a5d050000000000000018bca914355c96f4" +
 			"8612d57509140e9a049981d5f9970f948700000000000000000100e1f50500000" +
 			"00000000000ffffffff00",
 	}, {
@@ -2335,7 +2350,7 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 			return chain
 		}(),
 		result: "0200000001395ebc9af44c4a696fa8e6287bdbf0a89a4d6207f191cb0f1eefc2" +
-			"56e6cb89110000000001ffffffff0100e1f5050000000000001abc76a914355c96f486" +
+			"56e6cb89110000000001ffffffff0100e1f505000000000000001abc76a914355c96f486" +
 			"12d57509140e9a049981d5f9970f9488ac00000000000000000100e1f5050000000000" +
 			"000000ffffffff00",
 	}, {
@@ -2574,7 +2589,7 @@ func TestHandleCreateRawTransaction(t *testing.T) {
 			Expiry:   defaultCmdExpiry,
 		},
 		result: "01000000010d33d3840e9074183dc9a8d82a5031075a98135bfe182840ddaf575" +
-			"aa2032fe00000000000feffffff0100e1f50500000000000017a914f59833f104" +
+			"aa2032fe00000000000feffffff0100e1f5050000000000000017a914f59833f104" +
 			"faa3c7fd0c7dc1e3967fe77a9c15238701000000010000000100e1f5050000000" +
 			"000000000ffffffff00",
 	}, {
@@ -2718,12 +2733,12 @@ func TestHandleDecodeRawTransaction(t *testing.T) {
 		handler: handleDecodeRawTransaction,
 		cmd: &types.DecodeRawTransactionCmd{
 			HexTx: "01000000010d33d3840e9074183dc9a8d82a5031075a98135bfe182840ddaf575a" +
-				"a2032fe00000000000feffffff0100e1f50500000000000017a914f59833f104fa" +
-				"a3c7fd0c7dc1e3967fe77a9c15238701000000010000000100e1f5050000000000" +
-				"000000ffffffff00",
+				"a2032fe00000000000feffffff0100e1f5050000000000000017a914f59833f104" +
+				"faa3c7fd0c7dc1e3967fe77a9c152387010000000100000001010000000000000" +
+				"000000000ffffffff00",
 		},
 		result: types.TxRawDecodeResult{
-			Txid:     "f8e1d2fea09a3ff89c54ddbf4c0f333503afb470fc6bfaa981b8cf5a98165749",
+			Txid:     "aa062122e592a84c4a365bb40b93a16088c1e43b2af2ab96d7c7ff9433ba5857",
 			Version:  1,
 			Locktime: 1,
 			Expiry:   1,
@@ -2732,7 +2747,7 @@ func TestHandleDecodeRawTransaction(t *testing.T) {
 				Vout:        0,
 				Tree:        0,
 				Sequence:    4294967294,
-				AmountIn:    1,
+				AmountIn:    1e-08,
 				BlockHeight: 0,
 				BlockIndex:  4294967295,
 				ScriptSig: &types.ScriptSig{
@@ -2741,9 +2756,10 @@ func TestHandleDecodeRawTransaction(t *testing.T) {
 				},
 			}},
 			Vout: []types.Vout{{
-				Value:   1,
-				N:       0,
-				Version: 0,
+				Value:    1,
+				N:        0,
+				Version:  0,
+				CoinType: 0, // VAR coin type
 				ScriptPubKey: types.ScriptPubKeyResult{
 					Asm:     "OP_HASH160 f59833f104faa3c7fd0c7dc1e3967fe77a9c1523 OP_EQUAL",
 					Hex:     "a914f59833f104faa3c7fd0c7dc1e3967fe77a9c152387",
@@ -2760,12 +2776,12 @@ func TestHandleDecodeRawTransaction(t *testing.T) {
 		handler: handleDecodeRawTransaction,
 		cmd: &types.DecodeRawTransactionCmd{
 			HexTx: "1000000010d33d3840e9074183dc9a8d82a5031075a98135bfe182840ddaf575aa" +
-				"2032fe00000000000feffffff0100e1f50500000000000017a914f59833f104faa" +
-				"3c7fd0c7dc1e3967fe77a9c15238701000000010000000100e1f50500000000000" +
-				"00000ffffffff00",
+				"2032fe00000000000feffffff0100e1f5050000000000000017a914f59833f104" +
+				"faa3c7fd0c7dc1e3967fe77a9c152387010000000100000001010000000000000" +
+				"000000000ffffffff00",
 		},
 		result: types.TxRawDecodeResult{
-			Txid:     "f8e1d2fea09a3ff89c54ddbf4c0f333503afb470fc6bfaa981b8cf5a98165749",
+			Txid:     "aa062122e592a84c4a365bb40b93a16088c1e43b2af2ab96d7c7ff9433ba5857",
 			Version:  1,
 			Locktime: 1,
 			Expiry:   1,
@@ -2774,7 +2790,7 @@ func TestHandleDecodeRawTransaction(t *testing.T) {
 				Vout:        0,
 				Tree:        0,
 				Sequence:    4294967294,
-				AmountIn:    1,
+				AmountIn:    1e-08,
 				BlockHeight: 0,
 				BlockIndex:  4294967295,
 				ScriptSig: &types.ScriptSig{
@@ -2783,9 +2799,10 @@ func TestHandleDecodeRawTransaction(t *testing.T) {
 				},
 			}},
 			Vout: []types.Vout{{
-				Value:   1,
-				N:       0,
-				Version: 0,
+				Value:    1,
+				N:        0,
+				Version:  0,
+				CoinType: 0, // VAR coin type
 				ScriptPubKey: types.ScriptPubKeyResult{
 					Asm:     "OP_HASH160 f59833f104faa3c7fd0c7dc1e3967fe77a9c1523 OP_EQUAL",
 					Hex:     "a914f59833f104faa3c7fd0c7dc1e3967fe77a9c152387",
@@ -3913,15 +3930,15 @@ func TestHandleGetBlock(t *testing.T) {
 			ExtraData:     hex.EncodeToString(blkHeader.ExtraData[:]),
 			NextHash:      nextHash.String(),
 			Tx: []string{
-				"349b3e23b64cb4b71d09b9be4652c9e02e73430daee1285ea03d92aa437dcf37",
-				"ea55dfc48f490b112d1e69d196aa47b068a122e0e45000791ebef41ef2f2918f",
+				"961fe6e83e734e2f1706b283f40be0c2527d013cf14970b0a2811eab45ccbfef",
+				"f0b30c9fa4d6101a82c35613cc9b4dc7d8455e9cb934e8c4c9b74deb8d09dde5",
 			},
 			STx: []string{
-				"761f22f637f8a7df8fbfa0b411c211e16c40f907afce562ccc6a95e9b992b166",
-				"439ea206a41a6d374f0fc88b68af434b58499579850b885e79bc657a2a5f88b8",
-				"9e8904d2012875724d35c6d448bda9b6fcdc12b4700806f26a0e50acf52fe7e9",
-				"9ce7b38320021d36d67dd68666e56be3d5187da734cee8f7fa8e378efbe17b57",
-				"343cfa39bb122171b758edfe378e222ab702d78ca8ac6ad4b797e8353fe70f34",
+				"6087de7341390f1a76a4a36ca47f95ee875f2975e0442da530b98ff7db70059b",
+				"9924b2f377d678c829c14031eb7a17babed97a06d7c5d2fb0a735a75cf90d042",
+				"8df78e03fe542c29f1dcc4daa3b8e03f08421961258e9ca17affd8f19e534b3d",
+				"c2a3f890a8dfe55b41902f90d504f4133969b61ded36f45aaeae1fe17c6fc789",
+				"1a240eb168a0e76dce115ccb1efa0c2ed2be48c7e06e627ae813442d776322a2",
 			},
 		},
 	}, {
@@ -4512,7 +4529,7 @@ func TestHandleGetInfo(t *testing.T) {
 		result: &types.InfoChainResult{
 			Version: int32(1000000*version.Major + 10000*version.Minor +
 				100*version.Patch),
-			ProtocolVersion: int32(wire.CFilterV2Version),
+			ProtocolVersion: int32(wire.DualCoinVersion),
 			Blocks:          int64(block432100.Header.Height),
 			TimeOffset:      int64(0),
 			Connections:     int32(4),
@@ -4554,7 +4571,7 @@ func TestHandleGetMempoolInfo(t *testing.T) {
 		cmd: &types.GetMempoolInfoCmd{},
 		result: &types.GetMempoolInfoResult{
 			Size:  2,
-			Bytes: 627,
+			Bytes: 633,
 		},
 	}})
 }
@@ -4697,7 +4714,7 @@ func TestHandleGetNetworkInfo(t *testing.T) {
 				100*version.Patch),
 			SubVersion: fmt.Sprintf("%d.%d.%d", version.Major, version.Minor,
 				version.Patch),
-			ProtocolVersion: int32(wire.CFilterV2Version),
+			ProtocolVersion: int32(wire.DualCoinVersion),
 			TimeOffset:      int64(0),
 			Connections:     int32(4),
 			Networks: []types.NetworksResult{{
@@ -6545,28 +6562,28 @@ func TestHandleTxFeeInfo(t *testing.T) {
 		{
 			Height: 432100,
 			Number: 1,
-			Min:    0.00010088,
-			Max:    0.00010088,
-			Mean:   0.00010088,
-			Median: 0.00010088,
+			Min:    0.00010022,
+			Max:    0.00010022,
+			Mean:   0.00010022,
+			Median: 0.00010022,
 			StdDev: 0,
 		},
 	}
 	feeInfoRange := types.FeeInfoRange{
 		Number: 1,
-		Min:    0.00010088,
-		Max:    0.00010088,
-		Mean:   0.00010088,
-		Median: 0.00010088,
+		Min:    0.00010022,
+		Max:    0.00010022,
+		Mean:   0.00010022,
+		Median: 0.00010022,
 		StdDev: 0,
 	}
 
 	feeInfoMempool := types.FeeInfoMempool{
 		Number: 1,
-		Min:    0.00665188,
-		Max:    0.00665188,
-		Mean:   0.00665188,
-		Median: 0.00665188,
+		Min:    0.00660792,
+		Max:    0.00660792,
+		Mean:   0.00660792,
+		Median: 0.00660792,
 		StdDev: 0,
 	}
 
@@ -6694,29 +6711,29 @@ func TestHandleTicketFeeInfo(t *testing.T) {
 		StartHeight: 432000,
 		EndHeight:   432101,
 		Number:      1,
-		Min:         0.00010033,
-		Max:         0.00010033,
-		Mean:        0.00010033,
-		Median:      0.00010033,
+		Min:         0.00009933,
+		Max:         0.00009933,
+		Mean:        0.00009933,
+		Median:      0.00009933,
 		StdDev:      0,
 	}
 	secondFeeInfoWindowEntry := types.FeeInfoWindow{
 		StartHeight: 431856,
 		EndHeight:   432000,
 		Number:      1,
-		Min:         0.00010033,
-		Max:         0.00010033,
-		Mean:        0.00010033,
-		Median:      0.00010033,
+		Min:         0.00009933,
+		Max:         0.00009933,
+		Mean:        0.00009933,
+		Median:      0.00009933,
 		StdDev:      0,
 	}
 	feeInfoBlocksEntry := types.FeeInfoBlock{
 		Height: 432100,
 		Number: 1,
-		Min:    0.00010033,
-		Max:    0.00010033,
-		Mean:   0.00010033,
-		Median: 0.00010033,
+		Min:    0.00009933,
+		Max:    0.00009933,
+		Mean:   0.00009933,
+		Median: 0.00009933,
 		StdDev: 0,
 	}
 
@@ -7463,7 +7480,7 @@ func TestHandleGetRawTransaction(t *testing.T) {
 
 	nonVerboseTx := 0
 	verboseTx := 1
-	txid := "c720b8991e3345e13858607cdbbaf8fc535a15cd36f22d42623dba56586c94d5"
+	txid := "b1a172e05df393fb5e8dd812ccdef517367f0da7abb017ae7e7adc4853b785a2"
 	nonVerboseResult := "0100000002b761292042421b09196a2a9cdf56001a95df8c" +
 		"508dacf1170bba8b0c813fc8210300000001ffffffffdca0b996c9078ed14749" +
 		"774aba78d6e1df78e29486deb59d1894ed16a53b74080200000000ffffffff03" +
@@ -7480,10 +7497,26 @@ func TestHandleGetRawTransaction(t *testing.T) {
 		"ac27f7c19be7b33287760121039e58379edbbc239e965d7715a9834f6870d9e5" +
 		"e6bf7ebae8d12a30f7282ea5a5"
 
+	// nonVerboseResult with CoinType bytes for mempool transactions
+	nonVerboseMempoolResult := "0100000002b761292042421b09196a2a9cdf56001a95df8c" +
+		"508dacf1170bba8b0c813fc8210300000001ffffffffdca0b996c9078ed14749" +
+		"774aba78d6e1df78e29486deb59d1894ed16a53b74080200000000ffffffff03" +
+		"53170b00000000000000001976a914762432e9619f5ddaf122ac663684152ffe9e" +
+		"b0ec88acf747f15b030000000000001976a914762432e9619f5ddaf122ac663684" +
+		"152ffe9eb0ec88acba865695010000000000001976a914bc3c059489f447afbf54" +
+		"2ff33432adb9ded7f8e988ac000000000000000002772383e902000000e19606" +
+		"00010000006b483045022100ba5b20f9148273717deba544348f0595750e12cb" +
+		"57d7a818914c66453c9dfb930220486feb328c8f171cce5cfbf88382114282f9" +
+		"041ba53209a12ad48ac86ceb8eb2012102b9ff45cb72132bdf41cf97e96afa90" +
+		"102a4c96ef11fafe43e01983050880aab953d4cf0702000000d3970600020000" +
+		"006b483045022100b29ff29f99ae5b8e3fad72efe6dd13968b7d1c6b3fe2e0fb" +
+		"7eb7656cf7de75f202200888c36da42a0cc948770e3be29b0c75465096bc47cb" +
+		"ac27f7c19be7b33287760121039e58379edbbc239e965d7715a9834f6870d9e5" +
+		"e6bf7ebae8d12a30f7282ea5a5"
+
 	verboseResult := types.TxRawResult{
-		Hex: nonVerboseResult,
-		Txid: "c720b8991e3345e13858607cdbbaf8fc535a15cd36f22d42623dba" +
-			"56586c94d5",
+		Hex:      nonVerboseResult,
+		Txid:     "b1a172e05df393fb5e8dd812ccdef517367f0da7abb017ae7e7adc4853b785a2",
 		Version:  1,
 		LockTime: 0,
 		Expiry:   0,
@@ -7535,9 +7568,10 @@ func TestHandleGetRawTransaction(t *testing.T) {
 			},
 		}},
 		Vout: []types.Vout{{
-			Value:   0.00726867,
-			N:       0,
-			Version: 0,
+			Value:    0.00726867,
+			N:        0,
+			Version:  0,
+			CoinType: 0,
 			ScriptPubKey: types.ScriptPubKeyResult{
 				Asm: "OP_DUP OP_HASH160 762432e9619f5ddaf122ac6636841" +
 					"52ffe9eb0ec OP_EQUALVERIFY OP_CHECKSIG",
@@ -7546,9 +7580,10 @@ func TestHandleGetRawTransaction(t *testing.T) {
 				Type:      "pubkeyhash",
 				Addresses: []string{"DsbjabD32RuS1deAj2uTjKfFZ6nSza5qVf3"},
 			}}, {
-			Value:   144.27441143,
-			N:       1,
-			Version: 0,
+			Value:    144.27441143,
+			N:        1,
+			Version:  0,
+			CoinType: 0,
 			ScriptPubKey: types.ScriptPubKeyResult{
 				Asm: "OP_DUP OP_HASH160 762432e9619f5ddaf122ac663684" +
 					"152ffe9eb0ec OP_EQUALVERIFY OP_CHECKSIG",
@@ -7557,9 +7592,10 @@ func TestHandleGetRawTransaction(t *testing.T) {
 				Type:      "pubkeyhash",
 				Addresses: []string{"DsbjabD32RuS1deAj2uTjKfFZ6nSza5qVf3"},
 			}}, {
-			Value:   68.00443066,
-			N:       2,
-			Version: 0,
+			Value:    68.00443066,
+			N:        2,
+			Version:  0,
+			CoinType: 0,
 			ScriptPubKey: types.ScriptPubKeyResult{
 				Asm: "OP_DUP OP_HASH160 bc3c059489f447afbf542ff3343" +
 					"2adb9ded7f8e9 OP_EQUALVERIFY OP_CHECKSIG",
@@ -7578,13 +7614,104 @@ func TestHandleGetRawTransaction(t *testing.T) {
 		Blocktime:     1584248018,
 	}
 
-	verboseMempoolResult := verboseResult
-	verboseMempoolResult.BlockHash = ""
-	verboseMempoolResult.BlockHeight = 0
-	verboseMempoolResult.BlockIndex = 0
-	verboseMempoolResult.Confirmations = 0
-	verboseMempoolResult.Time = 0
-	verboseMempoolResult.Blocktime = 0
+	verboseMempoolResult := types.TxRawResult{
+		Hex:      nonVerboseMempoolResult,
+		Txid:     "b1a172e05df393fb5e8dd812ccdef517367f0da7abb017ae7e7adc4853b785a2",
+		Version:  1,
+		LockTime: 0,
+		Expiry:   0,
+		Vin: []types.Vin{{
+			Coinbase:      "",
+			Stakebase:     "",
+			Treasurybase:  false,
+			TreasurySpend: "",
+			Txid: "21c83f810c8bba0b17f1ac8d508cdf951a0056df9c2" +
+				"a6a19091b4242202961b7",
+			Vout:        3,
+			Tree:        1,
+			Sequence:    4294967295,
+			AmountIn:    125.07620215,
+			BlockHeight: 431841,
+			BlockIndex:  1,
+			ScriptSig: &types.ScriptSig{
+				Asm: "3045022100ba5b20f9148273717deba544348f0595750e12cb5" +
+					"7d7a818914c66453c9dfb930220486feb328c8f171cce5cfbf88" +
+					"382114282f9041ba53209a12ad48ac86ceb8eb201 02b9ff45cb" +
+					"72132bdf41cf97e96afa90102a4c96ef11fafe43e01983050880aab9",
+				Hex: "483045022100ba5b20f9148273717deba544348f0595750e12c" +
+					"b57d7a818914c66453c9dfb930220486feb328c8f171cce5cfbf" +
+					"88382114282f9041ba53209a12ad48ac86ceb8eb2012102b9ff4" +
+					"5cb72132bdf41cf97e96afa90102a4c96ef11fafe43e01983050" +
+					"880aab9",
+			}}, {
+			Coinbase:      "",
+			Stakebase:     "",
+			Treasurybase:  false,
+			TreasurySpend: "",
+			Txid: "08743ba516ed94189db5de8694e278dfe1d678ba4a774" +
+				"947d18e07c996b9a0dc",
+			Vout:        2,
+			Tree:        0,
+			Sequence:    4294967295,
+			AmountIn:    87.20995411,
+			BlockHeight: 432083,
+			BlockIndex:  2,
+			ScriptSig: &types.ScriptSig{
+				Asm: "3045022100b29ff29f99ae5b8e3fad72efe6dd13968b7d1c6b3fe" +
+					"2e0fb7eb7656cf7de75f202200888c36da42a0cc948770e3be29b0" +
+					"c75465096bc47cbac27f7c19be7b332877601 039e58379edbbc23" +
+					"9e965d7715a9834f6870d9e5e6bf7ebae8d12a30f7282ea5a5",
+				Hex: "483045022100b29ff29f99ae5b8e3fad72efe6dd13968b7d1c6b3" +
+					"fe2e0fb7eb7656cf7de75f202200888c36da42a0cc948770e3be29" +
+					"b0c75465096bc47cbac27f7c19be7b33287760121039e58379edbb" +
+					"c239e965d7715a9834f6870d9e5e6bf7ebae8d12a30f7282ea5a5",
+			},
+		}},
+		Vout: []types.Vout{{
+			Value:    0.00726867,
+			N:        0,
+			Version:  0,
+			CoinType: 0,
+			ScriptPubKey: types.ScriptPubKeyResult{
+				Asm: "OP_DUP OP_HASH160 762432e9619f5ddaf122ac6636841" +
+					"52ffe9eb0ec OP_EQUALVERIFY OP_CHECKSIG",
+				Hex:       "76a914762432e9619f5ddaf122ac663684152ffe9eb0ec88ac",
+				ReqSigs:   1,
+				Type:      "pubkeyhash",
+				Addresses: []string{"DsbjabD32RuS1deAj2uTjKfFZ6nSza5qVf3"},
+			}}, {
+			Value:    144.27441143,
+			N:        1,
+			Version:  0,
+			CoinType: 0,
+			ScriptPubKey: types.ScriptPubKeyResult{
+				Asm: "OP_DUP OP_HASH160 762432e9619f5ddaf122ac663684" +
+					"152ffe9eb0ec OP_EQUALVERIFY OP_CHECKSIG",
+				Hex:       "76a914762432e9619f5ddaf122ac663684152ffe9eb0ec88ac",
+				ReqSigs:   1,
+				Type:      "pubkeyhash",
+				Addresses: []string{"DsbjabD32RuS1deAj2uTjKfFZ6nSza5qVf3"},
+			}}, {
+			Value:    68.00443066,
+			N:        2,
+			Version:  0,
+			CoinType: 0,
+			ScriptPubKey: types.ScriptPubKeyResult{
+				Asm: "OP_DUP OP_HASH160 bc3c059489f447afbf542ff3343" +
+					"2adb9ded7f8e9 OP_EQUALVERIFY OP_CHECKSIG",
+				Hex:       "76a914bc3c059489f447afbf542ff33432adb9ded7f8e988ac",
+				ReqSigs:   1,
+				Type:      "pubkeyhash",
+				Addresses: []string{"Dsi8CRt85xYyempXs7ZPL1rBxvDdAGZmgsg"},
+			},
+		}},
+		BlockHash:     "",
+		BlockHeight:   0,
+		BlockIndex:    0,
+		Confirmations: 0,
+		Time:          0,
+		Blocktime:     0,
+	}
 
 	tx0TestTx := testTx{
 		hex: hexFromFile("tx432098-11.hex"),
@@ -7600,10 +7727,21 @@ func TestHandleGetRawTransaction(t *testing.T) {
 	}
 
 	var tx wire.MsgTx
-	err := tx.FromBytes(hexToBytes(tx0TestTx.hex))
+	// Try legacy protocol version first for old test data
+	err := tx.BtcDecode(bytes.NewReader(hexToBytes(tx0TestTx.hex)), wire.CFilterV2Version)
 	if err != nil {
-		t.Fatalf("unable to create tx from bytes: %v", err)
+		// Try current protocol version
+		err = tx.BtcDecode(bytes.NewReader(hexToBytes(tx0TestTx.hex)), wire.ProtocolVersion)
+		if err != nil {
+			t.Fatalf("unable to create tx from bytes: %v", err)
+		}
+	} else {
+		// Legacy test data - need to add CoinType field
+		for i := range tx.TxOut {
+			tx.TxOut[i].CoinType = wire.CoinTypeVAR
+		}
 	}
+	// No need to manually set CoinType as it's already in the serialized data
 
 	txPool := func() *testTxMempooler {
 		mp := defaultMockTxMempooler()
@@ -7874,7 +8012,7 @@ func TestHandleGetRawTransaction(t *testing.T) {
 			chain.treasuryActive = true
 			return chain
 		}(),
-		result: nonVerboseResult,
+		result: nonVerboseMempoolResult,
 	}, {
 		name:    "handleGetRawTransaction: tx mismatch",
 		handler: handleGetRawTransaction,

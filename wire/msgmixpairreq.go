@@ -202,7 +202,9 @@ func (msg *MsgMixPairReq) BtcDecode(r io.Reader, pver uint32) error {
 	case 0:
 	case 1:
 		change := new(TxOut)
-		err := readTxOut(r, pver, msg.TxVersion, change)
+		// Mix messages always use MixVersion semantics for TxOut serialization
+		// to maintain compatibility with the original mix protocol
+		err := readTxOut(r, MixVersion, msg.TxVersion, change)
 		if err != nil {
 			return err
 		}
@@ -367,7 +369,9 @@ func (msg *MsgMixPairReq) writeMessageNoSignature(op string, w io.Writer, pver u
 		return err
 	}
 	if msg.Change != nil {
-		err = writeTxOut(w, pver, msg.TxVersion, msg.Change)
+		// Mix messages always use MixVersion semantics for TxOut serialization
+		// to maintain compatibility with the original mix protocol
+		err = writeTxOut(w, MixVersion, msg.TxVersion, msg.Change)
 		if err != nil {
 			return err
 		}

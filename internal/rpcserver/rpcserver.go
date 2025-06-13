@@ -729,17 +729,6 @@ func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
 	}
 }
 
-// newTxOutWithCoinType returns a new transaction output with the given parameters
-// including coin type support.
-func newTxOutWithCoinType(amount int64, coinType wire.CoinType, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
-	return &wire.TxOut{
-		Value:    amount,
-		CoinType: coinType,
-		Version:  pkScriptVer,
-		PkScript: pkScript,
-	}
-}
-
 // handleCreateRawTransaction handles createrawtransaction commands.
 func handleCreateRawTransaction(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.CreateRawTransactionCmd)
@@ -1324,6 +1313,42 @@ func (s *Server) createTxRawResult(chainParams *chaincfg.Params,
 	if err != nil {
 		return nil, err
 	}
+
+	if txHash != mtx.TxHash().String() {
+		return nil, rpcInvalidError("Tx hash does not match: got %v "+
+			"expected %v", txHash, mtx.TxHash())
+	}
+
+	txReply := &types.TxRawResult{
+		Hex:         mtxHex,
+		Txid:        txHash,
+		Vin:         createVinList(mtx, isTreasuryEnabled),
+		Vout:        createVoutList(mtx, chainParams, nil),
+		Version:     int32(mtx.Version),
+		LockTime:    mtx.LockTime,
+		Expiry:      mtx.Expiry,
+		BlockHeight: blkHeight,
+		BlockIndex:  blkIdx,
+	}
+
+	if blkHeader != nil {
+		// This is not a typo, they are identical in bitcoind as well.
+		txReply.Time = blkHeader.Timestamp.Unix()
+		txReply.Blocktime = blkHeader.Timestamp.Unix()
+		txReply.BlockHash = blkHash
+		txReply.Confirmations = confirmations
+	}
+
+	return txReply, nil
+}
+
+// createTxRawResultWithHex creates a TxRawResult using the provided hex string
+// instead of re-serializing the transaction. This is used for legacy transactions
+// to preserve the original format.
+func (s *Server) createTxRawResultWithHex(chainParams *chaincfg.Params,
+	mtx *wire.MsgTx, mtxHex string, txHash string, blkIdx uint32, blkHeader *wire.BlockHeader,
+	blkHash string, blkHeight int64, confirmations int64,
+	isTreasuryEnabled bool) (*types.TxRawResult, error) {
 
 	if txHash != mtx.TxHash().String() {
 		return nil, rpcInvalidError("Tx hash does not match: got %v "+
@@ -2904,6 +2929,8 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 	var blkHash *chainhash.Hash
 	var blkHeight int64
 	var blkIndex uint32
+	var isLegacyFormat bool
+	var originalTxBytes []byte
 	chain := s.cfg.Chain
 	txIndex := s.cfg.TxIndexer
 	tx, err := s.cfg.TxMempooler.FetchTransaction(txHash)
@@ -2952,10 +2979,9 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 		blockRegion := &idxEntry.BlockRegion
 
 		// Load the raw transaction bytes from the database.
-		var txBytes []byte
 		err = s.cfg.DB.View(func(dbTx database.Tx) error {
 			var err error
-			txBytes, err = dbTx.FetchBlockRegion(blockRegion)
+			originalTxBytes, err = dbTx.FetchBlockRegion(blockRegion)
 			return err
 		})
 		if err != nil {
@@ -2966,7 +2992,7 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 		// transaction as a hex-encoded string.  This is done here to
 		// avoid deserializing it only to reserialize it again later.
 		if !verbose {
-			return hex.EncodeToString(txBytes), nil
+			return hex.EncodeToString(originalTxBytes), nil
 		}
 
 		// Grab the block details.
@@ -2979,9 +3005,22 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 
 		// Deserialize the transaction
 		var msgTx wire.MsgTx
-		err = msgTx.Deserialize(bytes.NewReader(txBytes))
+		// Try legacy protocol version first for old transaction data
+		err = msgTx.BtcDecode(bytes.NewReader(originalTxBytes), wire.CFilterV2Version)
 		if err != nil {
-			return nil, rpcInternalErr(err, "Failed to deserialize transaction")
+			// Try current protocol version
+			err = msgTx.BtcDecode(bytes.NewReader(originalTxBytes), wire.ProtocolVersion)
+			if err != nil {
+				return nil, rpcInternalErr(err, "Failed to deserialize transaction")
+			}
+			// Already includes CoinType field
+			isLegacyFormat = false
+		} else {
+			// Legacy transaction data - need to add CoinType field
+			for i := range msgTx.TxOut {
+				msgTx.TxOut[i].CoinType = wire.CoinTypeVAR
+			}
+			isLegacyFormat = true
 		}
 		mtx = &msgTx
 	} else {
@@ -3010,6 +3049,11 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 		blkHashStr    string
 		confirmations int64
 	)
+
+	// Mempool transactions are always current format
+	if tx != nil {
+		isLegacyFormat = false
+	}
 	if blkHash != nil {
 		// Fetch the header from chain.
 		header, err := chain.HeaderByHash(blkHash)
@@ -3036,9 +3080,17 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 		return nil, rpcInternalErr(err, "Treasury Status")
 	}
 
-	rawTxn, err := s.createTxRawResult(s.cfg.ChainParams, mtx, txHash.String(),
-		blkIndex, blkHeader, blkHashStr, blkHeight, confirmations,
-		isTreasuryEnabled)
+	var rawTxn *types.TxRawResult
+	if isLegacyFormat {
+		// For legacy transactions, preserve the original hex format
+		rawTxn, err = s.createTxRawResultWithHex(s.cfg.ChainParams, mtx,
+			hex.EncodeToString(originalTxBytes), txHash.String(), blkIndex, blkHeader,
+			blkHashStr, blkHeight, confirmations, isTreasuryEnabled)
+	} else {
+		rawTxn, err = s.createTxRawResult(s.cfg.ChainParams, mtx, txHash.String(),
+			blkIndex, blkHeader, blkHashStr, blkHeight, confirmations,
+			isTreasuryEnabled)
+	}
 	if err != nil {
 		return nil, err
 	}

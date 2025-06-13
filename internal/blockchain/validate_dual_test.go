@@ -95,8 +95,8 @@ func TestChainParamsSKAConfiguration(t *testing.T) {
 // logic that was added to CheckTransactionInputs.
 func TestValidateTransactionOutputsCoinType(t *testing.T) {
 	tests := []struct {
-		name     string
-		outputs  []*wire.TxOut
+		name      string
+		outputs   []*wire.TxOut
 		expectVAR int64
 		expectSKA int64
 		expectErr bool
@@ -185,7 +185,6 @@ func TestValidateTransactionOutputsCoinType(t *testing.T) {
 					totalSKA += output.Value
 				default:
 					err = ruleError(ErrBadTxOutValue, "invalid coin type")
-					break
 				}
 			}
 
@@ -215,25 +214,25 @@ func TestValidateTransactionOutputsCoinType(t *testing.T) {
 // TestSKAActivationHeight tests SKA activation height logic for different networks.
 func TestSKAActivationHeight(t *testing.T) {
 	tests := []struct {
-		name           string
-		params         *chaincfg.Params
-		blockHeight    int64
+		name            string
+		params          *chaincfg.Params
+		blockHeight     int64
 		skaActiveBefore bool
 		skaActiveAt     bool
 		skaActiveAfter  bool
 	}{
 		{
-			name:           "SimNet SKA activation at height 10",
-			params:         chaincfg.SimNetParams(),
-			blockHeight:    10,
+			name:            "SimNet SKA activation at height 10",
+			params:          chaincfg.SimNetParams(),
+			blockHeight:     10,
 			skaActiveBefore: false, // Height 9
 			skaActiveAt:     true,  // Height 10
 			skaActiveAfter:  true,  // Height 11
 		},
 		{
-			name:           "MainNet SKA activation at height 100000",
-			params:         chaincfg.MainNetParams(),
-			blockHeight:    100000,
+			name:            "MainNet SKA activation at height 100000",
+			params:          chaincfg.MainNetParams(),
+			blockHeight:     100000,
 			skaActiveBefore: false, // Height 99999
 			skaActiveAt:     true,  // Height 100000
 			skaActiveAfter:  true,  // Height 100001
