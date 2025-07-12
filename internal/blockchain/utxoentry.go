@@ -18,6 +18,9 @@ const (
 
 	// CoinTypeSKA represents Skarb coins - pre-emitted asset-backed tokens.
 	CoinTypeSKA CoinType = 1
+
+	// CoinTypeMax defines the maximum valid coin type value.
+	CoinTypeMax CoinType = 255
 )
 
 // String returns the string representation of the coin type.
@@ -34,7 +37,7 @@ func (ct CoinType) String() string {
 
 // IsValid returns whether the coin type is valid.
 func (ct CoinType) IsValid() bool {
-	return ct <= CoinTypeSKA
+	return ct <= CoinTypeMax
 }
 
 const (

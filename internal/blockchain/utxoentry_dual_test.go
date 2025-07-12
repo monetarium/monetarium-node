@@ -29,15 +29,18 @@ func TestCoinTypeString(t *testing.T) {
 }
 
 // TestCoinTypeIsValid tests the IsValid method of CoinType.
+// Note: Since CoinType is uint8 (0-255) and CoinTypeMax is 255,
+// all possible uint8 values are now valid coin types.
 func TestCoinTypeIsValid(t *testing.T) {
 	tests := []struct {
 		coinType CoinType
 		expected bool
 	}{
-		{CoinTypeVAR, true},
-		{CoinTypeSKA, true},
-		{CoinType(2), false},
-		{CoinType(99), false},
+		{CoinTypeVAR, true},   // VAR coin (0)
+		{CoinTypeSKA, true},   // SKA-1 coin (1)
+		{CoinType(2), true},   // SKA-2 coin (2)
+		{CoinType(99), true},  // SKA-99 coin (99)
+		{CoinType(255), true}, // SKA-255 coin (255) - maximum
 	}
 
 	for i, test := range tests {

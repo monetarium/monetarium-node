@@ -24,7 +24,7 @@ func TestNewAmountForCoinType(t *testing.T) {
 		{"SKA 0.5", 0.5, CoinTypeSKA, Amount(AtomsPerSKA / 2), false},
 		{"VAR 0", 0.0, CoinTypeVAR, 0, false},
 		{"SKA 0", 0.0, CoinTypeSKA, 0, false},
-		{"Invalid coin type", 1.0, CoinType(99), 0, true},
+		{"Valid SKA-99 coin type", 1.0, CoinType(99), Amount(AtomsPerSKA), false},
 		{"NaN", math.NaN(), CoinTypeVAR, 0, true},
 		{"Positive infinity", math.Inf(1), CoinTypeVAR, 0, true},
 		{"Negative infinity", math.Inf(-1), CoinTypeVAR, 0, true},
@@ -63,7 +63,7 @@ func TestAmountToCoinType(t *testing.T) {
 		{"SKA 0.5 coin", Amount(AtomsPerSKA / 2), CoinTypeSKA, 0.5},
 		{"VAR 0", 0, CoinTypeVAR, 0.0},
 		{"SKA 0", 0, CoinTypeSKA, 0.0},
-		{"Invalid coin type", Amount(AtomsPerVAR), CoinType(99), 0.0},
+		{"Valid SKA-99 coin type", Amount(AtomsPerSKA), CoinType(99), 1.0},
 	}
 
 	for _, test := range tests {
@@ -136,7 +136,7 @@ func TestAmountStringForCoinType(t *testing.T) {
 		{"SKA 0.5", Amount(AtomsPerSKA / 2), CoinTypeSKA, "0.50000000 SKA"},
 		{"VAR 0", 0, CoinTypeVAR, "0.00000000 VAR"},
 		{"SKA 0", 0, CoinTypeSKA, "0.00000000 SKA"},
-		{"Invalid coin type", Amount(AtomsPerVAR), CoinType(99), "0 Unknown"},
+		{"Valid SKA-99 coin type", Amount(AtomsPerSKA), CoinType(99), "1.00000000 SKA-99"},
 	}
 
 	for _, test := range tests {

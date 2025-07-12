@@ -539,6 +539,7 @@ func (msg *MsgTx) Copy() *MsgTx {
 		// new Tx.
 		newTxOut := TxOut{
 			Value:    oldTxOut.Value,
+			CoinType: oldTxOut.CoinType,
 			Version:  oldTxOut.Version,
 			PkScript: newScript,
 		}

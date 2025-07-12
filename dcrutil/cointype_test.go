@@ -16,7 +16,7 @@ func TestCoinTypeString(t *testing.T) {
 	}{
 		{CoinTypeVAR, "VAR"},
 		{CoinTypeSKA, "SKA"},
-		{CoinType(99), "Unknown(99)"},
+		{CoinType(99), "SKA-99"},
 	}
 
 	for i, test := range tests {
@@ -35,8 +35,8 @@ func TestCoinTypeIsValid(t *testing.T) {
 	}{
 		{CoinTypeVAR, true},
 		{CoinTypeSKA, true},
-		{CoinType(2), false},
-		{CoinType(99), false},
+		{CoinType(2), true},
+		{CoinType(99), true},
 	}
 
 	for i, test := range tests {
@@ -55,7 +55,7 @@ func TestCoinTypeAtomsPerCoin(t *testing.T) {
 	}{
 		{CoinTypeVAR, AtomsPerVAR},
 		{CoinTypeSKA, AtomsPerSKA},
-		{CoinType(99), 0},
+		{CoinType(99), AtomsPerSKA},
 	}
 
 	for i, test := range tests {
@@ -74,7 +74,7 @@ func TestCoinTypeMaxAtoms(t *testing.T) {
 	}{
 		{CoinTypeVAR, MaxVARAtoms},
 		{CoinTypeSKA, MaxSKAAtoms},
-		{CoinType(99), 0},
+		{CoinType(99), MaxSKAAtoms},
 	}
 
 	for i, test := range tests {
@@ -93,7 +93,7 @@ func TestCoinTypeMaxAmount(t *testing.T) {
 	}{
 		{CoinTypeVAR, MaxVARAmount},
 		{CoinTypeSKA, MaxSKAAmount},
-		{CoinType(99), 0},
+		{CoinType(99), MaxSKAAmount},
 	}
 
 	for i, test := range tests {
@@ -144,8 +144,8 @@ func TestValidateCoinType(t *testing.T) {
 	}{
 		{CoinTypeVAR, false},
 		{CoinTypeSKA, false},
-		{CoinType(2), true},
-		{CoinType(99), true},
+		{CoinType(2), false},
+		{CoinType(99), false},
 	}
 
 	for i, test := range tests {

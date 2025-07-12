@@ -24,7 +24,7 @@ const (
 	CoinTypeSKA CoinType = 1
 
 	// CoinTypeMax defines the maximum valid coin type value.
-	CoinTypeMax CoinType = 1
+	CoinTypeMax CoinType = 255
 )
 
 // Coin-specific constants for VAR (Varta)
@@ -57,11 +57,13 @@ const (
 
 // String returns the string representation of the coin type.
 func (ct CoinType) String() string {
-	switch ct {
-	case CoinTypeVAR:
+	switch {
+	case ct == CoinTypeVAR:
 		return "VAR"
-	case CoinTypeSKA:
-		return "SKA"
+	case ct == CoinTypeSKA:
+		return "SKA" // Backward compatibility: first SKA coin shows as "SKA"
+	case ct > CoinTypeSKA && ct <= CoinTypeMax:
+		return fmt.Sprintf("SKA-%d", uint8(ct))
 	default:
 		return fmt.Sprintf("Unknown(%d)", uint8(ct))
 	}
@@ -74,11 +76,11 @@ func (ct CoinType) IsValid() bool {
 
 // AtomsPerCoin returns the number of atoms per coin for the given coin type.
 func (ct CoinType) AtomsPerCoin() int64 {
-	switch ct {
-	case CoinTypeVAR:
+	switch {
+	case ct == CoinTypeVAR:
 		return AtomsPerVAR
-	case CoinTypeSKA:
-		return AtomsPerSKA
+	case ct >= CoinTypeSKA && ct <= CoinTypeMax:
+		return AtomsPerSKA // All SKA variants use same precision
 	default:
 		return 0
 	}
@@ -86,11 +88,11 @@ func (ct CoinType) AtomsPerCoin() int64 {
 
 // MaxAtoms returns the maximum number of atoms for the given coin type.
 func (ct CoinType) MaxAtoms() int64 {
-	switch ct {
-	case CoinTypeVAR:
+	switch {
+	case ct == CoinTypeVAR:
 		return MaxVARAtoms
-	case CoinTypeSKA:
-		return MaxSKAAtoms
+	case ct >= CoinTypeSKA && ct <= CoinTypeMax:
+		return MaxSKAAtoms // All SKA variants have same max supply
 	default:
 		return 0
 	}
@@ -98,11 +100,11 @@ func (ct CoinType) MaxAtoms() int64 {
 
 // MaxAmount returns the maximum amount for the given coin type.
 func (ct CoinType) MaxAmount() Amount {
-	switch ct {
-	case CoinTypeVAR:
+	switch {
+	case ct == CoinTypeVAR:
 		return MaxVARAmount
-	case CoinTypeSKA:
-		return MaxSKAAmount
+	case ct >= CoinTypeSKA && ct <= CoinTypeMax:
+		return MaxSKAAmount // All SKA variants have same max supply
 	default:
 		return 0
 	}
