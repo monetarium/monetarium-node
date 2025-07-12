@@ -1482,6 +1482,10 @@ mempoolLoop:
 		return nil, makeError(ErrSerializeHeader, str)
 	}
 
+	// Initialize block space allocator for coin type-based space management
+	blockSpaceAllocator := NewBlockSpaceAllocator(g.cfg.Policy.BlockMaxSize, g.cfg.ChainParams)
+	transactionTracker := NewTransactionSizeTracker(blockSpaceAllocator)
+
 	// Choose which transactions make it into the block.
 nextPriorityQueueItem:
 	for priorityQueue.Len() > 0 {
@@ -1677,14 +1681,24 @@ nextPriorityQueueItem:
 			continue
 		}
 
-		// Enforce maximum block size.  Also check for overflow.
+		// Enforce coin type-based block space allocation.
 		txSize := uint32(tx.MsgTx().SerializeSize())
 		blockPlusTxSize := blockSize + txSize + uint32(ancestorStats.SizeBytes)
-		if blockPlusTxSize < blockSize ||
-			blockPlusTxSize >= g.cfg.Policy.BlockMaxSize {
-			log.Tracef("Skipping tx %s (size %v) because it "+
-				"would exceed the max block size; cur block "+
-				"size %v, cur num tx %v", tx.Hash(), txSize,
+
+		// Check for arithmetic overflow
+		if blockPlusTxSize < blockSize {
+			log.Tracef("Skipping tx %s due to size arithmetic overflow", tx.Hash())
+			logSkippedDeps(tx, deps)
+			miningView.reject(tx.Hash())
+			continue
+		}
+
+		// Check if transaction fits within coin type allocation
+		if !transactionTracker.CanAddTransaction(tx) {
+			coinType := GetTransactionCoinType(tx)
+			log.Tracef("Skipping tx %s (coin type %d, size %v) because it "+
+				"would exceed the coin type allocation; cur block "+
+				"size %v, cur num tx %v", tx.Hash(), coinType, txSize,
 				blockSize, len(blockTxns))
 			logSkippedDeps(tx, deps)
 			miningView.reject(tx.Hash())
@@ -1781,6 +1795,9 @@ nextPriorityQueueItem:
 			bundledTxSigOps := int64(bundledTxDesc.TotalSigOps)
 			blockSigOps += bundledTxSigOps
 
+			// Update block space allocation tracking
+			transactionTracker.AddTransaction(bundledTx)
+
 			// Accumulate the SStxs in the block, because only a certain number
 			// are allowed.
 			if bundledTxDesc.Type == stake.TxTypeSStx {
@@ -1852,6 +1869,18 @@ nextPriorityQueueItem:
 		// Continue to dequeue from the priority queue now that the revocations have
 		// been added.
 		goto nextPriorityQueueItem
+	}
+
+	// Log block space allocation results
+	allocation := transactionTracker.GetAllocation()
+	log.Debugf("Block space allocation: %.1f%% utilization (%d/%d bytes used)",
+		allocation.GetUtilizationPercentage(), allocation.TotalUsed, allocation.TotalAllocated)
+	for coinType, coinAlloc := range allocation.Allocations {
+		if coinAlloc.UsedBytes > 0 {
+			log.Debugf("  Coin type %d: %d bytes used (%.1f%% of allocation)",
+				coinType, coinAlloc.UsedBytes,
+				float64(coinAlloc.UsedBytes)/float64(coinAlloc.FinalAllocation)*100.0)
+		}
 	}
 
 	// Build tx list for stake tx.
