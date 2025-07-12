@@ -7,6 +7,7 @@ package mining
 import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
+	"github.com/decred/dcrd/internal/fees"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -24,6 +25,9 @@ type BlockSpaceAllocator struct {
 
 	// Chain parameters for accessing active SKA types
 	chainParams *chaincfg.Params
+	
+	// Fee calculator for coin-type-specific fee validation and utilization tracking
+	feeCalculator *fees.CoinTypeFeeCalculator
 }
 
 // NewBlockSpaceAllocator creates a new block space allocator with the standard
@@ -34,7 +38,25 @@ func NewBlockSpaceAllocator(maxBlockSize uint32, chainParams *chaincfg.Params) *
 		varAllocation: 0.10, // 10% for VAR
 		skaAllocation: 0.90, // 90% for SKA
 		chainParams:   chainParams,
+		feeCalculator: nil, // Set by SetFeeCalculator
 	}
+}
+
+// NewBlockSpaceAllocatorWithFeeCalculator creates a new block space allocator with integrated fee calculator
+func NewBlockSpaceAllocatorWithFeeCalculator(maxBlockSize uint32, chainParams *chaincfg.Params, 
+	feeCalculator *fees.CoinTypeFeeCalculator) *BlockSpaceAllocator {
+	return &BlockSpaceAllocator{
+		maxBlockSize:  maxBlockSize,
+		varAllocation: 0.10, // 10% for VAR
+		skaAllocation: 0.90, // 90% for SKA
+		chainParams:   chainParams,
+		feeCalculator: feeCalculator,
+	}
+}
+
+// SetFeeCalculator sets the fee calculator for utilization tracking
+func (bsa *BlockSpaceAllocator) SetFeeCalculator(feeCalculator *fees.CoinTypeFeeCalculator) {
+	bsa.feeCalculator = feeCalculator
 }
 
 // CoinTypeAllocation represents the space allocation for a specific coin type.
@@ -101,6 +123,11 @@ func (bsa *BlockSpaceAllocator) AllocateBlockSpace(pendingTxBytes map[dcrutil.Co
 
 	for _, allocation := range allocations {
 		result.TotalUsed += allocation.UsedBytes
+	}
+
+	// Update fee calculator with utilization stats if available
+	if bsa.feeCalculator != nil {
+		bsa.updateFeeCalculatorUtilization(allocations, pendingTxBytes)
 	}
 
 	return result
@@ -311,4 +338,53 @@ func (tst *TransactionSizeTracker) GetSizeForCoinType(coinType dcrutil.CoinType)
 // Reset clears all tracked transaction sizes.
 func (tst *TransactionSizeTracker) Reset() {
 	tst.sizesByCoinType = make(map[dcrutil.CoinType]uint32)
+}
+
+// updateFeeCalculatorUtilization updates the fee calculator with current network utilization stats
+func (bsa *BlockSpaceAllocator) updateFeeCalculatorUtilization(allocations map[dcrutil.CoinType]*CoinTypeAllocation, 
+	pendingTxBytes map[dcrutil.CoinType]uint32) {
+	
+	// Count pending transactions (estimate based on average transaction size)
+	const avgTxSize = 250 // Average transaction size in bytes
+	
+	for coinType, allocation := range allocations {
+		pending := pendingTxBytes[coinType]
+		pendingTxCount := int(pending / avgTxSize) // Rough estimate
+		
+		// Calculate block space utilization for this coin type
+		var blockSpaceUsed float64
+		if allocation.FinalAllocation > 0 {
+			blockSpaceUsed = float64(allocation.UsedBytes) / float64(allocation.FinalAllocation)
+		}
+		
+		// Update fee calculator with utilization data
+		bsa.feeCalculator.UpdateUtilization(wire.CoinType(coinType), pendingTxCount, 
+			int64(pending), blockSpaceUsed)
+	}
+}
+
+// RecordTransactionFee records a transaction fee for fee estimation (called from mining integration)
+func (bsa *BlockSpaceAllocator) RecordTransactionFee(coinType wire.CoinType, fee int64, size int64, confirmed bool) {
+	if bsa.feeCalculator != nil {
+		bsa.feeCalculator.RecordTransactionFee(coinType, fee, size, confirmed)
+	}
+}
+
+// ValidateTransactionFees validates fees for a transaction using the integrated fee calculator
+func (bsa *BlockSpaceAllocator) ValidateTransactionFees(txFee int64, serializedSize int64, 
+	coinType wire.CoinType, allowHighFees bool) error {
+	if bsa.feeCalculator != nil {
+		return bsa.feeCalculator.ValidateTransactionFees(txFee, serializedSize, coinType, allowHighFees)
+	}
+	// Fall back to basic validation if no fee calculator
+	return nil
+}
+
+// GetFeeEstimate returns fee estimate for a coin type and target confirmations
+func (bsa *BlockSpaceAllocator) GetFeeEstimate(coinType wire.CoinType, targetConfirmations int) (dcrutil.Amount, error) {
+	if bsa.feeCalculator != nil {
+		return bsa.feeCalculator.EstimateFeeRate(coinType, targetConfirmations)
+	}
+	// Return basic estimate if no fee calculator
+	return dcrutil.Amount(1e4), nil // Default 10000 atoms/KB
 }
