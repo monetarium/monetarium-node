@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	dcrutil "github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -210,6 +211,35 @@ type TokenPayout struct {
 	ScriptVersion uint16
 	Script        []byte
 	Amount        int64
+}
+
+// SKACoinConfig defines the configuration for a specific SKA coin type.
+// This allows the network to support multiple SKA coin types (1-255)
+// with individual configurations for each.
+type SKACoinConfig struct {
+	// CoinType is the numeric identifier for this SKA coin type (1-255).
+	CoinType dcrutil.CoinType
+
+	// Name is the human-readable name for this SKA coin type.
+	Name string
+
+	// Symbol is the short symbol used to identify this SKA coin type.
+	Symbol string
+
+	// MaxSupply is the maximum number of atoms that can be emitted for
+	// this specific SKA coin type.
+	MaxSupply int64
+
+	// EmissionHeight is the block height at which this SKA coin type
+	// was or will be initially emitted. Set to 0 for genesis emission.
+	EmissionHeight int32
+
+	// Active indicates whether this SKA coin type is currently active
+	// and can be used in transactions.
+	Active bool
+
+	// Description provides additional information about this SKA coin type.
+	Description string
 }
 
 // DNSSeed identifies a DNS seed.
@@ -638,6 +668,16 @@ type Params struct {
 	// SKAMinRelayTxFee is the minimum fee rate for SKA transactions to be
 	// relayed by the network. This is separate from VAR transaction fees.
 	SKAMinRelayTxFee int64
+
+	// SKACoins is a map of coin type to configuration for all supported
+	// SKA coin types in this network. This allows dynamic management of
+	// multiple SKA coin types.
+	SKACoins map[dcrutil.CoinType]*SKACoinConfig
+
+	// InitialSKATypes defines which SKA coin types should be active at
+	// network genesis. Additional types can be activated later through
+	// governance or admin commands.
+	InitialSKATypes []dcrutil.CoinType
 }
 
 // HDPrivKeyVersion returns the hierarchical deterministic extended private key
@@ -864,4 +904,38 @@ func (p *Params) PiKeyExists(key []byte) bool {
 // Seeders returns the list of HTTP seeders.
 func (p *Params) Seeders() []string {
 	return p.seeders
+}
+
+// GetSKACoinConfig returns the configuration for the specified SKA coin type.
+// Returns nil if the coin type is not configured.
+func (p *Params) GetSKACoinConfig(coinType dcrutil.CoinType) *SKACoinConfig {
+	return p.SKACoins[coinType]
+}
+
+// IsSKACoinTypeActive returns true if the specified SKA coin type is
+// configured and active in this network.
+func (p *Params) IsSKACoinTypeActive(coinType dcrutil.CoinType) bool {
+	config := p.SKACoins[coinType]
+	return config != nil && config.Active
+}
+
+// GetActiveSKATypes returns a slice of all currently active SKA coin types.
+func (p *Params) GetActiveSKATypes() []dcrutil.CoinType {
+	var active []dcrutil.CoinType
+	for coinType, config := range p.SKACoins {
+		if config.Active {
+			active = append(active, coinType)
+		}
+	}
+	return active
+}
+
+// GetAllSKATypes returns a slice of all configured SKA coin types,
+// both active and inactive.
+func (p *Params) GetAllSKATypes() []dcrutil.CoinType {
+	var all []dcrutil.CoinType
+	for coinType := range p.SKACoins {
+		all = append(all, coinType)
+	}
+	return all
 }

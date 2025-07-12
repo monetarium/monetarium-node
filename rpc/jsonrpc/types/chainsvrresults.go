@@ -173,6 +173,16 @@ type GetBlockSubsidyResult struct {
 	Total     int64 `json:"total"`
 }
 
+// GetSKAInfoResult models the data returned from the getskainfo command.
+type GetSKAInfoResult struct {
+	CoinType    uint8  `json:"cointype"`
+	Name        string `json:"name"`
+	Symbol      string `json:"symbol"`
+	MaxSupply   int64  `json:"maxsupply"`
+	Active      bool   `json:"active"`
+	Description string `json:"description"`
+}
+
 // GetChainTipsResult models the data returns from the getchaintips command.
 type GetChainTipsResult struct {
 	Height    int64  `json:"height"`

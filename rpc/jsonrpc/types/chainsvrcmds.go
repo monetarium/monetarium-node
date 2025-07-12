@@ -519,6 +519,15 @@ func NewGetInfoCmd() *GetInfoCmd {
 	return &GetInfoCmd{}
 }
 
+// GetSKAInfoCmd defines the getskainfo JSON-RPC command.
+type GetSKAInfoCmd struct{}
+
+// NewGetSKAInfoCmd returns a new instance which can be used to issue a
+// getskainfo JSON-RPC command.
+func NewGetSKAInfoCmd() *GetSKAInfoCmd {
+	return &GetSKAInfoCmd{}
+}
+
 // GetHeadersCmd defines the getheaders JSON-RPC command.
 type GetHeadersCmd struct {
 	BlockLocators []string `json:"blocklocators"`
@@ -1181,6 +1190,7 @@ func init() {
 	dcrjson.MustRegister(Method("gethashespersec"), (*GetHashesPerSecCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getheaders"), (*GetHeadersCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getinfo"), (*GetInfoCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getskainfo"), (*GetSKAInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getmempoolinfo"), (*GetMempoolInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getmininginfo"), (*GetMiningInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getmixmessage"), (*GetMixMessageCmd)(nil), flags)

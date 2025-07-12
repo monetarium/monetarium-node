@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	dcrutil "github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -586,5 +587,30 @@ func MainNetParams() *Params {
 		SKAActivationHeight: 100000,     // Activate immediately
 		SKAMaxAmount:        10e6 * 1e8, // 10 million SKA maximum
 		SKAMinRelayTxFee:    1e4,        // 0.0001 SKA minimum relay fee
+
+		// SKA coin type configurations for multiple coin support
+		SKACoins: map[dcrutil.CoinType]*SKACoinConfig{
+			1: {
+				CoinType:       1,
+				Name:           "Skarb-1",
+				Symbol:         "SKA-1",
+				MaxSupply:      10e6 * 1e8, // 10 million SKA-1
+				EmissionHeight: 100000,     // Emit at block 100k
+				Active:         true,
+				Description:    "Primary asset-backed SKA coin type for mainnet",
+			},
+			2: {
+				CoinType:       2,
+				Name:           "Skarb-2",
+				Symbol:         "SKA-2",
+				MaxSupply:      5e6 * 1e8, // 5 million SKA-2 (proof of concept)
+				EmissionHeight: 150000,    // Emit at block 150k
+				Active:         false,     // Not yet active, for proof of concept
+				Description:    "Secondary SKA coin type for proof of concept testing",
+			},
+		},
+
+		// Initial SKA types to activate at network genesis
+		InitialSKATypes: []dcrutil.CoinType{1}, // Only SKA-1 initially active
 	}
 }

@@ -215,6 +215,7 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"getpeerinfo":           handleGetPeerInfo,
 	"getrawmempool":         handleGetRawMempool,
 	"getrawtransaction":     handleGetRawTransaction,
+	"getskainfo":            handleGetSKAInfo,
 	"getstakedifficulty":    handleGetStakeDifficulty,
 	"getstakeversioninfo":   handleGetStakeVersionInfo,
 	"getstakeversions":      handleGetStakeVersions,
@@ -3113,6 +3114,36 @@ func handleGetStakeDifficulty(_ context.Context, s *Server, _ interface{}) (inte
 		CurrentStakeDifficulty: dcrutil.Amount(blockHeader.SBits).ToCoin(),
 		NextStakeDifficulty:    dcrutil.Amount(best.NextStakeDiff).ToCoin(),
 	}
+	return result, nil
+}
+
+// handleGetSKAInfo returns information about all configured SKA coin types.
+func handleGetSKAInfo(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+	chainParams := s.cfg.ChainParams
+
+	result := make([]types.GetSKAInfoResult, 0)
+
+	// Get all configured SKA coin types
+	for coinType, cfg := range chainParams.SKACoins {
+		result = append(result, types.GetSKAInfoResult{
+			CoinType:    uint8(coinType),
+			Name:        cfg.Name,
+			Symbol:      cfg.Symbol,
+			MaxSupply:   cfg.MaxSupply,
+			Active:      cfg.Active,
+			Description: cfg.Description,
+		})
+	}
+
+	// Sort by coin type for consistent output
+	for i := 0; i < len(result)-1; i++ {
+		for j := i + 1; j < len(result); j++ {
+			if result[i].CoinType > result[j].CoinType {
+				result[i], result[j] = result[j], result[i]
+			}
+		}
+	}
+
 	return result, nil
 }
 

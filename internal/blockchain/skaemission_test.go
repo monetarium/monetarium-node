@@ -139,7 +139,7 @@ func TestCreateSKAEmissionTransactionValidation(t *testing.T) {
 					t.Errorf("Expected error containing '%s', but got none", test.errorMsg)
 					return
 				}
-				if len(test.errorMsg) > 0 && !contains(err.Error(), test.errorMsg) {
+				if len(test.errorMsg) > 0 && !containsStr(err.Error(), test.errorMsg) {
 					t.Errorf("Expected error containing '%s', got '%s'", test.errorMsg, err.Error())
 				}
 				return
@@ -395,7 +395,7 @@ func TestValidateSKAEmissionTransaction(t *testing.T) {
 					t.Errorf("Expected error containing '%s', but got none", test.errorMsg)
 					return
 				}
-				if !contains(err.Error(), test.errorMsg) {
+				if !containsStr(err.Error(), test.errorMsg) {
 					t.Errorf("Expected error containing '%s', got '%s'", test.errorMsg, err.Error())
 				}
 				return
@@ -408,8 +408,8 @@ func TestValidateSKAEmissionTransaction(t *testing.T) {
 	}
 }
 
-// contains checks if a string contains a substring.
-func contains(s, substr string) bool {
+// containsStr checks if a string contains a substring.
+func containsStr(s, substr string) bool {
 	return len(s) >= len(substr) &&
 		(substr == "" ||
 			(len(s) > 0 && (s == substr ||

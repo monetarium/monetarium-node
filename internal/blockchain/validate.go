@@ -3409,13 +3409,20 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	// checks.
 	var totalVAROut, totalSKAOut int64
 	for _, txOut := range tx.MsgTx().TxOut {
-		switch txOut.CoinType {
-		case wire.CoinTypeVAR:
+		coinType := dcrutil.CoinType(txOut.CoinType)
+		switch {
+		case coinType == dcrutil.CoinTypeVAR:
 			totalVAROut += txOut.Value
-		case wire.CoinTypeSKA:
+		case coinType >= dcrutil.CoinTypeSKA && coinType <= dcrutil.CoinTypeMax:
+			// Check if this SKA coin type is active
+			if !chainParams.IsSKACoinTypeActive(coinType) {
+				str := fmt.Sprintf("transaction output uses inactive SKA coin type %d (%s)",
+					coinType, coinType.String())
+				return 0, ruleError(ErrBadTxOutValue, str)
+			}
 			totalSKAOut += txOut.Value
 		default:
-			// This should have been caught by transaction sanity checks
+			// Invalid coin type
 			str := fmt.Sprintf("transaction output has invalid coin type %d", txOut.CoinType)
 			return 0, ruleError(ErrBadTxOutValue, str)
 		}

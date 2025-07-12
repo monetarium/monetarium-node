@@ -487,6 +487,17 @@ var helpDescsEnUS = map[string]string{
 	// GetInfoCmd help.
 	"getinfo--synopsis": "Returns a JSON object containing various state info.",
 
+	// GetSKAInfoCmd help.
+	"getskainfo--synopsis": "Returns information about all configured SKA coin types.",
+
+	// GetSKAInfoResult help.
+	"getskainforesult-cointype":    "The coin type number (1-255)",
+	"getskainforesult-name":        "The full name of the SKA coin type",
+	"getskainforesult-symbol":      "The trading symbol for the SKA coin type",
+	"getskainforesult-maxsupply":   "The maximum supply for this SKA coin type in atoms",
+	"getskainforesult-active":      "Whether this SKA coin type is currently active",
+	"getskainforesult-description": "A description of the SKA coin type",
+
 	// GetMempoolInfoCmd help.
 	"getmempoolinfo--synopsis": "Returns memory pool information",
 
@@ -988,6 +999,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"gethashespersec":       {(*float64)(nil)},
 	"getheaders":            {(*types.GetHeadersResult)(nil)},
 	"getinfo":               {(*types.InfoChainResult)(nil)},
+	"getskainfo":            {(*[]types.GetSKAInfoResult)(nil)},
 	"getmempoolinfo":        {(*types.GetMempoolInfoResult)(nil)},
 	"getmininginfo":         {(*types.GetMiningInfoResult)(nil)},
 	"getmixmessage":         {(*types.GetMixMessageResult)(nil)},
