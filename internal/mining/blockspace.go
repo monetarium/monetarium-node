@@ -25,7 +25,7 @@ type BlockSpaceAllocator struct {
 
 	// Chain parameters for accessing active SKA types
 	chainParams *chaincfg.Params
-	
+
 	// Fee calculator for coin-type-specific fee validation and utilization tracking
 	feeCalculator *fees.CoinTypeFeeCalculator
 }
@@ -43,7 +43,7 @@ func NewBlockSpaceAllocator(maxBlockSize uint32, chainParams *chaincfg.Params) *
 }
 
 // NewBlockSpaceAllocatorWithFeeCalculator creates a new block space allocator with integrated fee calculator
-func NewBlockSpaceAllocatorWithFeeCalculator(maxBlockSize uint32, chainParams *chaincfg.Params, 
+func NewBlockSpaceAllocatorWithFeeCalculator(maxBlockSize uint32, chainParams *chaincfg.Params,
 	feeCalculator *fees.CoinTypeFeeCalculator) *BlockSpaceAllocator {
 	return &BlockSpaceAllocator{
 		maxBlockSize:  maxBlockSize,
@@ -341,24 +341,24 @@ func (tst *TransactionSizeTracker) Reset() {
 }
 
 // updateFeeCalculatorUtilization updates the fee calculator with current network utilization stats
-func (bsa *BlockSpaceAllocator) updateFeeCalculatorUtilization(allocations map[dcrutil.CoinType]*CoinTypeAllocation, 
+func (bsa *BlockSpaceAllocator) updateFeeCalculatorUtilization(allocations map[dcrutil.CoinType]*CoinTypeAllocation,
 	pendingTxBytes map[dcrutil.CoinType]uint32) {
-	
+
 	// Count pending transactions (estimate based on average transaction size)
 	const avgTxSize = 250 // Average transaction size in bytes
-	
+
 	for coinType, allocation := range allocations {
 		pending := pendingTxBytes[coinType]
 		pendingTxCount := int(pending / avgTxSize) // Rough estimate
-		
+
 		// Calculate block space utilization for this coin type
 		var blockSpaceUsed float64
 		if allocation.FinalAllocation > 0 {
 			blockSpaceUsed = float64(allocation.UsedBytes) / float64(allocation.FinalAllocation)
 		}
-		
+
 		// Update fee calculator with utilization data
-		bsa.feeCalculator.UpdateUtilization(wire.CoinType(coinType), pendingTxCount, 
+		bsa.feeCalculator.UpdateUtilization(wire.CoinType(coinType), pendingTxCount,
 			int64(pending), blockSpaceUsed)
 	}
 }
@@ -371,7 +371,7 @@ func (bsa *BlockSpaceAllocator) RecordTransactionFee(coinType wire.CoinType, fee
 }
 
 // ValidateTransactionFees validates fees for a transaction using the integrated fee calculator
-func (bsa *BlockSpaceAllocator) ValidateTransactionFees(txFee int64, serializedSize int64, 
+func (bsa *BlockSpaceAllocator) ValidateTransactionFees(txFee int64, serializedSize int64,
 	coinType wire.CoinType, allowHighFees bool) error {
 	if bsa.feeCalculator != nil {
 		return bsa.feeCalculator.ValidateTransactionFees(txFee, serializedSize, coinType, allowHighFees)

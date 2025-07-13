@@ -21,6 +21,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/gcs/v4/blockcf2"
 	"github.com/decred/dcrd/internal/blockchain"
+	"github.com/decred/dcrd/internal/fees"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/txscript/v4/stdscript"
@@ -202,6 +203,14 @@ type Config struct {
 	ValidateTransactionScripts func(tx *dcrutil.Tx,
 		utxoView *blockchain.UtxoViewpoint, flags txscript.ScriptFlags,
 		isAutoRevocationsEnabled bool) error
+
+	// FeeCalculator provides coin-type-specific fee estimation and validation.
+	// This is used for intelligent transaction prioritization and fee optimization.
+	FeeCalculator *fees.CoinTypeFeeCalculator
+
+	// BlockSpaceAllocator manages proportional block space allocation between
+	// coin types and provides transaction size tracking capabilities.
+	BlockSpaceAllocator *BlockSpaceAllocator
 }
 
 // TxDesc is a descriptor about a transaction in a transaction source along with
@@ -1100,6 +1109,42 @@ func calcFeePerKb(txDesc *TxDesc, ancestorStats *TxAncestorStats) float64 {
 		float64(int64(txSize)+ancestorStats.SizeBytes)
 }
 
+// calcCoinTypeAwareFeePerKb returns a coin-type-adjusted fee per kilobyte that
+// takes into account the economic dynamics and network conditions specific to
+// the transaction's coin type. This enables intelligent prioritization where
+// each coin type can have its own fee market.
+func calcCoinTypeAwareFeePerKb(txDesc *TxDesc, ancestorStats *TxAncestorStats,
+	coinType wire.CoinType, feeCalc *fees.CoinTypeFeeCalculator) float64 {
+
+	// Get base fee rate using standard calculation
+	baseFeeRate := calcFeePerKb(txDesc, ancestorStats)
+
+	// Get coin-type-specific fee estimation for comparison and adjustment
+
+	// Get the estimated fee rate for this coin type with fast confirmation (1 block)
+	estimatedRate, err := feeCalc.EstimateFeeRate(coinType, 1)
+	if err != nil {
+		// Fallback to base calculation if estimation fails
+		return baseFeeRate
+	}
+
+	// Calculate the coin-type-specific minimum fee rate
+	estimatedFeePerKb := float64(estimatedRate)
+
+	// Use the higher of actual fee rate or coin-type minimum for prioritization
+	// This ensures that transactions paying coin-type-appropriate fees get priority
+	// while still allowing higher-fee transactions to jump ahead within their coin type
+	if baseFeeRate >= estimatedFeePerKb {
+		// Transaction is paying above coin-type minimum, use actual rate
+		return baseFeeRate
+	} else {
+		// Transaction is paying below coin-type expectations,
+		// but still give it proportional priority within its tier
+		adjustmentFactor := baseFeeRate / estimatedFeePerKb
+		return estimatedFeePerKb * adjustmentFactor
+	}
+}
+
 // NewBlockTemplate returns a new block template that is ready to be solved
 // using the transactions from the passed transaction source pool and a coinbase
 // that either pays to the passed address if it is not nil, or a coinbase that
@@ -1298,7 +1343,14 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress stdaddr.Address) (*Bloc
 	// or not there is an area allocated for high-priority transactions.
 	miningView := g.cfg.TxSource.MiningView()
 	sourceTxns := miningView.TxDescs()
-	priorityQueue := newTxPriorityQueue(len(sourceTxns), txPQByStakeAndFee)
+	// Use coin-type-aware prioritization when fee calculator is available
+	var prioritizationFunc txPriorityQueueLessFunc
+	if g.cfg.FeeCalculator != nil {
+		prioritizationFunc = txPQByCoinTypeAndFee
+	} else {
+		prioritizationFunc = txPQByStakeAndFee
+	}
+	priorityQueue := newTxPriorityQueue(len(sourceTxns), prioritizationFunc)
 	prioritizedTxns := make(map[chainhash.Hash]struct{}, len(sourceTxns))
 
 	// Create a slice to hold the transactions to be included in the
@@ -1373,7 +1425,15 @@ mempoolLoop:
 		// Setup dependencies for any transactions which reference
 		// other transactions in the mempool so they can be properly
 		// ordered below.
-		prioItem := &txPrioItem{txDesc: txDesc, txType: txDesc.Type}
+
+		// Determine the primary coin type for this transaction
+		primaryCoinType := GetTransactionCoinType(tx)
+
+		prioItem := &txPrioItem{
+			txDesc:   txDesc,
+			txType:   txDesc.Type,
+			coinType: wire.CoinType(primaryCoinType),
+		}
 		for i, txIn := range tx.MsgTx().TxIn {
 			// Evaluate if this is a stakebase input or not. If it is, continue
 			// without evaluation of the input.
@@ -1401,13 +1461,20 @@ mempoolLoop:
 		prioItem.priority = CalcPriority(tx.MsgTx(), utxos,
 			nextBlockHeight)
 
-		// Calculate the fee in Atoms/KB.
+		// Calculate the fee in Atoms/KB using coin-type-specific calculation.
 		// NOTE: This is a more precise value than the one calculated
 		// during calcMinRelayFee which rounds up to the nearest full
 		// kilobyte boundary.  This is beneficial since it provides an
 		// incentive to create smaller transactions.
 		ancestorStats, hasStats := miningView.AncestorStats(tx.Hash())
-		prioItem.feePerKB = calcFeePerKb(txDesc, ancestorStats)
+
+		// Use coin-type-aware fee calculation when available
+		if g.cfg.FeeCalculator != nil {
+			prioItem.feePerKB = calcCoinTypeAwareFeePerKb(txDesc, ancestorStats, prioItem.coinType, g.cfg.FeeCalculator)
+		} else {
+			// Fallback to standard calculation
+			prioItem.feePerKB = calcFeePerKb(txDesc, ancestorStats)
+		}
 		prioItem.fee = txDesc.Fee + ancestorStats.Fees
 		prioItemMap[*tx.Hash()] = prioItem
 		hasParents := miningView.hasParents(tx.Hash())
@@ -1483,7 +1550,14 @@ mempoolLoop:
 	}
 
 	// Initialize block space allocator for coin type-based space management
-	blockSpaceAllocator := NewBlockSpaceAllocator(g.cfg.Policy.BlockMaxSize, g.cfg.ChainParams)
+	var blockSpaceAllocator *BlockSpaceAllocator
+	if g.cfg.BlockSpaceAllocator != nil {
+		// Use configured allocator with fee calculator integration
+		blockSpaceAllocator = g.cfg.BlockSpaceAllocator
+	} else {
+		// Create basic allocator for backward compatibility
+		blockSpaceAllocator = NewBlockSpaceAllocator(g.cfg.Policy.BlockMaxSize, g.cfg.ChainParams)
+	}
 	transactionTracker := NewTransactionSizeTracker(blockSpaceAllocator)
 
 	// Choose which transactions make it into the block.
@@ -1659,7 +1733,13 @@ nextPriorityQueueItem:
 		ancestors := miningView.ancestors(tx.Hash())
 		ancestorStats, _ := miningView.AncestorStats(tx.Hash())
 		oldFee := prioItem.feePerKB
-		prioItem.feePerKB = calcFeePerKb(prioItem.txDesc, ancestorStats)
+
+		// Recalculate fee using coin-type-aware method when available
+		if g.cfg.FeeCalculator != nil {
+			prioItem.feePerKB = calcCoinTypeAwareFeePerKb(prioItem.txDesc, ancestorStats, prioItem.coinType, g.cfg.FeeCalculator)
+		} else {
+			prioItem.feePerKB = calcFeePerKb(prioItem.txDesc, ancestorStats)
+		}
 
 		feeDecreased := oldFee > prioItem.feePerKB
 		if feeDecreased && ancestorStats.NumAncestors == 0 {
@@ -1738,12 +1818,30 @@ nextPriorityQueueItem:
 		}
 
 		// Skip transactions that do not pay enough fee except for stake
-		// transactions.
-		if prioItem.feePerKB < float64(g.cfg.Policy.TxMinFreeFee) &&
-			tx.Tree() != wire.TxTreeStake {
+		// transactions. Use coin-type-aware fee validation when available.
+		skipForLowFee := false
+		if tx.Tree() != wire.TxTreeStake {
+			if g.cfg.FeeCalculator != nil {
+				// Use coin-type-specific fee validation
+				txSize := int64(tx.MsgTx().SerializeSize())
+				err := g.cfg.FeeCalculator.ValidateTransactionFees(prioItem.txDesc.Fee,
+					txSize, prioItem.coinType, false)
+				if err != nil {
+					log.Tracef("Skipping tx %s with coin type %d: %v",
+						tx.Hash(), prioItem.coinType, err)
+					skipForLowFee = true
+				}
+			} else {
+				// Fallback to standard fee validation
+				if prioItem.feePerKB < float64(g.cfg.Policy.TxMinFreeFee) {
+					log.Tracef("Skipping tx %s with feePerKB %.2f < TxMinFreeFee %d ",
+						tx.Hash(), prioItem.feePerKB, g.cfg.Policy.TxMinFreeFee)
+					skipForLowFee = true
+				}
+			}
+		}
 
-			log.Tracef("Skipping tx %s with feePerKB %.2f < TxMinFreeFee %d ",
-				tx.Hash(), prioItem.feePerKB, g.cfg.Policy.TxMinFreeFee)
+		if skipForLowFee {
 			logSkippedDeps(tx, deps)
 			miningView.reject(tx.Hash())
 			continue
@@ -1797,6 +1895,14 @@ nextPriorityQueueItem:
 
 			// Update block space allocation tracking
 			transactionTracker.AddTransaction(bundledTx)
+
+			// Record transaction fee for coin-type-specific fee estimation
+			if g.cfg.FeeCalculator != nil {
+				bundledCoinType := GetTransactionCoinType(bundledTx)
+				bundledSize := int64(bundledTx.MsgTx().SerializeSize())
+				g.cfg.FeeCalculator.RecordTransactionFee(wire.CoinType(bundledCoinType),
+					bundledTxDesc.Fee, bundledSize, true)
+			}
 
 			// Accumulate the SStxs in the block, because only a certain number
 			// are allowed.
@@ -1871,15 +1977,34 @@ nextPriorityQueueItem:
 		goto nextPriorityQueueItem
 	}
 
-	// Log block space allocation results
+	// Log block space allocation results and update fee calculator with utilization data
 	allocation := transactionTracker.GetAllocation()
 	log.Debugf("Block space allocation: %.1f%% utilization (%d/%d bytes used)",
 		allocation.GetUtilizationPercentage(), allocation.TotalUsed, allocation.TotalAllocated)
+
 	for coinType, coinAlloc := range allocation.Allocations {
 		if coinAlloc.UsedBytes > 0 {
 			log.Debugf("  Coin type %d: %d bytes used (%.1f%% of allocation)",
 				coinType, coinAlloc.UsedBytes,
 				float64(coinAlloc.UsedBytes)/float64(coinAlloc.FinalAllocation)*100.0)
+		}
+
+		// Update fee calculator with utilization feedback for dynamic adjustment
+		if g.cfg.FeeCalculator != nil {
+			utilizationRate := float64(coinAlloc.UsedBytes) / float64(coinAlloc.FinalAllocation)
+			// Count approximate pending transactions based on remaining mempool
+			pendingTxs := miningView.TxDescs()
+			pendingCount := 0
+			pendingSize := int64(0)
+			for _, txDesc := range pendingTxs {
+				if GetTransactionCoinType(txDesc.Tx) == coinType {
+					pendingCount++
+					pendingSize += int64(txDesc.Tx.MsgTx().SerializeSize())
+				}
+			}
+
+			g.cfg.FeeCalculator.UpdateUtilization(wire.CoinType(coinType),
+				pendingCount, pendingSize, utilizationRate)
 		}
 	}
 

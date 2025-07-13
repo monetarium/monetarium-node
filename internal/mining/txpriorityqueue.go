@@ -9,6 +9,7 @@ import (
 	"container/heap"
 
 	"github.com/decred/dcrd/blockchain/stake/v5"
+	"github.com/decred/dcrd/wire"
 )
 
 // txPrioItem houses a transaction along with extra information that allows the
@@ -21,6 +22,7 @@ type txPrioItem struct {
 	fee            int64
 	priority       float64
 	feePerKB       float64
+	coinType       wire.CoinType // Primary coin type for this transaction
 }
 
 // txPriorityQueueLessFunc describes a function that can be used as a compare
@@ -145,6 +147,30 @@ func txPQByStakeAndFee(pq *txPriorityQueue, i, j int) bool {
 
 	// The stake priorities are equal, so return based on fees
 	// per KB.
+	return pq.items[i].feePerKB > pq.items[j].feePerKB
+}
+
+// txPQByCoinTypeAndFee sorts a txPriorityQueue by stake priority, then by
+// coin-type-aware fee rates, and finally by transaction priority.
+// This provides intelligent economic prioritization per coin type.
+func txPQByCoinTypeAndFee(pq *txPriorityQueue, i, j int) bool {
+	// Sort by stake priority first, continue if they're the same stake priority.
+	cmp := compareStakePriority(pq.items[i], pq.items[j])
+	if cmp == 1 {
+		return true
+	}
+	if cmp == -1 {
+		return false
+	}
+
+	// For equal stake priorities, use coin-type-adjusted fee rates
+	// This allows each coin type to have its own fee market dynamics
+	// while maintaining overall transaction ordering fairness
+	if pq.items[i].feePerKB == pq.items[j].feePerKB {
+		return pq.items[i].priority > pq.items[j].priority
+	}
+
+	// Return based on coin-type-adjusted fees per KB
 	return pq.items[i].feePerKB > pq.items[j].feePerKB
 }
 

@@ -272,7 +272,7 @@ type TxPool struct {
 	// the scan will only run when an orphan is added to the pool as opposed
 	// to on an unconditional timer.
 	nextExpireScan time.Time
-	
+
 	// feeCalculator for advanced fee calculation and validation
 	feeCalculator *fees.CoinTypeFeeCalculator
 }
@@ -929,11 +929,11 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint, txDesc *TxD
 	if mp.cfg.AddTxToFeeEstimation != nil {
 		mp.cfg.AddTxToFeeEstimation(txHash, txDesc.Fee, txDesc.TxSize, txType)
 	}
-	
+
 	// Record transaction fee for coin-type-specific tracking
 	if mp.feeCalculator != nil {
 		primaryCoinType := mp.determinePrimaryCoinType(msgTx)
-		mp.feeCalculator.RecordTransactionFee(primaryCoinType, txDesc.Fee, 
+		mp.feeCalculator.RecordTransactionFee(primaryCoinType, txDesc.Fee,
 			txDesc.TxSize, false) // false = not confirmed yet
 	}
 }
@@ -1653,13 +1653,13 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 	if err := mp.validateCoinTypeConsistency(tx, utxoView); err != nil {
 		return nil, err
 	}
-	
+
 	// Determine primary coin type for fee validation
 	primaryCoinType := mp.determinePrimaryCoinType(msgTx)
-	
+
 	// Use enhanced fee calculator for validation if available
 	if mp.feeCalculator != nil {
-		err := mp.feeCalculator.ValidateTransactionFees(txFee, serializedSize, 
+		err := mp.feeCalculator.ValidateTransactionFees(txFee, serializedSize,
 			primaryCoinType, allowHighFees)
 		if err != nil && (txType == stake.TxTypeRegular || isTicket || isTreasuryAdd || isTSpend) {
 			var txTypeStr string
@@ -1679,7 +1679,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 	} else {
 		// Fallback to legacy fee validation if fee calculator not available
 		minFee := mp.calculateLegacyMinFee(msgTx, serializedSize, primaryCoinType)
-		
+
 		if txFee < minFee && (txType == stake.TxTypeRegular || isTicket ||
 			isTreasuryAdd || isTSpend) {
 
@@ -2447,7 +2447,7 @@ func (mp *TxPool) determinePrimaryCoinType(msgTx *wire.MsgTx) wire.CoinType {
 	for _, txOut := range msgTx.TxOut {
 		coinTypeCounts[txOut.CoinType]++
 	}
-	
+
 	// Find the coin type with the most outputs
 	var primaryCoinType wire.CoinType = wire.CoinTypeVAR // Default to VAR
 	maxCount := 0
@@ -2457,7 +2457,7 @@ func (mp *TxPool) determinePrimaryCoinType(msgTx *wire.MsgTx) wire.CoinType {
 			primaryCoinType = coinType
 		}
 	}
-	
+
 	return primaryCoinType
 }
 
@@ -2493,7 +2493,7 @@ func (mp *TxPool) GetFeeCalculator() *fees.CoinTypeFeeCalculator {
 func (mp *TxPool) validateCoinTypeConsistency(tx *dcrutil.Tx, utxoView *blockchain.UtxoViewpoint) error {
 	msgTx := tx.MsgTx()
 	txHash := tx.Hash()
-	
+
 	// Skip validation for special transaction types that are allowed to be mixed
 	// Check if treasury is enabled for this chain
 	isTreasuryEnabled, err := mp.cfg.IsTreasuryAgendaActive()
@@ -2501,9 +2501,9 @@ func (mp *TxPool) validateCoinTypeConsistency(tx *dcrutil.Tx, utxoView *blockcha
 		// If we can't determine treasury status, assume it's not enabled
 		isTreasuryEnabled = false
 	}
-	
+
 	txType := stake.DetermineTxType(msgTx)
-	
+
 	// Allow mixed transactions for certain special types
 	switch txType {
 	case stake.TxTypeSSGen, stake.TxTypeSSRtx: // Votes and revocations
@@ -2513,7 +2513,7 @@ func (mp *TxPool) validateCoinTypeConsistency(tx *dcrutil.Tx, utxoView *blockcha
 			return nil
 		}
 	}
-	
+
 	// Collect input coin types
 	inputCoinTypes := make(map[wire.CoinType]bool)
 	for i, txIn := range msgTx.TxIn {
@@ -2521,58 +2521,58 @@ func (mp *TxPool) validateCoinTypeConsistency(tx *dcrutil.Tx, utxoView *blockcha
 		if i == 0 && txType == stake.TxTypeSSGen {
 			continue
 		}
-		
+
 		// Get the UTXO being spent
 		entry := utxoView.LookupEntry(txIn.PreviousOutPoint)
 		if entry == nil {
 			// This will be caught by other validation, skip for now
 			continue
 		}
-		
+
 		inputCoinType := wire.CoinType(entry.CoinType())
 		inputCoinTypes[inputCoinType] = true
 	}
-	
+
 	// Collect output coin types
 	outputCoinTypes := make(map[wire.CoinType]bool)
 	for _, txOut := range msgTx.TxOut {
 		outputCoinTypes[txOut.CoinType] = true
 	}
-	
+
 	// Check for mixed coin types
 	if len(inputCoinTypes) > 1 {
-		return txRuleError(ErrMixedCoinTypes, 
+		return txRuleError(ErrMixedCoinTypes,
 			fmt.Sprintf("transaction %s has mixed input coin types", txHash))
 	}
-	
+
 	if len(outputCoinTypes) > 1 {
-		return txRuleError(ErrMixedCoinTypes, 
+		return txRuleError(ErrMixedCoinTypes,
 			fmt.Sprintf("transaction %s has mixed output coin types", txHash))
 	}
-	
+
 	// Check that input and output coin types match
 	if len(inputCoinTypes) > 0 && len(outputCoinTypes) > 0 {
 		var inputCoinType, outputCoinType wire.CoinType
-		
+
 		// Get the single input coin type
 		for ct := range inputCoinTypes {
 			inputCoinType = ct
 			break
 		}
-		
+
 		// Get the single output coin type
 		for ct := range outputCoinTypes {
 			outputCoinType = ct
 			break
 		}
-		
+
 		if inputCoinType != outputCoinType {
-			return txRuleError(ErrMixedCoinTypes, 
-				fmt.Sprintf("transaction %s attempts to convert coin type %d to %d", 
+			return txRuleError(ErrMixedCoinTypes,
+				fmt.Sprintf("transaction %s attempts to convert coin type %d to %d",
 					txHash, inputCoinType, outputCoinType))
 		}
 	}
-	
+
 	return nil
 }
 
