@@ -85,6 +85,7 @@ func (view *UtxoViewpoint) addTxOut(outpoint wire.OutPoint, txOut *wire.TxOut,
 	entry.blockHeight = uint32(blockHeight)
 	entry.blockIndex = blockIndex
 	entry.scriptVersion = txOut.Version
+	entry.coinType = CoinType(txOut.CoinType)
 	entry.packedFlags = packedFlags
 	entry.ticketMinOuts = ticketMinOuts
 
@@ -480,6 +481,7 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 					blockHeight:   uint32(block.Height()),
 					blockIndex:    uint32(txIdx),
 					scriptVersion: txOut.Version,
+					coinType:      CoinType(txOut.CoinType),
 					state:         utxoStateModified,
 					packedFlags: encodeUtxoFlags(isCoinBase, hasExpiry,
 						txType),
@@ -761,6 +763,43 @@ func (view *UtxoViewpoint) disconnectBlock(block, parent *dcrutil.Block,
 // Entries returns the underlying map that stores of all the utxo entries.
 func (view *UtxoViewpoint) Entries() map[wire.OutPoint]*UtxoEntry {
 	return view.entries
+}
+
+// LookupEntriesByCoinType returns a map of all utxo entries in the view that
+// match the specified coin type. This is useful for dual-coin validation and
+// balance calculations.
+func (view *UtxoViewpoint) LookupEntriesByCoinType(coinType CoinType) map[wire.OutPoint]*UtxoEntry {
+	filteredMap := make(map[wire.OutPoint]*UtxoEntry)
+	for outpoint, entry := range view.entries {
+		if entry != nil && !entry.IsSpent() && entry.CoinType() == coinType {
+			filteredMap[outpoint] = entry
+		}
+	}
+	return filteredMap
+}
+
+// GetCoinTypeBalance calculates the total balance for all unspent outputs
+// of the specified coin type in the view.
+func (view *UtxoViewpoint) GetCoinTypeBalance(coinType CoinType) int64 {
+	var balance int64
+	for _, entry := range view.entries {
+		if entry != nil && !entry.IsSpent() && entry.CoinType() == coinType {
+			balance += entry.Amount()
+		}
+	}
+	return balance
+}
+
+// GetCoinTypeCount returns the number of unspent outputs of the specified
+// coin type in the view.
+func (view *UtxoViewpoint) GetCoinTypeCount(coinType CoinType) int {
+	var count int
+	for _, entry := range view.entries {
+		if entry != nil && !entry.IsSpent() && entry.CoinType() == coinType {
+			count++
+		}
+	}
+	return count
 }
 
 // ViewFilteredSet represents a set of utxos to fetch from the cache/backend

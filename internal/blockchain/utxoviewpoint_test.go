@@ -227,3 +227,147 @@ func TestFetchUtxoView(t *testing.T) {
 	}
 	testInputsSpent(view, spendB1aTx1Out0, true)
 }
+
+// TestUtxoViewpointCoinTypeTracking tests that UTXO entries correctly preserve
+// coin types when added through addTxOut and disconnectTransactions methods.
+func TestUtxoViewpointCoinTypeTracking(t *testing.T) {
+	// Create a new UTXO viewpoint
+	view := NewUtxoViewpoint(nil)
+
+	// Create test transaction outputs with different coin types
+	// Use proper P2PKH script (OP_DUP OP_HASH160 <20-byte hash> OP_EQUALVERIFY OP_CHECKSIG)
+	p2pkhScript := []byte{
+		0x76,                                                       // OP_DUP
+		0xa9,                                                       // OP_HASH160
+		0x14,                                                       // Push 20 bytes
+		0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, // 20-byte hash
+		0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, 0x33, 0x44, 0x55,
+		0x88, // OP_EQUALVERIFY
+		0xac, // OP_CHECKSIG
+	}
+
+	varTxOut := &wire.TxOut{
+		Value:    1000000000, // 10 VAR
+		Version:  0,
+		PkScript: p2pkhScript,
+		CoinType: wire.CoinTypeVAR,
+	}
+
+	skaTxOut := &wire.TxOut{
+		Value:    5000000000, // 50 SKA
+		Version:  0,
+		PkScript: p2pkhScript,
+		CoinType: wire.CoinTypeSKA,
+	}
+
+	// Create outpoints for the test UTXOs
+	varOutpoint := wire.OutPoint{
+		Hash:  [32]byte{1, 2, 3, 4},
+		Index: 0,
+		Tree:  wire.TxTreeRegular,
+	}
+
+	skaOutpoint := wire.OutPoint{
+		Hash:  [32]byte{5, 6, 7, 8},
+		Index: 0,
+		Tree:  wire.TxTreeRegular,
+	}
+
+	// Test addTxOut method preserves coin types
+	flags := encodeUtxoFlags(false, false, 0) // not coinbase, no expiry, regular tx
+	view.addTxOut(varOutpoint, varTxOut, flags, 100, 0, nil)
+	view.addTxOut(skaOutpoint, skaTxOut, flags, 100, 1, nil)
+
+	// Verify VAR UTXO entry has correct coin type
+	varEntry := view.LookupEntry(varOutpoint)
+	if varEntry == nil {
+		t.Fatal("VAR UTXO entry not found")
+	}
+	if varEntry.CoinType() != CoinTypeVAR {
+		t.Errorf("Expected VAR coin type (%d), got %d", CoinTypeVAR, varEntry.CoinType())
+	}
+	if varEntry.Amount() != 1000000000 {
+		t.Errorf("Expected VAR amount 1000000000, got %d", varEntry.Amount())
+	}
+
+	// Verify SKA UTXO entry has correct coin type
+	skaEntry := view.LookupEntry(skaOutpoint)
+	if skaEntry == nil {
+		t.Fatal("SKA UTXO entry not found")
+	}
+	if skaEntry.CoinType() != CoinTypeSKA {
+		t.Errorf("Expected SKA coin type (%d), got %d", CoinTypeSKA, skaEntry.CoinType())
+	}
+	if skaEntry.Amount() != 5000000000 {
+		t.Errorf("Expected SKA amount 5000000000, got %d", skaEntry.Amount())
+	}
+
+	// Test AmountWithCoinType method
+	varAmount, varCoinType := varEntry.AmountWithCoinType()
+	if varAmount != 1000000000 || varCoinType != CoinTypeVAR {
+		t.Errorf("AmountWithCoinType for VAR: expected (1000000000, %d), got (%d, %d)",
+			CoinTypeVAR, varAmount, varCoinType)
+	}
+
+	skaAmount, skaCoinType := skaEntry.AmountWithCoinType()
+	if skaAmount != 5000000000 || skaCoinType != CoinTypeSKA {
+		t.Errorf("AmountWithCoinType for SKA: expected (5000000000, %d), got (%d, %d)",
+			CoinTypeSKA, skaAmount, skaCoinType)
+	}
+
+	// Test enhanced query methods
+	// Test LookupEntriesByCoinType
+	varEntries := view.LookupEntriesByCoinType(CoinTypeVAR)
+	if len(varEntries) != 1 {
+		t.Errorf("Expected 1 VAR entry, got %d", len(varEntries))
+	}
+	if varEntries[varOutpoint] == nil {
+		t.Error("VAR entry not found in filtered results")
+	}
+
+	skaEntries := view.LookupEntriesByCoinType(CoinTypeSKA)
+	if len(skaEntries) != 1 {
+		t.Errorf("Expected 1 SKA entry, got %d", len(skaEntries))
+	}
+	if skaEntries[skaOutpoint] == nil {
+		t.Error("SKA entry not found in filtered results")
+	}
+
+	// Test GetCoinTypeBalance
+	varBalance := view.GetCoinTypeBalance(CoinTypeVAR)
+	if varBalance != 1000000000 {
+		t.Errorf("Expected VAR balance 1000000000, got %d", varBalance)
+	}
+
+	skaBalance := view.GetCoinTypeBalance(CoinTypeSKA)
+	if skaBalance != 5000000000 {
+		t.Errorf("Expected SKA balance 5000000000, got %d", skaBalance)
+	}
+
+	// Test GetCoinTypeCount
+	varCount := view.GetCoinTypeCount(CoinTypeVAR)
+	if varCount != 1 {
+		t.Errorf("Expected VAR count 1, got %d", varCount)
+	}
+
+	skaCount := view.GetCoinTypeCount(CoinTypeSKA)
+	if skaCount != 1 {
+		t.Errorf("Expected SKA count 1, got %d", skaCount)
+	}
+
+	// Test with non-existent coin type
+	unknownEntries := view.LookupEntriesByCoinType(CoinType(99))
+	if len(unknownEntries) != 0 {
+		t.Errorf("Expected 0 entries for unknown coin type, got %d", len(unknownEntries))
+	}
+
+	unknownBalance := view.GetCoinTypeBalance(CoinType(99))
+	if unknownBalance != 0 {
+		t.Errorf("Expected 0 balance for unknown coin type, got %d", unknownBalance)
+	}
+
+	unknownCount := view.GetCoinTypeCount(CoinType(99))
+	if unknownCount != 0 {
+		t.Errorf("Expected 0 count for unknown coin type, got %d", unknownCount)
+	}
+}
