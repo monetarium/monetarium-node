@@ -2444,3 +2444,346 @@ func TestModifiedSubsidySplitR2Semantics(t *testing.T) {
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 }
+
+// TestDualCoinTransactionValidation ensures that the dual-coin validation logic
+// properly handles VAR and SKA transactions with correct input/output matching.
+func TestDualCoinTransactionValidation(t *testing.T) {
+	t.Parallel()
+
+	// Create a new database and chain instance to run tests against.
+	params := chaincfg.RegNetParams()
+	_, err := chainSetup(t, params)
+	if err != nil {
+		t.Errorf("Failed to setup chain instance: %v", err)
+		return
+	}
+	// No teardown needed for simplified test
+
+	// Test helper to create basic P2PKH script
+	createP2PKHScript := func() []byte {
+		return []byte{
+			0x76, // OP_DUP
+			0xa9, // OP_HASH160
+			0x14, // Push 20 bytes
+			// 20-byte hash
+			0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa,
+			0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, 0x33, 0x44, 0x55,
+			0x88, // OP_EQUALVERIFY
+			0xac, // OP_CHECKSIG
+		}
+	}
+
+	// Test cases for dual-coin validation
+	tests := []struct {
+		name          string
+		setupUTXOs    func(*UtxoViewpoint)
+		createTx      func() *wire.MsgTx
+		expectedError string
+		expectedFee   int64
+		shouldPass    bool
+	}{
+		{
+			name: "Valid VAR-only transaction",
+			setupUTXOs: func(view *UtxoViewpoint) {
+				// Add VAR UTXO
+				outpoint := wire.OutPoint{
+					Hash:  [32]byte{1, 2, 3, 4},
+					Index: 0,
+					Tree:  wire.TxTreeRegular,
+				}
+				entry := &UtxoEntry{
+					amount:      1000000000, // 10 VAR
+					coinType:    CoinTypeVAR,
+					packedFlags: encodeUtxoFlags(false, false, 0),
+				}
+				view.entries[outpoint] = entry
+			},
+			createTx: func() *wire.MsgTx {
+				tx := &wire.MsgTx{
+					Version: 1,
+					TxIn: []*wire.TxIn{{
+						PreviousOutPoint: wire.OutPoint{
+							Hash:  [32]byte{1, 2, 3, 4},
+							Index: 0,
+							Tree:  wire.TxTreeRegular,
+						},
+						ValueIn: 1000000000,
+					}},
+					TxOut: []*wire.TxOut{{
+						Value:    999000000, // 9.99 VAR (0.01 VAR fee)
+						Version:  0,
+						PkScript: createP2PKHScript(),
+						CoinType: wire.CoinTypeVAR,
+					}},
+				}
+				return tx
+			},
+			shouldPass:  true,
+			expectedFee: 1000000, // 0.01 VAR fee
+		},
+		{
+			name: "Invalid: SKA coin type not active by default",
+			setupUTXOs: func(view *UtxoViewpoint) {
+				// Add SKA UTXO
+				outpoint := wire.OutPoint{
+					Hash:  [32]byte{5, 6, 7, 8},
+					Index: 0,
+					Tree:  wire.TxTreeRegular,
+				}
+				entry := &UtxoEntry{
+					amount:      5000000000, // 50 SKA
+					coinType:    CoinTypeSKA,
+					packedFlags: encodeUtxoFlags(false, false, 0),
+				}
+				view.entries[outpoint] = entry
+			},
+			createTx: func() *wire.MsgTx {
+				tx := &wire.MsgTx{
+					Version: 1,
+					TxIn: []*wire.TxIn{{
+						PreviousOutPoint: wire.OutPoint{
+							Hash:  [32]byte{5, 6, 7, 8},
+							Index: 0,
+							Tree:  wire.TxTreeRegular,
+						},
+						ValueIn: 5000000000,
+					}},
+					TxOut: []*wire.TxOut{{
+						Value:    5000000000, // 50 SKA (no fees for SKA)
+						Version:  0,
+						PkScript: createP2PKHScript(),
+						CoinType: wire.CoinTypeSKA,
+					}},
+				}
+				return tx
+			},
+			shouldPass:    false,
+			expectedError: "uses inactive SKA coin type",
+		},
+		{
+			name: "Invalid: Insufficient VAR inputs",
+			setupUTXOs: func(view *UtxoViewpoint) {
+				// Add small VAR UTXO
+				outpoint := wire.OutPoint{
+					Hash:  [32]byte{1, 2, 3, 4},
+					Index: 0,
+					Tree:  wire.TxTreeRegular,
+				}
+				entry := &UtxoEntry{
+					amount:      500000000, // 5 VAR
+					coinType:    CoinTypeVAR,
+					packedFlags: encodeUtxoFlags(false, false, 0),
+				}
+				view.entries[outpoint] = entry
+			},
+			createTx: func() *wire.MsgTx {
+				tx := &wire.MsgTx{
+					Version: 1,
+					TxIn: []*wire.TxIn{{
+						PreviousOutPoint: wire.OutPoint{
+							Hash:  [32]byte{1, 2, 3, 4},
+							Index: 0,
+							Tree:  wire.TxTreeRegular,
+						},
+						ValueIn: 500000000,
+					}},
+					TxOut: []*wire.TxOut{{
+						Value:    1000000000, // 10 VAR (more than input)
+						Version:  0,
+						PkScript: createP2PKHScript(),
+						CoinType: wire.CoinTypeVAR,
+					}},
+				}
+				return tx
+			},
+			shouldPass:    false,
+			expectedError: "less than the amount spent",
+		},
+		{
+			name: "Invalid: SKA input/output mismatch",
+			setupUTXOs: func(view *UtxoViewpoint) {
+				// Add SKA UTXO
+				outpoint := wire.OutPoint{
+					Hash:  [32]byte{5, 6, 7, 8},
+					Index: 0,
+					Tree:  wire.TxTreeRegular,
+				}
+				entry := &UtxoEntry{
+					amount:      5000000000, // 50 SKA
+					coinType:    CoinTypeSKA,
+					packedFlags: encodeUtxoFlags(false, false, 0),
+				}
+				view.entries[outpoint] = entry
+			},
+			createTx: func() *wire.MsgTx {
+				tx := &wire.MsgTx{
+					Version: 1,
+					TxIn: []*wire.TxIn{{
+						PreviousOutPoint: wire.OutPoint{
+							Hash:  [32]byte{5, 6, 7, 8},
+							Index: 0,
+							Tree:  wire.TxTreeRegular,
+						},
+						ValueIn: 5000000000,
+					}},
+					TxOut: []*wire.TxOut{{
+						Value:    4000000000, // 40 SKA (less than input)
+						Version:  0,
+						PkScript: createP2PKHScript(),
+						CoinType: wire.CoinTypeSKA,
+					}},
+				}
+				return tx
+			},
+			shouldPass:    false,
+			expectedError: "uses inactive SKA coin type",
+		},
+		{
+			name: "Invalid: Mixed VAR and SKA outputs",
+			setupUTXOs: func(view *UtxoViewpoint) {
+				// Add VAR and SKA UTXOs
+				varOutpoint := wire.OutPoint{
+					Hash:  [32]byte{1, 2, 3, 4},
+					Index: 0,
+					Tree:  wire.TxTreeRegular,
+				}
+				varEntry := &UtxoEntry{
+					amount:      1000000000,
+					coinType:    CoinTypeVAR,
+					packedFlags: encodeUtxoFlags(false, false, 0),
+				}
+				view.entries[varOutpoint] = varEntry
+
+				skaOutpoint := wire.OutPoint{
+					Hash:  [32]byte{5, 6, 7, 8},
+					Index: 0,
+					Tree:  wire.TxTreeRegular,
+				}
+				skaEntry := &UtxoEntry{
+					amount:      5000000000,
+					coinType:    CoinTypeSKA,
+					packedFlags: encodeUtxoFlags(false, false, 0),
+				}
+				view.entries[skaOutpoint] = skaEntry
+			},
+			createTx: func() *wire.MsgTx {
+				tx := &wire.MsgTx{
+					Version: 1,
+					TxIn: []*wire.TxIn{
+						{
+							PreviousOutPoint: wire.OutPoint{
+								Hash:  [32]byte{1, 2, 3, 4},
+								Index: 0,
+								Tree:  wire.TxTreeRegular,
+							},
+							ValueIn: 1000000000,
+						},
+						{
+							PreviousOutPoint: wire.OutPoint{
+								Hash:  [32]byte{5, 6, 7, 8},
+								Index: 0,
+								Tree:  wire.TxTreeRegular,
+							},
+							ValueIn: 5000000000,
+						},
+					},
+					TxOut: []*wire.TxOut{
+						{
+							Value:    999000000, // VAR output
+							Version:  0,
+							PkScript: createP2PKHScript(),
+							CoinType: wire.CoinTypeVAR,
+						},
+						{
+							Value:    5000000000, // SKA output
+							Version:  0,
+							PkScript: createP2PKHScript(),
+							CoinType: wire.CoinTypeSKA,
+						},
+					},
+				}
+				return tx
+			},
+			shouldPass:    false,
+			expectedError: "uses inactive SKA coin type",
+		},
+		{
+			name: "Invalid: SKA transaction with VAR inputs",
+			setupUTXOs: func(view *UtxoViewpoint) {
+				// Add VAR UTXO
+				outpoint := wire.OutPoint{
+					Hash:  [32]byte{1, 2, 3, 4},
+					Index: 0,
+					Tree:  wire.TxTreeRegular,
+				}
+				entry := &UtxoEntry{
+					amount:      1000000000,
+					coinType:    CoinTypeVAR,
+					packedFlags: encodeUtxoFlags(false, false, 0),
+				}
+				view.entries[outpoint] = entry
+			},
+			createTx: func() *wire.MsgTx {
+				tx := &wire.MsgTx{
+					Version: 1,
+					TxIn: []*wire.TxIn{{
+						PreviousOutPoint: wire.OutPoint{
+							Hash:  [32]byte{1, 2, 3, 4},
+							Index: 0,
+							Tree:  wire.TxTreeRegular,
+						},
+						ValueIn: 1000000000,
+					}},
+					TxOut: []*wire.TxOut{{
+						Value:    1000000000, // SKA output from VAR input
+						Version:  0,
+						PkScript: createP2PKHScript(),
+						CoinType: wire.CoinTypeSKA,
+					}},
+				}
+				return tx
+			},
+			shouldPass:    false,
+			expectedError: "uses inactive SKA coin type",
+		},
+	}
+
+	// Run all test cases
+	for _, test := range tests {
+		test := test // Capture loop variable
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			// Create a new UTXO viewpoint for this test
+			view := NewUtxoViewpoint(nil)
+			test.setupUTXOs(view)
+
+			// Create the transaction
+			msgTx := test.createTx()
+			tx := dcrutil.NewTx(msgTx)
+
+			// Test the validation
+			subsidyCache := standalone.NewSubsidyCache(params)
+			fee, err := CheckTransactionInputs(subsidyCache, tx, 100, view,
+				true, params, &wire.BlockHeader{}, false, false,
+				standalone.SSVDCP0010)
+
+			if test.shouldPass {
+				if err != nil {
+					t.Errorf("Expected test to pass but got error: %v", err)
+					return
+				}
+				if fee != test.expectedFee {
+					t.Errorf("Expected fee %d, got %d", test.expectedFee, fee)
+				}
+			} else {
+				if err == nil {
+					t.Errorf("Expected test to fail but it passed")
+					return
+				}
+				if test.expectedError != "" && !bytes.Contains([]byte(err.Error()), []byte(test.expectedError)) {
+					t.Errorf("Expected error containing '%s', got: %v", test.expectedError, err)
+				}
+			}
+		})
+	}
+}

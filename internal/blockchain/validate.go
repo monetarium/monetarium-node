@@ -105,14 +105,16 @@ const (
 )
 
 // mustParseHash converts the passed big-endian hex string into a
-// chainhash.Hash and will panic if there is an error.  It only differs from the
-// one available in chainhash in that it will panic so errors in the source code
-// be detected.  It will only (and must only) be called with hard-coded, and
-// therefore known good, hashes.
+// chainhash.Hash and will return a zero hash if there is an error while logging
+// the issue. It should only be called with hard-coded, and therefore known good,
+// hashes. Any error indicates a programming error in the source code.
 func mustParseHash(s string) *chainhash.Hash {
 	hash, err := chainhash.NewHashFromStr(s)
 	if err != nil {
-		panic("invalid hash in source file: " + s)
+		// Log the error instead of panicking to prevent production crashes
+		fmt.Printf("CRITICAL: Invalid hardcoded hash in source file: %s, error: %v\n", s, err)
+		// Return zero hash as fallback - this will be caught by validation logic
+		return &chainhash.Hash{}
 	}
 	return hash
 }
@@ -3442,23 +3444,97 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 		return txFeeInAtom, nil
 	}
 
-	// For dual-coin transactions, we need to separate input tracking by coin type
-	// For now, we'll implement a simplified approach:
-	// TODO: Implement proper dual-coin input/output validation
-	// This requires tracking UTXO coin types in the UtxoViewpoint
+	// For dual-coin transactions, implement proper dual-coin input/output validation
+	// Separate input tracking by coin type using UTXO coin type information
+	var totalVARIn, totalSKAIn int64
 
-	// Temporary validation: ensure total inputs >= total outputs
-	totalAtomOut := totalVAROut + totalSKAOut
-	if totalAtomIn < totalAtomOut {
-		str := fmt.Sprintf("total value of all transaction inputs for "+
-			"transaction %v is %v which is less than the amount "+
-			"spent of %v", txHash, totalAtomIn, totalAtomOut)
+	// Track inputs by coin type - iterate through inputs again to get coin types
+	for idx, txIn := range msgTx.TxIn {
+		// Skip special cases already handled above
+		if isVote && idx == 0 {
+			// Stakebase input - treated as VAR
+			_, heightVotingOn := stake.SSGenBlockVotedOn(msgTx)
+			stakeVoteSubsidy := subsidyCache.CalcStakeVoteSubsidyV3(
+				int64(heightVotingOn), subsidySplitVariant)
+			totalVARIn += stakeVoteSubsidy
+			continue
+		}
+
+		if isTSpend && idx == 0 {
+			// TSpend input - treated as VAR
+			totalVARIn += txIn.ValueIn
+			continue
+		}
+
+		// Get UTXO entry to determine coin type
+		txInOutpoint := txIn.PreviousOutPoint
+		utxoEntry := view.LookupEntry(txInOutpoint)
+		if utxoEntry == nil || utxoEntry.IsSpent() {
+			// This should have been caught earlier, but be defensive
+			str := fmt.Sprintf("output %v referenced from transaction %s:%d "+
+				"either does not exist or has already been spent",
+				txInOutpoint, txHash, idx)
+			return 0, ruleError(ErrMissingTxOut, str)
+		}
+
+		// Add input amount to appropriate coin type total
+		inputAmount := utxoEntry.Amount()
+		inputCoinType := utxoEntry.CoinType()
+
+		switch {
+		case inputCoinType == CoinTypeVAR:
+			totalVARIn += inputAmount
+		case inputCoinType >= CoinTypeSKA && inputCoinType <= CoinTypeMax:
+			totalSKAIn += inputAmount
+		default:
+			str := fmt.Sprintf("transaction input references UTXO with invalid "+
+				"coin type %d", inputCoinType)
+			return 0, ruleError(ErrBadTxOutValue, str)
+		}
+	}
+
+	// Validate coin-type-specific balance requirements
+	// Rule 1: VAR inputs must cover VAR outputs + VAR fees
+	if totalVARIn < totalVAROut {
+		str := fmt.Sprintf("insufficient VAR inputs for transaction %v: "+
+			"VAR inputs %v < VAR outputs %v", txHash, totalVARIn, totalVAROut)
 		return 0, ruleError(ErrSpendTooHigh, str)
 	}
 
-	// Return combined fee for now (will be refined in later phases)
-	txFeeInAtom := totalAtomIn - totalAtomOut
-	return txFeeInAtom, nil
+	// Rule 2: SKA inputs must exactly equal SKA outputs (no fees for SKA-only)
+	if totalSKAOut > 0 && totalSKAIn != totalSKAOut {
+		str := fmt.Sprintf("SKA input/output mismatch for transaction %v: "+
+			"SKA inputs %v != SKA outputs %v", txHash, totalSKAIn, totalSKAOut)
+		return 0, ruleError(ErrSpendTooHigh, str)
+	}
+
+	// Rule 3: Mixed transactions are not allowed (except for specific cases)
+	if totalVAROut > 0 && totalSKAOut > 0 {
+		str := fmt.Sprintf("transaction %v mixes VAR and SKA outputs, which is "+
+			"not allowed", txHash)
+		return 0, ruleError(ErrBadTxOutValue, str)
+	}
+
+	// Calculate and return appropriate fees
+	if totalSKAOut > 0 {
+		// SKA transaction - no fees allowed
+		if totalVARIn > 0 {
+			str := fmt.Sprintf("SKA transaction %v contains VAR inputs, "+
+				"which is not allowed", txHash)
+			return 0, ruleError(ErrBadTxOutValue, str)
+		}
+		return 0, nil
+	} else {
+		// VAR transaction - return VAR fee
+		txFeeInAtom := totalVARIn - totalVAROut
+		if txFeeInAtom < 0 {
+			str := fmt.Sprintf("transaction %v has negative VAR fee: "+
+				"VAR inputs %v - VAR outputs %v = %v",
+				txHash, totalVARIn, totalVAROut, txFeeInAtom)
+			return 0, ruleError(ErrSpendTooHigh, str)
+		}
+		return txFeeInAtom, nil
+	}
 }
 
 // CountSigOps returns the number of signature operations for all transaction

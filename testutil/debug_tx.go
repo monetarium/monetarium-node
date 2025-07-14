@@ -26,7 +26,7 @@ func main() {
 
 	// Remove any whitespace
 	hexStr := string(bytes.TrimSpace(hexData))
-	
+
 	// Decode hex to bytes
 	txBytes, err := hex.DecodeString(hexStr)
 	if err != nil {
@@ -39,18 +39,18 @@ func main() {
 	// Try to decode with different protocol versions
 	for pver := uint32(10); pver <= 12; pver++ {
 		fmt.Printf("\n--- Trying protocol version %d ---\n", pver)
-		
+
 		var tx wire.MsgTx
 		reader := bytes.NewReader(txBytes)
 		err := tx.BtcDecode(reader, pver)
-		
+
 		if err != nil {
 			fmt.Printf("Error with protocol version %d: %v\n", pver, err)
-			
+
 			// Check if we can read at least the prefix
 			reader = bytes.NewReader(txBytes)
 			fmt.Printf("Trying to decode prefix only...\n")
-			
+
 			// Try to manually read the transaction prefix to see how many inputs there are
 			version := make([]byte, 4)
 			_, err := reader.Read(version)
@@ -59,7 +59,7 @@ func main() {
 				continue
 			}
 			fmt.Printf("Version bytes: %x\n", version)
-			
+
 			// Read input count
 			inputCount, err := wire.ReadVarInt(reader, pver)
 			if err != nil {
@@ -67,7 +67,7 @@ func main() {
 				continue
 			}
 			fmt.Printf("Input count: %d\n", inputCount)
-			
+
 			// Skip inputs to get to outputs
 			for i := uint64(0); i < inputCount; i++ {
 				// Skip previous outpoint (32 + 4 + 1 bytes)
@@ -82,7 +82,7 @@ func main() {
 				// Skip sequence (4 bytes)
 				reader.Seek(4, io.SeekCurrent)
 			}
-			
+
 			// Read output count
 			outputCount, err := wire.ReadVarInt(reader, pver)
 			if err != nil {
@@ -90,14 +90,14 @@ func main() {
 				continue
 			}
 			fmt.Printf("Output count: %d\n", outputCount)
-			
+
 		} else {
-			fmt.Printf("Success! Transaction has %d inputs, %d outputs\n", 
+			fmt.Printf("Success! Transaction has %d inputs, %d outputs\n",
 				len(tx.TxIn), len(tx.TxOut))
-			
+
 			// Print coin types if available
 			for i, out := range tx.TxOut {
-				fmt.Printf("Output %d: Value=%d, CoinType=%d\n", 
+				fmt.Printf("Output %d: Value=%d, CoinType=%d\n",
 					i, out.Value, out.CoinType)
 			}
 		}

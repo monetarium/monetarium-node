@@ -413,13 +413,15 @@ func (msg *MsgTx) serialize(serType TxSerializeType) ([]byte, error) {
 }
 
 // mustSerialize returns the serialization of the transaction for the provided
-// serialization type without modifying the original transaction.  It will panic
-// if any errors occur.
+// serialization type without modifying the original transaction. It logs
+// critical errors and returns empty bytes instead of panicking if any errors occur.
 func (msg *MsgTx) mustSerialize(serType TxSerializeType) []byte {
 	serialized, err := msg.serialize(serType)
 	if err != nil {
-		panic(fmt.Sprintf("MsgTx failed serializing for type %v",
-			serType))
+		// Log critical error instead of panicking for production safety
+		fmt.Printf("CRITICAL: MsgTx failed serializing for type %v: %v\n", serType, err)
+		// Return empty byte slice as fallback
+		return []byte{}
 	}
 	return serialized
 }

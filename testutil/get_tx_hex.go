@@ -25,7 +25,7 @@ func main() {
 
 	// Remove any whitespace
 	hexStr := string(bytes.TrimSpace(hexData))
-	
+
 	// Decode hex to bytes
 	txBytes, err := hex.DecodeString(hexStr)
 	if err != nil {
