@@ -170,84 +170,86 @@ type commandHandler func(context.Context, *Server, interface{}) (interface{}, er
 // a dependency loop.
 var rpcHandlers map[types.Method]commandHandler
 var rpcHandlersBeforeInit = map[types.Method]commandHandler{
-	"addnode":               handleAddNode,
-	"createrawsstx":         handleCreateRawSStx,
-	"createrawssrtx":        handleCreateRawSSRtx,
-	"createrawtransaction":  handleCreateRawTransaction,
-	"debuglevel":            handleDebugLevel,
-	"decoderawtransaction":  handleDecodeRawTransaction,
-	"decodescript":          handleDecodeScript,
-	"estimatefee":           handleEstimateFee,
-	"estimatesmartfee":      handleEstimateSmartFee,
-	"estimatestakediff":     handleEstimateStakeDiff,
-	"existsaddress":         handleExistsAddress,
-	"existsaddresses":       handleExistsAddresses,
-	"existsliveticket":      handleExistsLiveTicket,
-	"existslivetickets":     handleExistsLiveTickets,
-	"existsmempooltxs":      handleExistsMempoolTxs,
-	"generate":              handleGenerate,
-	"getaddednodeinfo":      handleGetAddedNodeInfo,
-	"getbestblock":          handleGetBestBlock,
-	"getbestblockhash":      handleGetBestBlockHash,
-	"getblock":              handleGetBlock,
-	"getblockchaininfo":     handleGetBlockchainInfo,
-	"getblockcount":         handleGetBlockCount,
-	"getblockhash":          handleGetBlockHash,
-	"getblockheader":        handleGetBlockHeader,
-	"getblocksubsidy":       handleGetBlockSubsidy,
-	"getcfilterv2":          handleGetCFilterV2,
-	"getchaintips":          handleGetChainTips,
-	"getcoinsupply":         handleGetCoinSupply,
-	"getconnectioncount":    handleGetConnectionCount,
-	"getcurrentnet":         handleGetCurrentNet,
-	"getdifficulty":         handleGetDifficulty,
-	"getgenerate":           handleGetGenerate,
-	"gethashespersec":       handleGetHashesPerSec,
-	"getheaders":            handleGetHeaders,
-	"getinfo":               handleGetInfo,
-	"getmempoolinfo":        handleGetMempoolInfo,
-	"getmininginfo":         handleGetMiningInfo,
-	"getmixmessage":         handleGetMixMessage,
-	"getmixpairrequests":    handleGetMixPairRequests,
-	"getnettotals":          handleGetNetTotals,
-	"getnetworkhashps":      handleGetNetworkHashPS,
-	"getnetworkinfo":        handleGetNetworkInfo,
-	"getpeerinfo":           handleGetPeerInfo,
-	"getrawmempool":         handleGetRawMempool,
-	"getrawtransaction":     handleGetRawTransaction,
-	"getskainfo":            handleGetSKAInfo,
-	"getstakedifficulty":    handleGetStakeDifficulty,
-	"getstakeversioninfo":   handleGetStakeVersionInfo,
-	"getstakeversions":      handleGetStakeVersions,
-	"getticketpoolvalue":    handleGetTicketPoolValue,
-	"gettreasurybalance":    handleGetTreasuryBalance,
-	"gettreasuryspendvotes": handleGetTreasurySpendVotes,
-	"getvoteinfo":           handleGetVoteInfo,
-	"gettxout":              handleGetTxOut,
-	"gettxoutsetinfo":       handleGetTxOutSetInfo,
-	"getwork":               handleGetWork,
-	"help":                  handleHelp,
-	"invalidateblock":       handleInvalidateBlock,
-	"livetickets":           handleLiveTickets,
-	"node":                  handleNode,
-	"ping":                  handlePing,
-	"reconsiderblock":       handleReconsiderBlock,
-	"regentemplate":         handleRegenTemplate,
-	"sendrawmixmessage":     handleSendRawMixMessage,
-	"sendrawtransaction":    handleSendRawTransaction,
-	"setgenerate":           handleSetGenerate,
-	"startprofiler":         handleStartProfiler,
-	"stop":                  handleStop,
-	"stopprofiler":          handleStopProfiler,
-	"submitblock":           handleSubmitBlock,
-	"ticketfeeinfo":         handleTicketFeeInfo,
-	"ticketsforaddress":     handleTicketsForAddress,
-	"ticketvwap":            handleTicketVWAP,
-	"txfeeinfo":             handleTxFeeInfo,
-	"validateaddress":       handleValidateAddress,
-	"verifychain":           handleVerifyChain,
-	"verifymessage":         handleVerifyMessage,
-	"version":               handleVersion,
+	"addnode":                  handleAddNode,
+	"createrawsstx":            handleCreateRawSStx,
+	"createrawssrtx":           handleCreateRawSSRtx,
+	"createrawtransaction":     handleCreateRawTransaction,
+	"debuglevel":               handleDebugLevel,
+	"decoderawtransaction":     handleDecodeRawTransaction,
+	"decodescript":             handleDecodeScript,
+	"estimatefee":              handleEstimateFee,
+	"estimatesmartfee":         handleEstimateSmartFee,
+	"getfeestimatesbycointype": handleGetFeeEstimatesByCoinType,
+	"estimatestakediff":        handleEstimateStakeDiff,
+	"existsaddress":            handleExistsAddress,
+	"existsaddresses":          handleExistsAddresses,
+	"existsliveticket":         handleExistsLiveTicket,
+	"existslivetickets":        handleExistsLiveTickets,
+	"existsmempooltxs":         handleExistsMempoolTxs,
+	"generate":                 handleGenerate,
+	"getaddednodeinfo":         handleGetAddedNodeInfo,
+	"getbestblock":             handleGetBestBlock,
+	"getbestblockhash":         handleGetBestBlockHash,
+	"getblock":                 handleGetBlock,
+	"getblockchaininfo":        handleGetBlockchainInfo,
+	"getblockcount":            handleGetBlockCount,
+	"getblockhash":             handleGetBlockHash,
+	"getblockheader":           handleGetBlockHeader,
+	"getblocksubsidy":          handleGetBlockSubsidy,
+	"getcfilterv2":             handleGetCFilterV2,
+	"getchaintips":             handleGetChainTips,
+	"getcoinsupply":            handleGetCoinSupply,
+	"getconnectioncount":       handleGetConnectionCount,
+	"getcurrentnet":            handleGetCurrentNet,
+	"getdifficulty":            handleGetDifficulty,
+	"getgenerate":              handleGetGenerate,
+	"gethashespersec":          handleGetHashesPerSec,
+	"getheaders":               handleGetHeaders,
+	"getinfo":                  handleGetInfo,
+	"getmempoolinfo":           handleGetMempoolInfo,
+	"getmempoolfeesinfo":       handleGetMempoolFeesInfo,
+	"getmininginfo":            handleGetMiningInfo,
+	"getmixmessage":            handleGetMixMessage,
+	"getmixpairrequests":       handleGetMixPairRequests,
+	"getnettotals":             handleGetNetTotals,
+	"getnetworkhashps":         handleGetNetworkHashPS,
+	"getnetworkinfo":           handleGetNetworkInfo,
+	"getpeerinfo":              handleGetPeerInfo,
+	"getrawmempool":            handleGetRawMempool,
+	"getrawtransaction":        handleGetRawTransaction,
+	"getskainfo":               handleGetSKAInfo,
+	"getstakedifficulty":       handleGetStakeDifficulty,
+	"getstakeversioninfo":      handleGetStakeVersionInfo,
+	"getstakeversions":         handleGetStakeVersions,
+	"getticketpoolvalue":       handleGetTicketPoolValue,
+	"gettreasurybalance":       handleGetTreasuryBalance,
+	"gettreasuryspendvotes":    handleGetTreasurySpendVotes,
+	"getvoteinfo":              handleGetVoteInfo,
+	"gettxout":                 handleGetTxOut,
+	"gettxoutsetinfo":          handleGetTxOutSetInfo,
+	"getwork":                  handleGetWork,
+	"help":                     handleHelp,
+	"invalidateblock":          handleInvalidateBlock,
+	"livetickets":              handleLiveTickets,
+	"node":                     handleNode,
+	"ping":                     handlePing,
+	"reconsiderblock":          handleReconsiderBlock,
+	"regentemplate":            handleRegenTemplate,
+	"sendrawmixmessage":        handleSendRawMixMessage,
+	"sendrawtransaction":       handleSendRawTransaction,
+	"setgenerate":              handleSetGenerate,
+	"startprofiler":            handleStartProfiler,
+	"stop":                     handleStop,
+	"stopprofiler":             handleStopProfiler,
+	"submitblock":              handleSubmitBlock,
+	"ticketfeeinfo":            handleTicketFeeInfo,
+	"ticketsforaddress":        handleTicketsForAddress,
+	"ticketvwap":               handleTicketVWAP,
+	"txfeeinfo":                handleTxFeeInfo,
+	"validateaddress":          handleValidateAddress,
+	"verifychain":              handleVerifyChain,
+	"verifymessage":            handleVerifyMessage,
+	"version":                  handleVersion,
 }
 
 // list of commands that we recognize, but for which dcrd has no support because
@@ -351,59 +353,61 @@ var rpcLimited = map[string]struct{}{
 	"help": {},
 
 	// HTTP/S-only commands
-	"createrawsstx":        {},
-	"createrawssrtx":       {},
-	"createrawtransaction": {},
-	"decoderawtransaction": {},
-	"decodescript":         {},
-	"estimatefee":          {},
-	"estimatesmartfee":     {},
-	"estimatestakediff":    {},
-	"existsaddress":        {},
-	"existsaddresses":      {},
-	"existsliveticket":     {},
-	"existslivetickets":    {},
-	"existsmempooltxs":     {},
-	"getbestblock":         {},
-	"getbestblockhash":     {},
-	"getblock":             {},
-	"getblockchaininfo":    {},
-	"getblockcount":        {},
-	"getblockhash":         {},
-	"getblockheader":       {},
-	"getblocksubsidy":      {},
-	"getcfilterv2":         {},
-	"getchaintips":         {},
-	"getcoinsupply":        {},
-	"getcurrentnet":        {},
-	"getdifficulty":        {},
-	"getheaders":           {},
-	"getinfo":              {},
-	"getmixmessage":        {},
-	"getmixpairrequests":   {},
-	"getnettotals":         {},
-	"getnetworkhashps":     {},
-	"getnetworkinfo":       {},
-	"getrawmempool":        {},
-	"getstakedifficulty":   {},
-	"getstakeversioninfo":  {},
-	"getstakeversions":     {},
-	"getrawtransaction":    {},
-	"gettreasurybalance":   {},
-	"gettxout":             {},
-	"getvoteinfo":          {},
-	"livetickets":          {},
-	"regentemplate":        {},
-	"sendrawmixmessage":    {},
-	"sendrawtransaction":   {},
-	"submitblock":          {},
-	"ticketfeeinfo":        {},
-	"ticketsforaddress":    {},
-	"ticketvwap":           {},
-	"txfeeinfo":            {},
-	"validateaddress":      {},
-	"verifymessage":        {},
-	"version":              {},
+	"createrawsstx":            {},
+	"createrawssrtx":           {},
+	"createrawtransaction":     {},
+	"decoderawtransaction":     {},
+	"decodescript":             {},
+	"estimatefee":              {},
+	"estimatesmartfee":         {},
+	"getfeestimatesbycointype": {},
+	"getmempoolfeesinfo":       {},
+	"estimatestakediff":        {},
+	"existsaddress":            {},
+	"existsaddresses":          {},
+	"existsliveticket":         {},
+	"existslivetickets":        {},
+	"existsmempooltxs":         {},
+	"getbestblock":             {},
+	"getbestblockhash":         {},
+	"getblock":                 {},
+	"getblockchaininfo":        {},
+	"getblockcount":            {},
+	"getblockhash":             {},
+	"getblockheader":           {},
+	"getblocksubsidy":          {},
+	"getcfilterv2":             {},
+	"getchaintips":             {},
+	"getcoinsupply":            {},
+	"getcurrentnet":            {},
+	"getdifficulty":            {},
+	"getheaders":               {},
+	"getinfo":                  {},
+	"getmixmessage":            {},
+	"getmixpairrequests":       {},
+	"getnettotals":             {},
+	"getnetworkhashps":         {},
+	"getnetworkinfo":           {},
+	"getrawmempool":            {},
+	"getstakedifficulty":       {},
+	"getstakeversioninfo":      {},
+	"getstakeversions":         {},
+	"getrawtransaction":        {},
+	"gettreasurybalance":       {},
+	"gettxout":                 {},
+	"getvoteinfo":              {},
+	"livetickets":              {},
+	"regentemplate":            {},
+	"sendrawmixmessage":        {},
+	"sendrawtransaction":       {},
+	"submitblock":              {},
+	"ticketfeeinfo":            {},
+	"ticketsforaddress":        {},
+	"ticketvwap":               {},
+	"txfeeinfo":                {},
+	"validateaddress":          {},
+	"verifymessage":            {},
+	"version":                  {},
 }
 
 // rpcInternalErr is a convenience function to convert an internal error to an
@@ -1488,6 +1492,7 @@ func handleEstimateFee(_ context.Context, s *Server, cmd interface{}) (interface
 //
 // The default estimation mode when unset is assumed as "conservative". As of
 // 2018-12, the only supported mode is "conservative".
+// Enhanced to support optional coin type parameter for dual-coin system.
 func handleEstimateSmartFee(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.EstimateSmartFeeCmd)
 
@@ -1501,6 +1506,38 @@ func handleEstimateSmartFee(_ context.Context, s *Server, cmd interface{}) (inte
 			"are supported for smart fee estimation at the moment")
 	}
 
+	// Default to VAR (coin type 0) if not specified
+	coinType := uint8(0)
+	if c.CoinType != nil {
+		coinType = *c.CoinType
+		// Validate coin type range
+		if coinType > 255 {
+			return nil, rpcInvalidError("coin type must be between 0 and 255")
+		}
+	}
+
+	// Use coin-type-aware fee estimation if available
+	if s.cfg.CoinTypeFeeCalculator != nil {
+		feeRate, err := s.cfg.CoinTypeFeeCalculator.EstimateFeeRate(wire.CoinType(coinType), int(c.Confirmations))
+		if err != nil {
+			// Fall back to standard fee estimator
+			fee, err := s.cfg.FeeEstimator.EstimateFee(int32(c.Confirmations))
+			if err != nil {
+				return nil, rpcInternalErr(err, "Could not estimate fee")
+			}
+			return &types.EstimateSmartFeeResult{
+				FeeRate: fee.ToCoin(),
+				Blocks:  c.Confirmations,
+			}, nil
+		}
+
+		return &types.EstimateSmartFeeResult{
+			FeeRate: feeRate.ToCoin(),
+			Blocks:  c.Confirmations,
+		}, nil
+	}
+
+	// Standard fee estimation (backward compatibility)
 	fee, err := s.cfg.FeeEstimator.EstimateFee(int32(c.Confirmations))
 	if err != nil {
 		return nil, rpcInternalErr(err, "Could not estimate fee")
@@ -1509,6 +1546,73 @@ func handleEstimateSmartFee(_ context.Context, s *Server, cmd interface{}) (inte
 	return &types.EstimateSmartFeeResult{
 		FeeRate: fee.ToCoin(),
 		Blocks:  c.Confirmations,
+	}, nil
+}
+
+// handleGetFeeEstimatesByCoinType implements the getfeestimatesbycointype command.
+func handleGetFeeEstimatesByCoinType(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+	c := cmd.(*types.GetFeeEstimatesByCoinTypeCmd)
+
+	// Default confirmations to 1 if not specified
+	confirmations := int64(1)
+	if c.Confirmations != nil {
+		confirmations = *c.Confirmations
+	}
+
+	// Validate coin type
+	if c.CoinType > 255 {
+		return nil, rpcInvalidError("coin type must be between 0 and 255")
+	}
+
+	// Get fee calculator from configuration if available
+	if s.cfg.CoinTypeFeeCalculator == nil {
+		// Fallback to basic fee estimation for the specified coin type
+		fee, err := s.cfg.FeeEstimator.EstimateFee(int32(confirmations))
+		if err != nil {
+			// nolint: nilerr
+			return &types.GetFeeResult{
+				CoinType: c.CoinType,
+				Errors:   []string{"fee estimation unavailable"},
+			}, nil
+		}
+
+		feeRate := fee.ToCoin()
+		return &types.GetFeeResult{
+			CoinType:             c.CoinType,
+			MinRelayFee:          feeRate,
+			DynamicFeeMultiplier: 1.0,
+			FastFee:              feeRate * 2.0,
+			NormalFee:            feeRate,
+			SlowFee:              feeRate * 0.5,
+			PendingTxCount:       0,
+			PendingTxSize:        0,
+			BlockSpaceUsed:       0.0,
+			LastUpdated:          0,
+		}, nil
+	}
+
+	// Get comprehensive fee statistics for the coin type
+	coinType := wire.CoinType(c.CoinType)
+	feeStats, err2 := s.cfg.CoinTypeFeeCalculator.GetFeeStats(coinType)
+	if err2 != nil {
+		// nolint: nilerr
+		return &types.GetFeeResult{
+			CoinType: c.CoinType,
+			Errors:   []string{err2.Error()},
+		}, nil
+	}
+
+	return &types.GetFeeResult{
+		CoinType:             c.CoinType,
+		MinRelayFee:          feeStats.MinRelayFee.ToCoin(),
+		DynamicFeeMultiplier: feeStats.DynamicFeeMultiplier,
+		FastFee:              feeStats.FastFee.ToCoin(),
+		NormalFee:            feeStats.NormalFee.ToCoin(),
+		SlowFee:              feeStats.SlowFee.ToCoin(),
+		PendingTxCount:       feeStats.PendingTxCount,
+		PendingTxSize:        feeStats.PendingTxSize,
+		BlockSpaceUsed:       feeStats.BlockSpaceUsed,
+		LastUpdated:          feeStats.LastUpdated.Unix(),
 	}, nil
 }
 
@@ -2572,6 +2676,219 @@ func handleGetMempoolInfo(_ context.Context, s *Server, _ interface{}) (interfac
 	}
 
 	return ret, nil
+}
+
+// handleGetMempoolFeesInfo implements the getmempoolfeesinfo command.
+func handleGetMempoolFeesInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+	c := cmd.(*types.GetMempoolFeesInfoCmd)
+
+	// Get all mempool transactions
+	mempoolTxns := s.cfg.TxMempooler.TxDescs()
+	if len(mempoolTxns) == 0 {
+		// Empty mempool
+		return &types.GetMempoolFeesInfoResult{
+			CoinTypes:    make(map[string]types.MempoolCoinTypeFeeInfo),
+			TotalTxCount: 0,
+			TotalSize:    0,
+			LastUpdated:  time.Now().Unix(),
+		}, nil
+	}
+
+	// Group transactions by coin type
+	coinTypeTxs := make(map[wire.CoinType][]*mempool.TxDesc)
+	totalTxCount := 0
+	totalSize := int64(0)
+
+	for _, txDesc := range mempoolTxns {
+		// Determine the primary coin type for this transaction
+		// For simplicity, use the coin type of the first output
+		msgTx := txDesc.Tx.MsgTx()
+		if len(msgTx.TxOut) == 0 {
+			continue // Skip transactions with no outputs
+		}
+
+		coinType := msgTx.TxOut[0].CoinType
+		coinTypeTxs[coinType] = append(coinTypeTxs[coinType], txDesc)
+		totalTxCount++
+		totalSize += int64(msgTx.SerializeSize())
+	}
+
+	// If coin type filter is specified, filter results
+	var filteredCoinTypes []wire.CoinType
+	if c.CoinType != nil {
+		targetCoinType := wire.CoinType(*c.CoinType)
+		if _, exists := coinTypeTxs[targetCoinType]; exists {
+			filteredCoinTypes = []wire.CoinType{targetCoinType}
+		} else {
+			// No transactions for the specified coin type
+			return &types.GetMempoolFeesInfoResult{
+				CoinTypes:    make(map[string]types.MempoolCoinTypeFeeInfo),
+				TotalTxCount: 0,
+				TotalSize:    0,
+				LastUpdated:  time.Now().Unix(),
+			}, nil
+		}
+	} else {
+		// Include all coin types
+		for coinType := range coinTypeTxs {
+			filteredCoinTypes = append(filteredCoinTypes, coinType)
+		}
+	}
+
+	// Calculate fee statistics for each coin type
+	coinTypeResults := make(map[string]types.MempoolCoinTypeFeeInfo)
+	now := time.Now()
+
+	for _, coinType := range filteredCoinTypes {
+		txs := coinTypeTxs[coinType]
+		if len(txs) == 0 {
+			continue
+		}
+
+		// Calculate fee rates and statistics
+		feeRates := make([]float64, 0, len(txs))
+		sizes := make([]int64, 0, len(txs))
+		totalFees := float64(0)
+		totalCoinTypeSize := int64(0)
+		oldestTime := now
+		newestTime := time.Time{}
+
+		for _, txDesc := range txs {
+			msgTx := txDesc.Tx.MsgTx()
+			size := int64(msgTx.SerializeSize())
+			feeRate := float64(txDesc.Fee) / (float64(size) / 1000.0) // atoms per KB
+
+			feeRates = append(feeRates, feeRate)
+			sizes = append(sizes, size)
+			totalFees += dcrutil.Amount(txDesc.Fee).ToCoin()
+			totalCoinTypeSize += size
+
+			// Track oldest and newest transaction times
+			if txDesc.Added.Before(oldestTime) {
+				oldestTime = txDesc.Added
+			}
+			if txDesc.Added.After(newestTime) {
+				newestTime = txDesc.Added
+			}
+		}
+
+		// Calculate statistics
+		minFee, maxFee, avgFee := calculateFeeStats(feeRates)
+		medianFee := calculatePercentile(feeRates, 0.50)
+		p25Fee := calculatePercentile(feeRates, 0.25)
+		p75Fee := calculatePercentile(feeRates, 0.75)
+		p90Fee := calculatePercentile(feeRates, 0.90)
+		avgSize := float64(totalCoinTypeSize) / float64(len(txs))
+
+		// Calculate utilization rate (simplified - could be enhanced with actual block space limits)
+		utilizationRate := float64(totalCoinTypeSize) / (1024 * 1024) * 100 // Percentage based on 1MB blocks
+
+		// Convert fee rates from atoms/KB to DCR/KB
+		minFeeDCR := dcrutil.Amount(int64(minFee)).ToCoin()
+		maxFeeDCR := dcrutil.Amount(int64(maxFee)).ToCoin()
+		avgFeeDCR := dcrutil.Amount(int64(avgFee)).ToCoin()
+		medianFeeDCR := dcrutil.Amount(int64(medianFee)).ToCoin()
+		p25FeeDCR := dcrutil.Amount(int64(p25Fee)).ToCoin()
+		p75FeeDCR := dcrutil.Amount(int64(p75Fee)).ToCoin()
+		p90FeeDCR := dcrutil.Amount(int64(p90Fee)).ToCoin()
+
+		// Generate coin type name
+		coinTypeName := generateCoinTypeName(coinType)
+
+		coinTypeResults[coinTypeName] = types.MempoolCoinTypeFeeInfo{
+			CoinType:        uint8(coinType),
+			Name:            coinTypeName,
+			TxCount:         len(txs),
+			TotalSize:       totalCoinTypeSize,
+			AverageSize:     avgSize,
+			MinFee:          minFeeDCR,
+			MaxFee:          maxFeeDCR,
+			AverageFee:      avgFeeDCR,
+			MedianFee:       medianFeeDCR,
+			P25Fee:          p25FeeDCR,
+			P75Fee:          p75FeeDCR,
+			P90Fee:          p90FeeDCR,
+			TotalFees:       totalFees,
+			OldestTxTime:    oldestTime.Unix(),
+			NewestTxTime:    newestTime.Unix(),
+			UtilizationRate: utilizationRate,
+		}
+	}
+
+	return &types.GetMempoolFeesInfoResult{
+		CoinTypes:    coinTypeResults,
+		TotalTxCount: totalTxCount,
+		TotalSize:    totalSize,
+		LastUpdated:  now.Unix(),
+	}, nil
+}
+
+// Helper function to calculate basic fee statistics
+func calculateFeeStats(feeRates []float64) (min, max, avg float64) {
+	if len(feeRates) == 0 {
+		return 0, 0, 0
+	}
+
+	min = feeRates[0]
+	max = feeRates[0]
+	sum := float64(0)
+
+	for _, rate := range feeRates {
+		if rate < min {
+			min = rate
+		}
+		if rate > max {
+			max = rate
+		}
+		sum += rate
+	}
+
+	avg = sum / float64(len(feeRates))
+	return min, max, avg
+}
+
+// Helper function to calculate percentiles
+func calculatePercentile(values []float64, percentile float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+
+	// Simple insertion sort for small arrays
+	sorted := make([]float64, len(values))
+	copy(sorted, values)
+	for i := 1; i < len(sorted); i++ {
+		key := sorted[i]
+		j := i - 1
+		for j >= 0 && sorted[j] > key {
+			sorted[j+1] = sorted[j]
+			j--
+		}
+		sorted[j+1] = key
+	}
+
+	index := percentile * float64(len(sorted)-1)
+	lower := int(index)
+	upper := lower + 1
+
+	if upper >= len(sorted) {
+		return sorted[len(sorted)-1]
+	}
+
+	weight := index - float64(lower)
+	return sorted[lower]*(1-weight) + sorted[upper]*weight
+}
+
+// Helper function to generate coin type names
+func generateCoinTypeName(coinType wire.CoinType) string {
+	switch coinType {
+	case wire.CoinTypeVAR:
+		return "VAR"
+	default:
+		if coinType >= 1 && coinType <= 255 {
+			return fmt.Sprintf("SKA-%d", coinType)
+		}
+		return fmt.Sprintf("Unknown-%d", coinType)
+	}
 }
 
 // handleGetMiningInfo implements the getmininginfo command. We only return the
@@ -6206,6 +6523,10 @@ type Config struct {
 	// for test purposes when doing regression or simulation testing.
 	BlockTemplater BlockTemplater
 	CPUMiner       CPUMiner
+
+	// CoinTypeFeeCalculator provides access to coin-type-specific fee estimation
+	// and management for the dual-coin system.
+	CoinTypeFeeCalculator CoinTypeFeeCalculator
 
 	// TxIndexer defines the optional transaction indexer for the RPC server to
 	// use.

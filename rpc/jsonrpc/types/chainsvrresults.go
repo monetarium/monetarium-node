@@ -34,6 +34,50 @@ type EstimateSmartFeeResult struct {
 	Blocks  int64    `json:"blocks"`
 }
 
+// GetFeeResult models the data returned from the getfeestimatesbycointype
+// command.
+type GetFeeResult struct {
+	CoinType             uint8    `json:"cointype"`
+	MinRelayFee          float64  `json:"minrelayfee"`
+	DynamicFeeMultiplier float64  `json:"dynamicfeemultiplier"`
+	FastFee              float64  `json:"fastfee"`   // ~1 block (90th percentile)
+	NormalFee            float64  `json:"normalfee"` // ~3 blocks (50th percentile)
+	SlowFee              float64  `json:"slowfee"`   // ~6 blocks (10th percentile)
+	PendingTxCount       int      `json:"pendingtxcount"`
+	PendingTxSize        int64    `json:"pendingtxsize"`
+	BlockSpaceUsed       float64  `json:"blockspaceused"`
+	LastUpdated          int64    `json:"lastupdated"`
+	Errors               []string `json:"errors,omitempty"`
+}
+
+// GetMempoolFeesInfoResult models the data returned from the getmempoolfeesinfo command.
+type GetMempoolFeesInfoResult struct {
+	CoinTypes    map[string]MempoolCoinTypeFeeInfo `json:"cointypes"`    // Keyed by coin type string
+	TotalTxCount int                               `json:"totaltxcount"` // Total transactions across all coin types
+	TotalSize    int64                             `json:"totalsize"`    // Total size across all coin types
+	LastUpdated  int64                             `json:"lastupdated"`  // Unix timestamp
+}
+
+// MempoolCoinTypeFeeInfo contains detailed mempool fee information for a specific coin type.
+type MempoolCoinTypeFeeInfo struct {
+	CoinType        uint8   `json:"cointype"`
+	Name            string  `json:"name"`            // E.g., "VAR", "SKA-1", "SKA-2"
+	TxCount         int     `json:"txcount"`         // Number of transactions in mempool
+	TotalSize       int64   `json:"totalsize"`       // Total size of transactions (bytes)
+	AverageSize     float64 `json:"averagesize"`     // Average transaction size
+	MinFee          float64 `json:"minfee"`          // Minimum fee rate (DCR/KB)
+	MaxFee          float64 `json:"maxfee"`          // Maximum fee rate (DCR/KB)
+	AverageFee      float64 `json:"averagefee"`      // Average fee rate (DCR/KB)
+	MedianFee       float64 `json:"medianfee"`       // Median fee rate (DCR/KB)
+	P25Fee          float64 `json:"p25fee"`          // 25th percentile fee rate
+	P75Fee          float64 `json:"p75fee"`          // 75th percentile fee rate
+	P90Fee          float64 `json:"p90fee"`          // 90th percentile fee rate
+	TotalFees       float64 `json:"totalfees"`       // Total fees for all transactions (DCR)
+	OldestTxTime    int64   `json:"oldesttxtime"`    // Unix timestamp of oldest transaction
+	NewestTxTime    int64   `json:"newesttxtime"`    // Unix timestamp of newest transaction
+	UtilizationRate float64 `json:"utilizationrate"` // Percentage of allocated block space used
+}
+
 // EstimateStakeDiffResult models the data returned from the estimatestakediff
 // command.
 type EstimateStakeDiffResult struct {

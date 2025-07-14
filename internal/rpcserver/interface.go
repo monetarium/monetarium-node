@@ -490,6 +490,37 @@ type FeeEstimator interface {
 	EstimateFee(targetConfs int32) (dcrutil.Amount, error)
 }
 
+// CoinTypeFeeCalculator provides an interface for coin-type-specific fee
+// estimation and management for the dual-coin system.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type CoinTypeFeeCalculator interface {
+	// GetFeeStats returns comprehensive fee statistics for a specific coin type
+	// including dynamic multiplier, pending transaction data, and fee percentiles.
+	GetFeeStats(coinType wire.CoinType) (*CoinTypeFeeStats, error)
+
+	// EstimateFeeRate returns the current fee rate estimate for the given coin type
+	// and target confirmation blocks.
+	EstimateFeeRate(coinType wire.CoinType, targetConfirmations int) (dcrutil.Amount, error)
+}
+
+// CoinTypeFeeStats contains fee statistics for a specific coin type as used by
+// the RPC interface - this mirrors the fees package structure for compatibility.
+type CoinTypeFeeStats struct {
+	CoinType             wire.CoinType
+	MinRelayFee          dcrutil.Amount
+	DynamicFeeMultiplier float64
+	MaxFeeRate           dcrutil.Amount
+	FastFee              dcrutil.Amount // ~1 block (90th percentile)
+	NormalFee            dcrutil.Amount // ~3 blocks (50th percentile)
+	SlowFee              dcrutil.Amount // ~6 blocks (10th percentile)
+	PendingTxCount       int
+	PendingTxSize        int64
+	BlockSpaceUsed       float64
+	LastUpdated          time.Time
+}
+
 // LogManager represents a log manager for use with the RPC server.
 //
 // The interface contract does NOT require that these methods are safe for

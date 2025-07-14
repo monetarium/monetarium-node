@@ -216,6 +216,7 @@ const (
 type EstimateSmartFeeCmd struct {
 	Confirmations int64
 	Mode          *EstimateSmartFeeMode `jsonrpcdefault:"\"conservative\""`
+	CoinType      *uint8                // Optional: if nil, defaults to VAR (0)
 }
 
 // NewEstimateSmartFeeCmd returns a new instance which can be used to issue an
@@ -224,6 +225,46 @@ func NewEstimateSmartFeeCmd(confirmations int64, mode *EstimateSmartFeeMode) *Es
 	return &EstimateSmartFeeCmd{
 		Confirmations: confirmations,
 		Mode:          mode,
+		CoinType:      nil, // Default to VAR
+	}
+}
+
+// NewEstimateSmartFeeCmdWithCoinType returns a new instance with coin type specified.
+func NewEstimateSmartFeeCmdWithCoinType(confirmations int64, mode *EstimateSmartFeeMode, coinType *uint8) *EstimateSmartFeeCmd {
+	return &EstimateSmartFeeCmd{
+		Confirmations: confirmations,
+		Mode:          mode,
+		CoinType:      coinType,
+	}
+}
+
+// GetFeeEstimatesByCoinTypeCmd defines the getfeestimatesbycointype JSON-RPC command.
+type GetFeeEstimatesByCoinTypeCmd struct {
+	CoinType      uint8                 `json:"cointype"`
+	Confirmations *int64                `jsonrpcdefault:"1"`
+	Mode          *EstimateSmartFeeMode `jsonrpcdefault:"\"conservative\""`
+}
+
+// NewGetFeeEstimatesByCoinTypeCmd returns a new instance which can be used to issue a
+// getfeestimatesbycointype JSON-RPC command.
+func NewGetFeeEstimatesByCoinTypeCmd(coinType uint8, confirmations *int64, mode *EstimateSmartFeeMode) *GetFeeEstimatesByCoinTypeCmd {
+	return &GetFeeEstimatesByCoinTypeCmd{
+		CoinType:      coinType,
+		Confirmations: confirmations,
+		Mode:          mode,
+	}
+}
+
+// GetMempoolFeesInfoCmd defines the getmempoolfeesinfo JSON-RPC command.
+type GetMempoolFeesInfoCmd struct {
+	CoinType *uint8 `jsonrpcdefault:"null"` // Optional: if null, returns info for all coin types
+}
+
+// NewGetMempoolFeesInfoCmd returns a new instance which can be used to issue a
+// getmempoolfeesinfo JSON-RPC command.
+func NewGetMempoolFeesInfoCmd(coinType *uint8) *GetMempoolFeesInfoCmd {
+	return &GetMempoolFeesInfoCmd{
+		CoinType: coinType,
 	}
 }
 
@@ -1164,6 +1205,8 @@ func init() {
 	dcrjson.MustRegister(Method("decodescript"), (*DecodeScriptCmd)(nil), flags)
 	dcrjson.MustRegister(Method("estimatefee"), (*EstimateFeeCmd)(nil), flags)
 	dcrjson.MustRegister(Method("estimatesmartfee"), (*EstimateSmartFeeCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getfeestimatesbycointype"), (*GetFeeEstimatesByCoinTypeCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getmempoolfeesinfo"), (*GetMempoolFeesInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("estimatestakediff"), (*EstimateStakeDiffCmd)(nil), flags)
 	dcrjson.MustRegister(Method("existsaddress"), (*ExistsAddressCmd)(nil), flags)
 	dcrjson.MustRegister(Method("existsaddresses"), (*ExistsAddressesCmd)(nil), flags)
