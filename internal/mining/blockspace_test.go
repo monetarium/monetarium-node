@@ -19,22 +19,28 @@ func mockChainParams() *chaincfg.Params {
 	// Configure 3 SKA types for testing
 	params.SKACoins = map[dcrutil.CoinType]*chaincfg.SKACoinConfig{
 		1: {
-			CoinType: 1,
-			Name:     "Skarb-1",
-			Symbol:   "SKA-1",
-			Active:   true,
+			CoinType:       1,
+			Name:           "Skarb-1",
+			Symbol:         "SKA-1",
+			EmissionHeight: 100,
+			EmissionWindow: 50,
+			Active:         true,
 		},
 		2: {
-			CoinType: 2,
-			Name:     "Skarb-2",
-			Symbol:   "SKA-2",
-			Active:   true,
+			CoinType:       2,
+			Name:           "Skarb-2",
+			Symbol:         "SKA-2",
+			EmissionHeight: 200,
+			EmissionWindow: 50,
+			Active:         true,
 		},
 		3: {
-			CoinType: 3,
-			Name:     "Skarb-3",
-			Symbol:   "SKA-3",
-			Active:   false, // Inactive for testing
+			CoinType:       3,
+			Name:           "Skarb-3",
+			Symbol:         "SKA-3",
+			EmissionHeight: 300,
+			EmissionWindow: 50,
+			Active:         false, // Inactive for testing
 		},
 	}
 

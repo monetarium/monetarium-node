@@ -1284,12 +1284,24 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 		return nil, txRuleError(ErrCoinbase, str)
 	}
 
-	// SKA emission transactions must not be accepted directly to mempool.
-	// They are only valid when included in blocks at emission height.
+	// SKA emission transactions are only allowed during active emission windows.
 	if blockchain.IsSKAEmissionTransaction(msgTx) {
-		str := fmt.Sprintf("transaction %v is an SKA emission transaction "+
-			"and cannot be accepted to mempool", txHash)
-		return nil, txRuleError(ErrInvalid, str)
+		// Get the current height and check if any emission window is active
+		bestHeight := mp.cfg.BestHeight()
+		nextBlockHeight := bestHeight + 1
+
+		// Check if any emission window is active for the next block
+		if !isEmissionWindowActiveForMempool(nextBlockHeight, mp.cfg.ChainParams) {
+			str := fmt.Sprintf("transaction %v is an SKA emission transaction "+
+				"but no emission window is active (height %d)", txHash, nextBlockHeight)
+			return nil, txRuleError(ErrInvalid, str)
+		}
+
+		// Validate that this emission transaction is for a coin type with an active window
+		if err := validateEmissionTransactionForMempool(msgTx, nextBlockHeight, mp.cfg.ChainParams); err != nil {
+			str := fmt.Sprintf("transaction %v is an invalid SKA emission transaction: %v", txHash, err)
+			return nil, txRuleError(ErrInvalid, str)
+		}
 	}
 
 	// Get the current height of the main chain.  A standalone transaction
@@ -2584,4 +2596,58 @@ func (mp *TxPool) RecordConfirmedTransaction(tx *dcrutil.Tx, fee int64) {
 		txSize := int64(msgTx.SerializeSize())
 		mp.feeCalculator.RecordTransactionFee(primaryCoinType, fee, txSize, true) // true = confirmed
 	}
+}
+
+// isEmissionWindowActiveForMempool checks if any emission window is active for mempool validation
+func isEmissionWindowActiveForMempool(blockHeight int64, chainParams *chaincfg.Params) bool {
+	for coinType := range chainParams.SKACoins {
+		config := chainParams.SKACoins[coinType]
+		if config == nil {
+			continue
+		}
+
+		emissionStart := int64(config.EmissionHeight)
+		emissionEnd := emissionStart + int64(config.EmissionWindow)
+
+		// If EmissionWindow is 0, only allow emission at exact height
+		if config.EmissionWindow == 0 {
+			if blockHeight == emissionStart {
+				return true
+			}
+		} else {
+			if blockHeight >= emissionStart && blockHeight <= emissionEnd {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// validateEmissionTransactionForMempool validates an emission transaction for mempool acceptance
+func validateEmissionTransactionForMempool(msgTx *wire.MsgTx, blockHeight int64, chainParams *chaincfg.Params) error {
+	// Check that all outputs are for coin types with active emission windows
+	for _, txOut := range msgTx.TxOut {
+		coinType := dcrutil.CoinType(txOut.CoinType)
+		config, exists := chainParams.SKACoins[coinType]
+		if !exists {
+			return fmt.Errorf("coin type %d not configured", coinType)
+		}
+
+		emissionStart := int64(config.EmissionHeight)
+		emissionEnd := emissionStart + int64(config.EmissionWindow)
+
+		// Check if this coin type's emission window is active
+		if config.EmissionWindow == 0 {
+			if blockHeight != emissionStart {
+				return fmt.Errorf("coin type %d emission window not active at height %d", coinType, blockHeight)
+			}
+		} else {
+			if blockHeight < emissionStart || blockHeight > emissionEnd {
+				return fmt.Errorf("coin type %d emission window not active at height %d (window: %d-%d)",
+					coinType, blockHeight, emissionStart, emissionEnd)
+			}
+		}
+	}
+
+	return nil
 }

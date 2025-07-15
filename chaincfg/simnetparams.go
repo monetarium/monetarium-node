@@ -625,6 +625,7 @@ func SimNetParams() *Params {
 				Symbol:         "SKA-1",
 				MaxSupply:      1e6 * 1e8, // 1 million SKA-1 for testing
 				EmissionHeight: 10,        // Emit early for testing
+				EmissionWindow: 100,       // 100-block emission window for testing
 				Active:         true,
 				Description:    "Primary SKA coin type for simnet testing",
 			},
@@ -634,6 +635,7 @@ func SimNetParams() *Params {
 				Symbol:         "SKA-2",
 				MaxSupply:      5e5 * 1e8, // 500k SKA-2 for testing
 				EmissionHeight: 20,        // Emit slightly later
+				EmissionWindow: 100,       // 100-block emission window for testing
 				Active:         false,     // Initially inactive
 				Description:    "Secondary SKA coin type for simnet testing",
 			},

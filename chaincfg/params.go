@@ -236,6 +236,11 @@ type SKACoinConfig struct {
 	// was or will be initially emitted. Set to 0 for genesis emission.
 	EmissionHeight int32
 
+	// EmissionWindow is the number of blocks after EmissionHeight during
+	// which emission is allowed. If 0, emission is only allowed at the
+	// exact EmissionHeight block. Default is 4320 blocks (~30 days).
+	EmissionWindow int32
+
 	// Active indicates whether this SKA coin type is currently active
 	// and can be used in transactions.
 	Active bool

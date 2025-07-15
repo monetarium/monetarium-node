@@ -597,6 +597,7 @@ func MainNetParams() *Params {
 				Symbol:         "SKA-1",
 				MaxSupply:      10e6 * 1e8, // 10 million SKA-1
 				EmissionHeight: 100000,     // Emit at block 100k
+				EmissionWindow: 4320,       // 30-day emission window (~144 blocks/day * 30)
 				Active:         true,
 				Description:    "Primary asset-backed SKA coin type for mainnet",
 			},
@@ -606,6 +607,7 @@ func MainNetParams() *Params {
 				Symbol:         "SKA-2",
 				MaxSupply:      5e6 * 1e8, // 5 million SKA-2 (proof of concept)
 				EmissionHeight: 150000,    // Emit at block 150k
+				EmissionWindow: 4320,      // 30-day emission window (~144 blocks/day * 30)
 				Active:         false,     // Not yet active, for proof of concept
 				Description:    "Secondary SKA coin type for proof of concept testing",
 			},

@@ -9,6 +9,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -427,4 +428,242 @@ func indexStr(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+// TestSKAEmissionWindow tests the emission window functionality
+func TestSKAEmissionWindow(t *testing.T) {
+	// Create test parameters with emission windows
+	params := &chaincfg.Params{
+		SKACoins: map[dcrutil.CoinType]*chaincfg.SKACoinConfig{
+			1: {
+				CoinType:       1,
+				EmissionHeight: 100,
+				EmissionWindow: 50, // 50-block window
+			},
+			2: {
+				CoinType:       2,
+				EmissionHeight: 200,
+				EmissionWindow: 0, // Exact height only
+			},
+			3: {
+				CoinType:       3,
+				EmissionHeight: 300,
+				EmissionWindow: 100, // 100-block window
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		blockHeight int64
+		coinType    dcrutil.CoinType
+		expected    bool
+	}{
+		// SKA-1 tests (emission window 100-150)
+		{
+			name:        "SKA-1 before window",
+			blockHeight: 99,
+			coinType:    1,
+			expected:    false,
+		},
+		{
+			name:        "SKA-1 at window start",
+			blockHeight: 100,
+			coinType:    1,
+			expected:    true,
+		},
+		{
+			name:        "SKA-1 in window middle",
+			blockHeight: 125,
+			coinType:    1,
+			expected:    true,
+		},
+		{
+			name:        "SKA-1 at window end",
+			blockHeight: 150,
+			coinType:    1,
+			expected:    true,
+		},
+		{
+			name:        "SKA-1 after window",
+			blockHeight: 151,
+			coinType:    1,
+			expected:    false,
+		},
+		// SKA-2 tests (exact height only)
+		{
+			name:        "SKA-2 before height",
+			blockHeight: 199,
+			coinType:    2,
+			expected:    false,
+		},
+		{
+			name:        "SKA-2 at exact height",
+			blockHeight: 200,
+			coinType:    2,
+			expected:    true,
+		},
+		{
+			name:        "SKA-2 after height",
+			blockHeight: 201,
+			coinType:    2,
+			expected:    false,
+		},
+		// SKA-3 tests (emission window 300-400)
+		{
+			name:        "SKA-3 before window",
+			blockHeight: 299,
+			coinType:    3,
+			expected:    false,
+		},
+		{
+			name:        "SKA-3 at window start",
+			blockHeight: 300,
+			coinType:    3,
+			expected:    true,
+		},
+		{
+			name:        "SKA-3 at window end",
+			blockHeight: 400,
+			coinType:    3,
+			expected:    true,
+		},
+		{
+			name:        "SKA-3 after window",
+			blockHeight: 401,
+			coinType:    3,
+			expected:    false,
+		},
+		// Non-existent coin type
+		{
+			name:        "Non-existent coin type",
+			blockHeight: 100,
+			coinType:    99,
+			expected:    false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := isSKAEmissionWindow(test.blockHeight, test.coinType, params)
+			if result != test.expected {
+				t.Errorf("isSKAEmissionWindow(%d, %d): expected %t, got %t",
+					test.blockHeight, test.coinType, test.expected, result)
+			}
+		})
+	}
+}
+
+// TestSKAEmissionWindowActive tests the emission window active detection
+func TestSKAEmissionWindowActive(t *testing.T) {
+	// Create test parameters with emission windows
+	params := &chaincfg.Params{
+		SKACoins: map[dcrutil.CoinType]*chaincfg.SKACoinConfig{
+			1: {
+				CoinType:       1,
+				EmissionHeight: 100,
+				EmissionWindow: 50, // 100-150
+			},
+			2: {
+				CoinType:       2,
+				EmissionHeight: 200,
+				EmissionWindow: 0, // Exact height only
+			},
+			3: {
+				CoinType:       3,
+				EmissionHeight: 300,
+				EmissionWindow: 100, // 300-400
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		blockHeight int64
+		expected    bool
+	}{
+		{
+			name:        "No windows active",
+			blockHeight: 50,
+			expected:    false,
+		},
+		{
+			name:        "SKA-1 window active",
+			blockHeight: 125,
+			expected:    true,
+		},
+		{
+			name:        "SKA-2 exact height active",
+			blockHeight: 200,
+			expected:    true,
+		},
+		{
+			name:        "SKA-3 window active",
+			blockHeight: 350,
+			expected:    true,
+		},
+		{
+			name:        "Between windows",
+			blockHeight: 250,
+			expected:    false,
+		},
+		{
+			name:        "After all windows",
+			blockHeight: 500,
+			expected:    false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := isSKAEmissionWindowActive(test.blockHeight, params)
+			if result != test.expected {
+				t.Errorf("isSKAEmissionWindowActive(%d): expected %t, got %t",
+					test.blockHeight, test.expected, result)
+			}
+		})
+	}
+}
+
+// TestSKAEmissionWindowEdgeCases tests edge cases for emission windows
+func TestSKAEmissionWindowEdgeCases(t *testing.T) {
+	// Test with empty parameters
+	emptyParams := &chaincfg.Params{
+		SKACoins: map[dcrutil.CoinType]*chaincfg.SKACoinConfig{},
+	}
+
+	// Test with nil parameters
+	if isSKAEmissionWindowActive(100, emptyParams) {
+		t.Error("Expected false for empty parameters")
+	}
+
+	// Test with very large emission window
+	largeWindowParams := &chaincfg.Params{
+		SKACoins: map[dcrutil.CoinType]*chaincfg.SKACoinConfig{
+			1: {
+				CoinType:       1,
+				EmissionHeight: 100,
+				EmissionWindow: 1000000, // Very large window
+			},
+		},
+	}
+
+	if !isSKAEmissionWindow(500000, 1, largeWindowParams) {
+		t.Error("Expected true for large emission window")
+	}
+
+	// Test with zero emission height
+	zeroHeightParams := &chaincfg.Params{
+		SKACoins: map[dcrutil.CoinType]*chaincfg.SKACoinConfig{
+			1: {
+				CoinType:       1,
+				EmissionHeight: 0,
+				EmissionWindow: 100,
+			},
+		},
+	}
+
+	if !isSKAEmissionWindow(50, 1, zeroHeightParams) {
+		t.Error("Expected true for zero emission height with window")
+	}
 }

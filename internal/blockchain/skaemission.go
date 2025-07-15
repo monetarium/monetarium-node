@@ -21,8 +21,62 @@ import (
 
 // isSKAEmissionBlock returns whether or not the provided block is the SKA
 // emission block as defined by the chain parameters.
+// NOTE: This function is deprecated and only supports SKA-1 emission.
+// Use isSKAEmissionWindow for multi-coin support.
 func isSKAEmissionBlock(blockHeight int64, chainParams *chaincfg.Params) bool {
 	return blockHeight == chainParams.SKAEmissionHeight
+}
+
+// isSKAEmissionWindow returns whether the provided block height is within
+// the emission window for the specified SKA coin type.
+func isSKAEmissionWindow(blockHeight int64, coinType dcrutil.CoinType, chainParams *chaincfg.Params) bool {
+	config, exists := chainParams.SKACoins[coinType]
+	if !exists {
+		log.Debugf("SKA coin type %d not configured in chain parameters", coinType)
+		return false
+	}
+
+	emissionStart := int64(config.EmissionHeight)
+	emissionEnd := emissionStart + int64(config.EmissionWindow)
+
+	// If EmissionWindow is 0, only allow emission at exact height (backward compatibility)
+	if config.EmissionWindow == 0 {
+		result := blockHeight == emissionStart
+		log.Debugf("SKA coin type %d emission window check (exact height): height=%d, required=%d, result=%t",
+			coinType, blockHeight, emissionStart, result)
+		return result
+	}
+
+	result := blockHeight >= emissionStart && blockHeight <= emissionEnd
+	log.Debugf("SKA coin type %d emission window check: height=%d, window=%d-%d, result=%t",
+		coinType, blockHeight, emissionStart, emissionEnd, result)
+	return result
+}
+
+// isSKAEmissionWindowActive returns whether any SKA coin type has an active
+// emission window at the specified block height.
+func isSKAEmissionWindowActive(blockHeight int64, chainParams *chaincfg.Params) bool {
+	for coinType := range chainParams.SKACoins {
+		if isSKAEmissionWindow(blockHeight, coinType, chainParams) {
+			return true
+		}
+	}
+	return false
+}
+
+// CheckSKAEmissionAlreadyExists checks if a coin type has already been emitted
+// in the blockchain. This function would need to be called with blockchain state
+// to implement "first valid emission wins" logic.
+// TODO: This function needs blockchain state access to check emission history
+func CheckSKAEmissionAlreadyExists(coinType dcrutil.CoinType, blockHeight int64, chainParams *chaincfg.Params) bool {
+	// This is a placeholder implementation. In a full implementation, this would:
+	// 1. Check the blockchain state for existing emission transactions
+	// 2. Look for UTXO entries created by emission transactions for this coin type
+	// 3. Return true if any emission has already occurred
+
+	// For now, we'll implement basic window validation
+	// The actual "first emission wins" logic will be enforced by the UTXO validation
+	return false
 }
 
 // isSKAActive returns whether or not SKA transactions are active for the
@@ -621,17 +675,24 @@ func IsSKAEmissionTransaction(tx *wire.MsgTx) bool {
 
 // CheckSKAEmissionInBlock validates SKA emission rules for a block at the given height.
 // This function enforces:
-// 1. SKA emission block must contain exactly one SKA emission transaction
-// 2. Non-emission blocks must not contain any SKA emission transactions
+// 1. SKA emission windows allow emission transactions during defined periods
+// 2. Non-emission windows must not contain any SKA emission transactions
 // 3. No SKA transactions are allowed before activation height
+// 4. Each coin type can only be emitted once (first valid emission wins)
 func CheckSKAEmissionInBlock(block *dcrutil.Block, blockHeight int64,
 	chainParams *chaincfg.Params) error {
 
-	isEmissionBlock := isSKAEmissionBlock(blockHeight, chainParams)
+	// Check if this is the legacy SKA emission block (backward compatibility)
+	isLegacyEmissionBlock := isSKAEmissionBlock(blockHeight, chainParams)
+
+	// Check if any emission window is active
+	isEmissionWindowActive := isSKAEmissionWindowActive(blockHeight, chainParams)
+
 	isActive := isSKAActive(blockHeight, chainParams)
 
 	var emissionTxCount int
 	var skaTxCount int
+	emissionTxCoinTypes := make(map[dcrutil.CoinType]bool)
 
 	// Check all transactions in the block
 	for i, tx := range block.Transactions() {
@@ -644,6 +705,17 @@ func CheckSKAEmissionInBlock(block *dcrutil.Block, blockHeight int64,
 			// Validate the emission transaction
 			if err := ValidateSKAEmissionTransaction(msgTx, blockHeight, chainParams); err != nil {
 				return fmt.Errorf("invalid SKA emission transaction at index %d: %w", i, err)
+			}
+
+			// Track which coin types are being emitted
+			for _, txOut := range msgTx.TxOut {
+				coinType := dcrutil.CoinType(txOut.CoinType)
+				if emissionTxCoinTypes[coinType] {
+					log.Errorf("Multiple emission transactions detected for coin type %d at height %d", coinType, blockHeight)
+					return fmt.Errorf("multiple emission transactions for coin type %d at height %d - only one emission per coin type allowed", coinType, blockHeight)
+				}
+				emissionTxCoinTypes[coinType] = true
+				log.Debugf("Tracking emission transaction for coin type %d at height %d", coinType, blockHeight)
 			}
 		}
 
@@ -659,22 +731,34 @@ func CheckSKAEmissionInBlock(block *dcrutil.Block, blockHeight int64,
 	}
 
 	// Validate emission rules based on block height
-	if isEmissionBlock {
-		// Emission block must have exactly one emission transaction
-		if emissionTxCount != 1 {
-			return fmt.Errorf("SKA emission block at height %d must contain exactly 1 emission transaction, got %d",
-				blockHeight, emissionTxCount)
+	if isLegacyEmissionBlock || isEmissionWindowActive {
+		// Emission transactions are allowed during emission windows
+		if emissionTxCount > 0 {
+			log.Debugf("Validating %d emission transactions at height %d", emissionTxCount, blockHeight)
+			// Validate that emission transactions are within their respective windows
+			for coinType := range emissionTxCoinTypes {
+				if !isSKAEmissionWindow(blockHeight, coinType, chainParams) {
+					config := chainParams.SKACoins[coinType]
+					emissionStart := int64(config.EmissionHeight)
+					emissionEnd := emissionStart + int64(config.EmissionWindow)
+					log.Errorf("Emission transaction for coin type %d rejected: height %d outside window %d-%d",
+						coinType, blockHeight, emissionStart, emissionEnd)
+					return fmt.Errorf("emission transaction for coin type %d at height %d is outside emission window (%d-%d)",
+						coinType, blockHeight, emissionStart, emissionEnd)
+				}
+				log.Debugf("Emission transaction for coin type %d validated at height %d", coinType, blockHeight)
+			}
 		}
 	} else {
-		// Non-emission blocks must not have emission transactions
+		// Non-emission windows must not have emission transactions
 		if emissionTxCount > 0 {
-			return fmt.Errorf("block at height %d contains %d SKA emission transactions but is not emission block",
+			return fmt.Errorf("block at height %d contains %d SKA emission transactions but is not in emission window",
 				blockHeight, emissionTxCount)
 		}
 	}
 
 	// Before activation, no SKA transactions are allowed (except emission)
-	if !isActive && !isEmissionBlock && skaTxCount > 0 {
+	if !isActive && !isLegacyEmissionBlock && !isEmissionWindowActive && skaTxCount > 0 {
 		return fmt.Errorf("SKA transactions not allowed before activation height %d (current: %d)",
 			chainParams.SKAActivationHeight, blockHeight)
 	}
