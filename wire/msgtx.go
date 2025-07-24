@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 )
@@ -876,9 +877,38 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32) error {
 // difference and separating the two allows the API to be flexible enough to
 // deal with changes.
 func (msg *MsgTx) Deserialize(r io.Reader) error {
-	// Use current protocol version for deserialization to include dual-coin support.
-	// This ensures CoinType field is read from the serialized input.
-	return msg.BtcDecode(r, ProtocolVersion)
+	// Try to auto-detect wire format by attempting deserialization
+	// with DualCoinVersion first, falling back to older version for specific cases
+	
+	// Read all data into buffer for multiple attempts
+	var buf bytes.Buffer
+	_, err := buf.ReadFrom(r)
+	if err != nil {
+		return err
+	}
+	data := buf.Bytes()
+	
+	// First try with DualCoinVersion (current protocol with CoinType field)
+	err = msg.BtcDecode(bytes.NewReader(data), DualCoinVersion)
+	if err == nil {
+		return nil
+	}
+	
+	// Fall back to older protocol version for specific errors that indicate
+	// missing CoinType fields in old transaction data. Only handle errors
+	// that are clearly from wire format differences, not genuine corruption.
+	if err != nil && (err.Error() == "unexpected EOF" ||
+		strings.Contains(err.Error(), "readScript: transaction output public key script is larger than the max allowed size") ||
+		strings.Contains(err.Error(), "ReadVarInt: non-canonical varint")) {
+		// Try with pre-DualCoinVersion format for backward compatibility
+		fallbackErr := msg.BtcDecode(bytes.NewReader(data), DualCoinVersion-1)
+		if fallbackErr == nil {
+			return nil
+		}
+	}
+	
+	// Return the original error from DualCoinVersion attempt
+	return err
 }
 
 // FromBytes deserializes a transaction byte slice.

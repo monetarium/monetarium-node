@@ -77,7 +77,9 @@ func SimNetParams() *Params {
 				Sequence: 0xffffffff,
 			}},
 			TxOut: []*wire.TxOut{{
-				Value: 0x00000000,
+				Value:    0x00000000,
+				CoinType: wire.CoinTypeVAR,
+				Version:  0,
 				PkScript: hexDecode("4104678afdb0fe5548271967f1a67130b7105c" +
 					"d6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e5" +
 					"1ec112de5c384df7ba0b8d578a4c702b6bf11d5fac"),

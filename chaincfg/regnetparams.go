@@ -75,8 +75,9 @@ func RegNetParams() *Params {
 				ValueIn:         wire.NullValueIn,
 			}},
 			TxOut: []*wire.TxOut{{
-				Version: 0x0000,
-				Value:   0x00000000,
+				Value:    0x00000000,
+				CoinType: wire.CoinTypeVAR,
+				Version:  0x0000,
 				PkScript: hexDecode("801679e98561ada96caec2949a5d41c4cab3851e" +
 					"b740d951c10ecbcf265c1fd9"),
 			}},
