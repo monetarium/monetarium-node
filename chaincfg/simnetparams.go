@@ -613,11 +613,7 @@ func SimNetParams() *Params {
 		seeders: nil, // NOTE: There must NOT be any seeds.
 
 		// SKA (Skarb) dual-coin system parameters for simnet testing
-		SKAEmissionAmount:   1e6 * 1e8,  // 1 million SKA for testing
-		SKAEmissionHeight:   10,         // Emit early for testing
-		SKAActivationHeight: 10,         // Activate immediately
-		SKAMaxAmount:        10e6 * 1e8, // 10 million SKA max
-		SKAMinRelayTxFee:    1e3,        // 0.00001 SKA minimum fee
+		SKAMinRelayTxFee: 1e3, // 0.00001 SKA minimum fee
 
 		// SKA coin type configurations for simnet testing
 		SKACoins: map[cointype.CoinType]*SKACoinConfig{
@@ -638,6 +634,8 @@ func SimNetParams() *Params {
 				EmissionAmounts: []int64{
 					1e6 * 1e8, // 1,000,000 SKA-1 to treasury
 				},
+				// SIMNET TEST KEY - NOT FOR PRODUCTION USE
+				EmissionKey: mustParseHexPubKeySimnet("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"),
 			},
 			2: {
 				CoinType:       2,
@@ -655,18 +653,13 @@ func SimNetParams() *Params {
 				EmissionAmounts: []int64{
 					5e5 * 1e8, // 500,000 SKA-2 to treasury
 				},
+				// SIMNET TEST KEY - NOT FOR PRODUCTION USE
+				EmissionKey: mustParseHexPubKeySimnet("03389ffce9cd9ae88dcc0631e88a821ffdbe9bfe26381749838fca9302ccaa9ddd"),
 			},
 		},
 
 		// Initial SKA types to activate at simnet genesis
 		InitialSKATypes: []cointype.CoinType{1}, // Only SKA-1 initially active
-
-		// SKA emission authorization keys for simnet (TEST KEYS ONLY)
-		SKAEmissionKeys: map[cointype.CoinType]*secp256k1.PublicKey{
-			// SIMNET TEST KEYS - NOT FOR PRODUCTION USE
-			1: mustParseHexPubKeySimnet("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"),
-			2: mustParseHexPubKeySimnet("03389ffce9cd9ae88dcc0631e88a821ffdbe9bfe26381749838fca9302ccaa9ddd"),
-		},
 	}
 }
 

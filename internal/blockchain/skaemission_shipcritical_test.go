@@ -19,9 +19,6 @@ import (
 func TestShipCriticalSecurityFixes(t *testing.T) {
 	// Create test parameters
 	params := chaincfg.SimNetParams()
-	params.SKAEmissionHeight = 100
-	params.SKAEmissionAmount = 1000000
-	params.SKAMaxAmount = 10000000
 
 	// Generate test keys
 	privKey, err := secp256k1.GeneratePrivateKey()
@@ -30,20 +27,19 @@ func TestShipCriticalSecurityFixes(t *testing.T) {
 	}
 	pubKey := privKey.PubKey()
 
-	// Initialize emission keys and config
-	params.SKAEmissionKeys = map[cointype.CoinType]*secp256k1.PublicKey{
-		1: pubKey,
-	}
+	// Initialize per-coin configuration
 	params.SKACoins = map[cointype.CoinType]*chaincfg.SKACoinConfig{
 		1: {
 			CoinType:          1,
 			Name:              "SKA-1",
 			Symbol:            "SKA1",
 			MaxSupply:         10000000,
+			Active:            true,
 			EmissionHeight:    100,
 			EmissionWindow:    100,
 			EmissionAddresses: []string{"ScuQxvveKGfpG1ypt6u27F99Anf7EW3cqhq"},
 			EmissionAmounts:   []int64{10000000},
+			EmissionKey:       pubKey, // Add the emission key
 		},
 	}
 

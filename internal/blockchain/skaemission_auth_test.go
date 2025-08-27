@@ -23,10 +23,21 @@ import (
 func TestEmissionAuthorizationBasic(t *testing.T) {
 	// Create test parameters
 	params := &chaincfg.Params{
-		Net:               wire.MainNet, // Set network for signing verification
-		SKAEmissionHeight: 100,
-		SKAEmissionAmount: 1000000,
-		SKAMaxAmount:      10000000,
+		Net: wire.MainNet, // Set network for signing verification
+		SKACoins: map[cointype.CoinType]*chaincfg.SKACoinConfig{
+			1: {
+				CoinType:       1,
+				Active:         true,
+				EmissionHeight: 100,
+				EmissionWindow: 4320,
+				EmissionAddresses: []string{
+					"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", // Treasury
+				},
+				EmissionAmounts: []int64{
+					1000000, // 1M atoms to treasury
+				},
+			},
+		},
 	}
 
 	// Generate test keys
@@ -36,10 +47,8 @@ func TestEmissionAuthorizationBasic(t *testing.T) {
 	}
 	pubKey := privKey.PubKey()
 
-	// Initialize emission keys and nonces
-	params.SKAEmissionKeys = map[cointype.CoinType]*secp256k1.PublicKey{
-		1: pubKey,
-	}
+	// Initialize emission key in per-coin configuration
+	params.SKACoins[1].EmissionKey = pubKey
 
 	// Create test authorization
 	auth := &chaincfg.SKAEmissionAuth{
@@ -212,10 +221,21 @@ func TestEmissionAuthorizationScript(t *testing.T) {
 func TestUnauthorizedEmissionPrevention(t *testing.T) {
 	// Create test parameters with no emission keys configured
 	params := &chaincfg.Params{
-		SKAEmissionHeight: 100,
-		SKAEmissionAmount: 1000000,
-		SKAMaxAmount:      10000000,
-		SKAEmissionKeys:   make(map[cointype.CoinType]*secp256k1.PublicKey),
+		SKACoins: map[cointype.CoinType]*chaincfg.SKACoinConfig{
+			1: {
+				CoinType:       1,
+				Active:         true,
+				EmissionHeight: 100,
+				EmissionWindow: 4320,
+				EmissionAddresses: []string{
+					"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", // Treasury
+				},
+				EmissionAmounts: []int64{
+					1000000, // 1M atoms to treasury
+				},
+				// EmissionKey: nil, // No key configured for this test
+			},
+		},
 	}
 
 	// Test 1: No emission key configured
@@ -240,7 +260,7 @@ func TestUnauthorizedEmissionPrevention(t *testing.T) {
 	}
 
 	// Test 2: Configure a key and test replay protection
-	params.SKAEmissionKeys[1] = privKey.PubKey()
+	params.SKACoins[1].EmissionKey = privKey.PubKey()
 	// Set nonce in blockchain state instead of params
 	chain.skaEmissionState.nonces[1] = 5 // Simulate 5 emissions already done
 

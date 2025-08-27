@@ -1327,22 +1327,19 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 	bestHeight := mp.cfg.BestHeight()
 	nextBlockHeight := bestHeight + 1
 
-	// Check if transaction has SKA outputs and validate SKA is active
-	hasSKAOutputs := false
+	// Check if transaction has SKA outputs and validate all coin types are active
+	usedSKACoinTypes := make(map[cointype.CoinType]bool)
 	for _, txOut := range msgTx.TxOut {
 		if txOut.CoinType.IsSKA() {
-			hasSKAOutputs = true
-			break
+			usedSKACoinTypes[txOut.CoinType] = true
 		}
 	}
 
-	// If transaction has SKA outputs, ensure SKA is active
-	if hasSKAOutputs {
-		// Check if SKA is active for next block height
-		if nextBlockHeight < mp.cfg.ChainParams.SKAActivationHeight {
-			str := fmt.Sprintf("transaction %v has SKA outputs but SKA is not "+
-				"active until block %d (next block height %d)",
-				txHash, mp.cfg.ChainParams.SKAActivationHeight, nextBlockHeight)
+	// Validate all used SKA coin types are active
+	for coinType := range usedSKACoinTypes {
+		if !mp.cfg.ChainParams.IsSKACoinTypeActive(coinType) {
+			str := fmt.Sprintf("transaction %v uses inactive SKA coin type %d",
+				txHash, coinType)
 			return nil, txRuleError(ErrInvalid, str)
 		}
 	}

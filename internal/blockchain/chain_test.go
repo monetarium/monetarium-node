@@ -22,7 +22,6 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/cointype"
-	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	dcrutil "github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
@@ -57,22 +56,26 @@ func cloneParams(params *chaincfg.Params) *chaincfg.Params {
 		}
 	}
 
-	// Deep copy SKA fields
-	if params.SKAEmissionKeys != nil {
-		result.SKAEmissionKeys = make(map[cointype.CoinType]*secp256k1.PublicKey)
-		for k, v := range params.SKAEmissionKeys {
-			result.SKAEmissionKeys[k] = v
-		}
-	}
-
-	// Deep copy other maps as needed
+	// Deep copy SKA coin configurations
 	if params.SKACoins != nil {
 		result.SKACoins = make(map[cointype.CoinType]*chaincfg.SKACoinConfig)
 		for k, v := range params.SKACoins {
 			configCopy := *v
+			// Deep copy slices
+			if v.EmissionAddresses != nil {
+				configCopy.EmissionAddresses = make([]string, len(v.EmissionAddresses))
+				copy(configCopy.EmissionAddresses, v.EmissionAddresses)
+			}
+			if v.EmissionAmounts != nil {
+				configCopy.EmissionAmounts = make([]int64, len(v.EmissionAmounts))
+				copy(configCopy.EmissionAmounts, v.EmissionAmounts)
+			}
+			// EmissionKey doesn't need deep copying as secp256k1.PublicKey is immutable
 			result.SKACoins[k] = &configCopy
 		}
 	}
+
+	// Deep copy other fields as needed
 
 	if params.InitialSKATypes != nil {
 		result.InitialSKATypes = make([]cointype.CoinType, len(params.InitialSKATypes))

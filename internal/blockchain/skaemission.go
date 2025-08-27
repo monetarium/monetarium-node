@@ -48,79 +48,9 @@ func isSKAEmissionWindowActive(blockHeight int64, chainParams *chaincfg.Params) 
 // CheckSKAEmissionAlreadyExists checks if a coin type has already been emitted
 // in the blockchain. This now uses the persistent blockchain state for O(1)
 // lookups instead of scanning blocks.
-func CheckSKAEmissionAlreadyExists(coinType cointype.CoinType, chain *BlockChain, chainParams *chaincfg.Params) bool {
+func CheckSKAEmissionAlreadyExists(coinType cointype.CoinType, chain *BlockChain) bool {
 	// Use blockchain state for efficient and reliable emission tracking
 	return chain.HasSKAEmissionOccurred(coinType)
-}
-
-// CheckSKAEmissionAlreadyExistsLegacy checks if a coin type has already been emitted
-// in the blockchain by scanning emission window blocks for existing emissions.
-// This implements secure "first valid emission wins" logic using blockchain state.
-// DEPRECATED: Use CheckSKAEmissionAlreadyExists which uses persistent state.
-func CheckSKAEmissionAlreadyExistsLegacy(coinType cointype.CoinType, chain *BlockChain, chainParams *chaincfg.Params) bool {
-	// Check if coin type is configured
-	config, exists := chainParams.SKACoins[coinType]
-	if !exists {
-		return false // Coin type not configured
-	}
-
-	// Calculate emission window boundaries
-	emissionStart := int64(config.EmissionHeight)
-	emissionEnd := emissionStart + int64(config.EmissionWindow)
-
-	// Get the current chain tip height to avoid scanning beyond current state
-	tipHeight := chain.BestSnapshot().Height
-	if emissionStart > tipHeight {
-		return false // Emission hasn't started yet
-	}
-
-	// Limit scan to current chain height
-	if emissionEnd > tipHeight {
-		emissionEnd = tipHeight
-	}
-
-	// Scan blocks in emission window for existing emission transactions
-	for height := emissionStart; height <= emissionEnd; height++ {
-		// Fetch block hash at this height
-		blockHash, err := chain.BlockHashByHeight(height)
-		if err != nil {
-			// If we can't fetch the block hash, assume no emission exists
-			// This handles edge cases like chain reorganizations
-			continue
-		}
-
-		// Fetch the block
-		block, err := chain.BlockByHash(blockHash)
-		if err != nil {
-			// If we can't fetch the block, assume no emission exists
-			continue
-		}
-
-		// Check all transactions in this block
-		for _, tx := range block.Transactions() {
-			msgTx := tx.MsgTx()
-
-			// Check if this is an emission transaction
-			if wire.IsSKAEmissionTransaction(msgTx) {
-				// Check if this emission transaction contains outputs for our target coin type
-				for _, txOut := range msgTx.TxOut {
-					if txOut.CoinType == coinType {
-						// Found an existing emission for this coin type
-						return true
-					}
-				}
-			}
-		}
-	}
-
-	// No existing emission found for this coin type
-	return false
-}
-
-// isSKAActive returns whether or not SKA transactions are active for the
-// provided block height based on the chain parameters.
-func isSKAActive(blockHeight int64, chainParams *chaincfg.Params) bool {
-	return blockHeight >= chainParams.SKAActivationHeight
 }
 
 // CreateSKAEmissionTransaction creates a special SKA emission transaction that
@@ -129,7 +59,7 @@ func isSKAActive(blockHeight int64, chainParams *chaincfg.Params) bool {
 // The emission transaction has the following structure:
 // - Single input: null input (similar to coinbase)
 // - Multiple outputs: SKA distribution to specified addresses
-// - Total output value equals chainParams.SKAEmissionAmount
+// - Total output value determined by coin type configuration
 func CreateSKAEmissionTransaction(emissionAddresses []string, amounts []int64,
 	chainParams *chaincfg.Params) (*wire.MsgTx, error) {
 
@@ -151,10 +81,23 @@ func CreateSKAEmissionTransaction(emissionAddresses []string, amounts []int64,
 		totalAmount += amount
 	}
 
-	// Verify total matches chain parameters
-	if totalAmount != chainParams.SKAEmissionAmount {
-		return nil, fmt.Errorf("total emission amount %d does not match chain parameter %d",
-			totalAmount, chainParams.SKAEmissionAmount)
+	// Validate total amount matches chain configuration for coin type 1
+	// NOTE: This legacy function defaults to coin type 1 for backward compatibility
+	coinType := cointype.CoinType(1)
+	skaConfig, exists := chainParams.SKACoins[coinType]
+	if !exists {
+		return nil, fmt.Errorf("SKA coin type %d not configured in chain params", coinType)
+	}
+
+	// Calculate expected total emission amount from config
+	var expectedEmissionAmount int64
+	for _, amount := range skaConfig.EmissionAmounts {
+		expectedEmissionAmount += amount
+	}
+
+	if expectedEmissionAmount > 0 && totalAmount != expectedEmissionAmount {
+		return nil, fmt.Errorf("total emission %d does not match chain parameter %d for coin type %d",
+			totalAmount, expectedEmissionAmount, coinType)
 	}
 
 	// Create the emission transaction
@@ -448,18 +391,12 @@ func ValidateSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
 				i, txOut.Value)
 		}
 
-		if txOut.Value > chainParams.SKAMaxAmount {
-			return fmt.Errorf("SKA emission transaction output %d exceeds maximum %d",
-				i, chainParams.SKAMaxAmount)
+		if txOut.Value > int64(txOut.CoinType.MaxAmount()) {
+			return fmt.Errorf("SKA emission transaction output %d exceeds maximum %d for coin type %d",
+				i, int64(txOut.CoinType.MaxAmount()), txOut.CoinType)
 		}
 
 		totalEmissionAmount += txOut.Value
-	}
-
-	// Validate total emission amount
-	if totalEmissionAmount != chainParams.SKAEmissionAmount {
-		return fmt.Errorf("SKA emission total %d does not match chain parameter %d",
-			totalEmissionAmount, chainParams.SKAEmissionAmount)
 	}
 
 	// Validate transaction parameters
@@ -549,9 +486,9 @@ func ValidateAuthorizedSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
 				i, txOut.Value)
 		}
 
-		if txOut.Value > chainParams.SKAMaxAmount {
-			return fmt.Errorf("SKA emission transaction output %d exceeds maximum %d",
-				i, chainParams.SKAMaxAmount)
+		if txOut.Value > int64(txOut.CoinType.MaxAmount()) {
+			return fmt.Errorf("SKA emission transaction output %d exceeds maximum %d for coin type %d",
+				i, int64(txOut.CoinType.MaxAmount()), txOut.CoinType)
 		}
 
 		// Validate script version to prevent unspendable emissions
@@ -848,7 +785,7 @@ func CheckSKAEmissionInBlock(block *dcrutil.Block, blockHeight int64,
 	// Check if any emission window is active
 	isEmissionWindowActive := isSKAEmissionWindowActive(blockHeight, chainParams)
 
-	isActive := isSKAActive(blockHeight, chainParams)
+	// Check if any SKA coins with transactions in this block are active
 
 	var emissionTxCount int
 	var skaTxCount int
@@ -881,7 +818,7 @@ func CheckSKAEmissionInBlock(block *dcrutil.Block, blockHeight int64,
 
 				// Check if this coin type has already been emitted in previous blocks
 				// This uses the blockchain state for O(1) lookups and proper reorg handling
-				if CheckSKAEmissionAlreadyExists(coinType, chain, chainParams) {
+				if CheckSKAEmissionAlreadyExists(coinType, chain) {
 					return fmt.Errorf("SKA coin type %d has already been emitted - only one emission per coin type allowed", coinType)
 				}
 
@@ -924,12 +861,25 @@ func CheckSKAEmissionInBlock(block *dcrutil.Block, blockHeight int64,
 		}
 	}
 
-	// Before activation, NO SKA transactions are allowed at all
-	// This prevents SKA transactions from being processed during emission windows
-	// that occur before the activation height
-	if !isActive && skaTxCount > 0 {
-		return fmt.Errorf("SKA transactions not allowed before activation height %d (current: %d)",
-			chainParams.SKAActivationHeight, blockHeight)
+	// Check that all SKA transactions use active coin types
+	// Collect all coin types used in non-emission SKA transactions
+	usedCoinTypes := make(map[cointype.CoinType]bool)
+	for _, tx := range block.Transactions() {
+		msgTx := tx.MsgTx()
+		if !wire.IsSKAEmissionTransaction(msgTx) {
+			for _, txOut := range msgTx.TxOut {
+				if txOut.CoinType.IsSKA() {
+					usedCoinTypes[txOut.CoinType] = true
+				}
+			}
+		}
+	}
+
+	// Verify all used coin types are active
+	for coinType := range usedCoinTypes {
+		if !chainParams.IsSKACoinTypeActive(coinType) {
+			return fmt.Errorf("SKA transactions not allowed for inactive coin type %d", coinType)
+		}
 	}
 
 	return nil

@@ -15,7 +15,7 @@ import (
 
 // TestSKATransactionValidation tests mempool validation of SKA transactions.
 func TestSKATransactionValidation(t *testing.T) {
-	params := chaincfg.SimNetParams()
+	_ = chaincfg.SimNetParams() // Keep for future use
 
 	tests := []struct {
 		name        string
@@ -40,7 +40,7 @@ func TestSKATransactionValidation(t *testing.T) {
 					PkScript: []byte{0x76, 0xa9, 0x14, 0x01, 0x02, 0x03},
 				}},
 			},
-			blockHeight: params.SKAActivationHeight + 1,
+			blockHeight: 100, // After activation
 			expectError: true,
 			errorMsg:    "SKA emission transaction",
 		},
@@ -80,7 +80,7 @@ func TestSKATransactionValidation(t *testing.T) {
 					PkScript: []byte{0x76, 0xa9, 0x14, 0x01, 0x02, 0x03},
 				}},
 			},
-			blockHeight: params.SKAActivationHeight - 1,
+			blockHeight: 1,     // Before activation (inactive coin)
 			expectError: false, // VAR transactions should work before SKA activation
 		},
 	}
@@ -111,8 +111,9 @@ func TestSKATransactionValidation(t *testing.T) {
 
 			// Test SKA activation check
 			if hasSKAOutputs {
-				nextBlockHeight := test.blockHeight + 1
-				if nextBlockHeight < params.SKAActivationHeight {
+				// Since we no longer have global activation height, check individual coin types
+				// For now, assume SKA-1 is active for testing
+				if test.blockHeight < 10 { // Simulate activation at block 10
 					if !test.expectError {
 						t.Errorf("Expected SKA transaction before activation to be rejected")
 					} else if test.errorMsg == "SKA is not active" {

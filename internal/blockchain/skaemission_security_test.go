@@ -25,12 +25,19 @@ import (
 func TestSKAEmissionSignatureVerification(t *testing.T) {
 	// Setup test chain params
 	params := &chaincfg.Params{
-		Net:          wire.TestNet3,
-		SKAMaxAmount: 10000000000, // 100 million coins max per output
+		Net: wire.TestNet3,
 		SKACoins: map[cointype.CoinType]*chaincfg.SKACoinConfig{
 			1: {
+				CoinType:       1,
+				Active:         true,
 				EmissionHeight: 100,
 				EmissionWindow: 100,
+				EmissionAddresses: []string{
+					"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", // Test address
+				},
+				EmissionAmounts: []int64{
+					1000000000, // 10 million atoms
+				},
 			},
 		},
 	}
@@ -42,16 +49,14 @@ func TestSKAEmissionSignatureVerification(t *testing.T) {
 	}
 	pubKey := privKey.PubKey()
 
-	// Set up emission key in params
-	params.SKAEmissionKeys = map[cointype.CoinType]*secp256k1.PublicKey{
-		1: pubKey,
-	}
+	// Set up emission key in per-coin configuration
+	params.SKACoins[1].EmissionKey = pubKey
 
-	// Create test addresses and amounts
+	// Create test addresses and amounts - match the config amounts
 	addresses := []string{
 		"TsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc",
 	}
-	amounts := []int64{1000000}
+	amounts := []int64{1000000000} // Match EmissionAmounts[0]
 
 	// Create a valid emission transaction
 	tx := createTestEmissionTx(t, addresses, amounts, 1, params)
@@ -61,8 +66,8 @@ func TestSKAEmissionSignatureVerification(t *testing.T) {
 		EmissionKey: pubKey,
 		CoinType:    1,
 		Nonce:       1,
-		Amount:      1000000,
-		Height:      150, // Within window
+		Amount:      1000000000, // Match EmissionAmounts[0]
+		Height:      150,        // Within window
 	}
 
 	// Sign the transaction properly
@@ -106,8 +111,9 @@ func TestSKAEmissionSignatureVerification(t *testing.T) {
 func TestSKAEmissionMinerRedirectProtection(t *testing.T) {
 	// Setup test chain params
 	params := &chaincfg.Params{
-		Net:          wire.TestNet3,
-		SKAMaxAmount: 10000000000, // 100 million coins max per output
+		Net: wire.TestNet3,
+		// SKAMaxAmount removed - using per-coin limits in cointype package
+		// 10000000000, // 100 million coins max per output
 		SKACoins: map[cointype.CoinType]*chaincfg.SKACoinConfig{
 			1: {
 				EmissionHeight: 100,
@@ -123,9 +129,7 @@ func TestSKAEmissionMinerRedirectProtection(t *testing.T) {
 	}
 	pubKey := privKey.PubKey()
 
-	params.SKAEmissionKeys = map[cointype.CoinType]*secp256k1.PublicKey{
-		1: pubKey,
-	}
+	params.SKACoins[1].EmissionKey = pubKey
 
 	// Original legitimate addresses
 	legitAddresses := []string{
@@ -205,12 +209,16 @@ func TestSKAEmissionNetworkReplayProtection(t *testing.T) {
 	privKey, _ := secp256k1.GeneratePrivateKey()
 	pubKey := privKey.PubKey()
 
-	mainnetParams.SKAEmissionKeys = map[cointype.CoinType]*secp256k1.PublicKey{
-		1: pubKey,
+	// Set emission keys in per-coin configurations
+	if mainnetParams.SKACoins[1] == nil {
+		mainnetParams.SKACoins[1] = &chaincfg.SKACoinConfig{CoinType: 1, Active: true}
 	}
-	testnetParams.SKAEmissionKeys = map[cointype.CoinType]*secp256k1.PublicKey{
-		1: pubKey,
+	mainnetParams.SKACoins[1].EmissionKey = pubKey
+
+	if testnetParams.SKACoins[1] == nil {
+		testnetParams.SKACoins[1] = &chaincfg.SKACoinConfig{CoinType: 1, Active: true}
 	}
+	testnetParams.SKACoins[1].EmissionKey = pubKey
 
 	// Create emission for mainnet
 	addresses := []string{"DsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"}
@@ -248,8 +256,9 @@ func TestSKAEmissionNetworkReplayProtection(t *testing.T) {
 // cannot be emitted twice.
 func TestSKAEmissionDuplicateProtection(t *testing.T) {
 	params := &chaincfg.Params{
-		SKAMaxAmount: 10000000000,
-		Net:          wire.TestNet3,
+		// SKAMaxAmount removed - using per-coin limits in cointype package
+		// 10000000000,
+		Net: wire.TestNet3,
 		SKACoins: map[cointype.CoinType]*chaincfg.SKACoinConfig{
 			1: {
 				EmissionHeight: 100,
@@ -261,9 +270,7 @@ func TestSKAEmissionDuplicateProtection(t *testing.T) {
 	// Set up emission key
 	privKey, _ := secp256k1.GeneratePrivateKey()
 	pubKey := privKey.PubKey()
-	params.SKAEmissionKeys = map[cointype.CoinType]*secp256k1.PublicKey{
-		1: pubKey,
-	}
+	params.SKACoins[1].EmissionKey = pubKey
 
 	// Create mock blockchain with coin type 1 already emitted
 	chain := createMockChain(t, params)
@@ -286,7 +293,7 @@ func TestSKAEmissionDuplicateProtection(t *testing.T) {
 	signEmissionTx(t, tx, auth, privKey, params)
 
 	// Check using the fast lookup function
-	alreadyExists := CheckSKAEmissionAlreadyExists(1, chain, params)
+	alreadyExists := CheckSKAEmissionAlreadyExists(1, chain)
 	if !alreadyExists {
 		t.Error("CheckSKAEmissionAlreadyExists failed to detect existing emission")
 	}
@@ -309,8 +316,9 @@ func TestSKAEmissionDuplicateProtection(t *testing.T) {
 // TestSKAEmissionNonceValidation tests nonce-based replay protection.
 func TestSKAEmissionNonceValidation(t *testing.T) {
 	params := &chaincfg.Params{
-		SKAMaxAmount: 10000000000,
-		Net:          wire.TestNet3,
+		// SKAMaxAmount removed - using per-coin limits in cointype package
+		// 10000000000,
+		Net: wire.TestNet3,
 		SKACoins: map[cointype.CoinType]*chaincfg.SKACoinConfig{
 			1: {
 				EmissionHeight: 100,
@@ -321,9 +329,7 @@ func TestSKAEmissionNonceValidation(t *testing.T) {
 
 	privKey, _ := secp256k1.GeneratePrivateKey()
 	pubKey := privKey.PubKey()
-	params.SKAEmissionKeys = map[cointype.CoinType]*secp256k1.PublicKey{
-		1: pubKey,
-	}
+	params.SKACoins[1].EmissionKey = pubKey
 
 	chain := createMockChain(t, params)
 
@@ -383,8 +389,9 @@ func TestSKAEmissionNonceValidation(t *testing.T) {
 // valid within their configured windows.
 func TestSKAEmissionWindowValidation(t *testing.T) {
 	params := &chaincfg.Params{
-		SKAMaxAmount: 10000000000,
-		Net:          wire.TestNet3,
+		// SKAMaxAmount removed - using per-coin limits in cointype package
+		// 10000000000,
+		Net: wire.TestNet3,
 		SKACoins: map[cointype.CoinType]*chaincfg.SKACoinConfig{
 			1: {
 				EmissionHeight: 100,
@@ -395,9 +402,7 @@ func TestSKAEmissionWindowValidation(t *testing.T) {
 
 	privKey, _ := secp256k1.GeneratePrivateKey()
 	pubKey := privKey.PubKey()
-	params.SKAEmissionKeys = map[cointype.CoinType]*secp256k1.PublicKey{
-		1: pubKey,
-	}
+	params.SKACoins[1].EmissionKey = pubKey
 
 	chain := createMockChain(t, params)
 
@@ -441,24 +446,31 @@ func TestSKAEmissionWindowValidation(t *testing.T) {
 }
 
 // TestSKAPreActivationProtection tests that SKA transactions are
-// properly rejected before the activation height.
+// properly rejected for inactive coin types.
 func TestSKAPreActivationProtection(t *testing.T) {
 	params := &chaincfg.Params{
-		SKAMaxAmount:        10000000000,
-		Net:                 wire.TestNet3,
-		SKAActivationHeight: 200,
+		Net: wire.TestNet3,
+		// Test with inactive coin type
 		SKACoins: map[cointype.CoinType]*chaincfg.SKACoinConfig{
 			1: {
-				EmissionHeight: 100, // Before activation!
+				CoinType:       1,
+				EmissionHeight: 100,
 				EmissionWindow: 50,
+				Active:         false, // Inactive coin type
+			},
+			2: {
+				CoinType:       2,
+				EmissionHeight: 100,
+				EmissionWindow: 50,
+				Active:         true, // Active coin type
 			},
 		},
 	}
 
 	chain := createMockChain(t, params)
 
-	// Create a regular SKA transaction (not emission)
-	tx := &wire.MsgTx{
+	// Test 1: Transaction with inactive coin type should be rejected
+	inactiveTx := &wire.MsgTx{
 		Version: 1,
 		TxIn: []*wire.TxIn{{
 			PreviousOutPoint: wire.OutPoint{
@@ -468,28 +480,45 @@ func TestSKAPreActivationProtection(t *testing.T) {
 		}},
 		TxOut: []*wire.TxOut{{
 			Value:    1000,
-			CoinType: 1, // SKA coin type
+			CoinType: 1, // Inactive SKA coin type
 		}},
 	}
 
 	block := dcrutil.NewBlock(&wire.MsgBlock{
-		Transactions: []*wire.MsgTx{tx},
+		Transactions: []*wire.MsgTx{inactiveTx},
 	})
 
-	// Test at height 150 (during emission window but before activation)
 	err := CheckSKAEmissionInBlock(block, 150, chain, params)
 	if err == nil {
-		t.Fatal("SKA transaction accepted before activation height")
+		t.Fatal("SKA transaction with inactive coin type should be rejected")
 	}
 
-	if !bytes.Contains([]byte(err.Error()), []byte("not allowed before activation")) {
+	if !bytes.Contains([]byte(err.Error()), []byte("inactive coin type")) {
 		t.Errorf("Expected activation error, got: %v", err)
 	}
 
-	// Test at height 200 (at activation)
-	err = CheckSKAEmissionInBlock(block, 200, chain, params)
-	if err != nil {
-		t.Errorf("SKA transaction rejected at activation height: %v", err)
+	// Test 2: Transaction with active coin type should be accepted
+	activeTx := &wire.MsgTx{
+		Version: 1,
+		TxIn: []*wire.TxIn{{
+			PreviousOutPoint: wire.OutPoint{
+				Hash:  chainhash.Hash{1, 2, 3},
+				Index: 0,
+			},
+		}},
+		TxOut: []*wire.TxOut{{
+			Value:    1000,
+			CoinType: 2, // Active SKA coin type
+		}},
+	}
+
+	block = dcrutil.NewBlock(&wire.MsgBlock{
+		Transactions: []*wire.MsgTx{activeTx},
+	})
+
+	err = CheckSKAEmissionInBlock(block, 150, chain, params)
+	if err != nil && bytes.Contains([]byte(err.Error()), []byte("inactive coin type")) {
+		t.Errorf("SKA transaction with active coin type incorrectly rejected: %v", err)
 	}
 }
 

@@ -24,8 +24,14 @@ func TestSKAEmissionBasicValidation(t *testing.T) {
 	}
 
 	t.Run("ValidEmission", func(t *testing.T) {
-		// Create a valid emission transaction
-		tx := createValidEmissionTx(config.MaxSupply)
+		// Calculate expected total emission amount from config
+		var expectedEmissionAmount int64
+		for _, amount := range config.EmissionAmounts {
+			expectedEmissionAmount += amount
+		}
+
+		// Create a valid emission transaction with the correct amount
+		tx := createValidEmissionTx(expectedEmissionAmount)
 
 		// Test at the correct emission height
 		err := ValidateSKAEmissionTransaction(tx, int64(config.EmissionHeight), params)
@@ -35,18 +41,33 @@ func TestSKAEmissionBasicValidation(t *testing.T) {
 	})
 
 	t.Run("InvalidAmount", func(t *testing.T) {
-		// Create emission with wrong amount
-		tx := createValidEmissionTx(config.MaxSupply + 1)
+		// Calculate expected total emission amount from config
+		var expectedEmissionAmount int64
+		for _, amount := range config.EmissionAmounts {
+			expectedEmissionAmount += amount
+		}
 
-		err := ValidateSKAEmissionTransaction(tx, int64(config.EmissionHeight), params)
+		// Create emission with wrong amount by using CreateSKAEmissionTransaction
+		// which now validates the amount
+		_, err := CreateSKAEmissionTransaction(
+			[]string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"},
+			[]int64{expectedEmissionAmount + 1},
+			params,
+		)
 		if err == nil {
 			t.Error("Emission with wrong amount should fail")
 		}
 	})
 
 	t.Run("InvalidHeight", func(t *testing.T) {
+		// Calculate expected total emission amount from config
+		var expectedEmissionAmount int64
+		for _, amount := range config.EmissionAmounts {
+			expectedEmissionAmount += amount
+		}
+
 		// Create valid emission at wrong height
-		tx := createValidEmissionTx(config.MaxSupply)
+		tx := createValidEmissionTx(expectedEmissionAmount)
 
 		err := ValidateSKAEmissionTransaction(tx, int64(config.EmissionHeight)+1000, params)
 		if err == nil {
@@ -55,8 +76,14 @@ func TestSKAEmissionBasicValidation(t *testing.T) {
 	})
 
 	t.Run("VAROutput", func(t *testing.T) {
+		// Calculate expected total emission amount from config
+		var expectedEmissionAmount int64
+		for _, amount := range config.EmissionAmounts {
+			expectedEmissionAmount += amount
+		}
+
 		// Create emission with VAR output (should fail)
-		tx := createValidEmissionTx(config.MaxSupply)
+		tx := createValidEmissionTx(expectedEmissionAmount)
 		tx.TxOut[0].CoinType = cointype.CoinTypeVAR
 
 		err := ValidateSKAEmissionTransaction(tx, int64(config.EmissionHeight), params)
@@ -143,18 +170,33 @@ func TestSKAEmissionConcurrency(t *testing.T) {
 	}
 
 	t.Run("MultipleEmissions", func(t *testing.T) {
-		// Test that individual emission transactions are structurally valid
-		tx1 := createValidEmissionTx(config.MaxSupply / 2)
-		tx2 := createValidEmissionTx(config.MaxSupply / 2)
+		// Calculate expected total emission amount from config
+		var expectedEmissionAmount int64
+		for _, amount := range config.EmissionAmounts {
+			expectedEmissionAmount += amount
+		}
 
-		// Both should be structurally valid
-		err1 := ValidateSKAEmissionTransaction(tx1, int64(config.EmissionHeight), params)
-		err2 := ValidateSKAEmissionTransaction(tx2, int64(config.EmissionHeight), params)
+		// Test that creating emission transactions with partial amounts fails
+		// This tests the amount validation in CreateSKAEmissionTransaction
+		_, err1 := CreateSKAEmissionTransaction(
+			[]string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"},
+			[]int64{expectedEmissionAmount / 2},
+			params,
+		)
 
-		// Note: These would fail due to total amount mismatch, but that's expected for test data
-		// The key thing is that the transaction structure validation works
-		_ = err1
-		_ = err2
+		_, err2 := CreateSKAEmissionTransaction(
+			[]string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"},
+			[]int64{expectedEmissionAmount / 2},
+			params,
+		)
+
+		// Both should fail because they don't have the complete emission amount
+		if err1 == nil {
+			t.Error("Expected partial emission tx1 to fail")
+		}
+		if err2 == nil {
+			t.Error("Expected partial emission tx2 to fail")
+		}
 	})
 }
 

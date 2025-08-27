@@ -584,11 +584,7 @@ func MainNetParams() *Params {
 		},
 
 		// SKA (Skarb) dual-coin system parameters for mainnet
-		SKAEmissionAmount:   10e6 * 1e8, // 10 million SKA total supply
-		SKAEmissionHeight:   100000,     // Emit at block 100k
-		SKAActivationHeight: 100000,     // Activate immediately
-		SKAMaxAmount:        10e6 * 1e8, // 10 million SKA maximum
-		SKAMinRelayTxFee:    1e4,        // 0.0001 SKA minimum relay fee
+		SKAMinRelayTxFee: 1e4, // 0.0001 SKA minimum relay fee
 
 		// SKA coin type configurations for multiple coin support
 		SKACoins: map[cointype.CoinType]*SKACoinConfig{
@@ -612,6 +608,9 @@ func MainNetParams() *Params {
 					2e6 * 1e8, // 2,000,000 SKA-1 to development
 					1e6 * 1e8, // 1,000,000 SKA-1 to staking rewards
 				},
+				// SECURITY NOTE: This is a placeholder key for development ONLY
+				// Production deployment MUST generate secure keys with proper key ceremony
+				EmissionKey: mustParseHexPubKey("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"),
 			},
 			2: {
 				CoinType:       2,
@@ -629,20 +628,14 @@ func MainNetParams() *Params {
 				EmissionAmounts: []int64{
 					5e6 * 1e8, // 5,000,000 SKA-2 to treasury
 				},
+				// SECURITY NOTE: This is a placeholder key for development ONLY
+				// Production deployment MUST generate secure keys with proper key ceremony
+				EmissionKey: mustParseHexPubKey("03389ffce9cd9ae88dcc0631e88a821ffdbe9bfe26381749838fca9302ccaa9ddd"),
 			},
 		},
 
 		// Initial SKA types to activate at network genesis
 		InitialSKATypes: []cointype.CoinType{1}, // Only SKA-1 initially active
-
-		// SKA emission authorization keys (PLACEHOLDER - MUST BE REPLACED WITH SECURE KEYS)
-		// These keys authorize SKA emission transactions for each coin type
-		SKAEmissionKeys: map[cointype.CoinType]*secp256k1.PublicKey{
-			// SECURITY NOTE: These are placeholder keys for development ONLY
-			// Production deployment MUST generate secure keys with proper key ceremony
-			1: mustParseHexPubKey("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"),
-			2: mustParseHexPubKey("03389ffce9cd9ae88dcc0631e88a821ffdbe9bfe26381749838fca9302ccaa9ddd"),
-		},
 	}
 }
 

@@ -13,75 +13,78 @@ import (
 )
 
 // TestChainParamsSKAConfiguration tests that SKA parameters are properly
-// configured in different network configurations.
+// configured in different network configurations using the new per-coin system.
 func TestChainParamsSKAConfiguration(t *testing.T) {
 	tests := []struct {
 		name     string
 		params   *chaincfg.Params
 		expected struct {
-			emissionAmount   int64
-			emissionHeight   int64
-			activationHeight int64
-			maxAmount        int64
-			minRelayFee      int64
+			ska1EmissionAmount int64
+			ska1EmissionHeight int32
+			ska1Active         bool
+			minRelayFee        int64
 		}
 	}{
 		{
-			name:   "SimNet SKA parameters",
+			name:   "SimNet SKA-1 parameters",
 			params: chaincfg.SimNetParams(),
 			expected: struct {
-				emissionAmount   int64
-				emissionHeight   int64
-				activationHeight int64
-				maxAmount        int64
-				minRelayFee      int64
+				ska1EmissionAmount int64
+				ska1EmissionHeight int32
+				ska1Active         bool
+				minRelayFee        int64
 			}{
-				emissionAmount:   1e6 * 1e8,  // 1 million SKA
-				emissionHeight:   10,         // Early emission for testing
-				activationHeight: 10,         // Immediate activation
-				maxAmount:        10e6 * 1e8, // 10 million max
-				minRelayFee:      1e3,        // 0.00001 SKA
+				ska1EmissionAmount: 1e6 * 1e8, // 1 million SKA-1
+				ska1EmissionHeight: 10,        // Early emission for testing
+				ska1Active:         true,      // Active in simnet
+				minRelayFee:        1e3,       // 0.00001 SKA
 			},
 		},
 		{
-			name:   "MainNet SKA parameters",
+			name:   "MainNet SKA-1 parameters",
 			params: chaincfg.MainNetParams(),
 			expected: struct {
-				emissionAmount   int64
-				emissionHeight   int64
-				activationHeight int64
-				maxAmount        int64
-				minRelayFee      int64
+				ska1EmissionAmount int64
+				ska1EmissionHeight int32
+				ska1Active         bool
+				minRelayFee        int64
 			}{
-				emissionAmount:   10e6 * 1e8, // 10 million SKA
-				emissionHeight:   100000,     // Block 100k emission
-				activationHeight: 100000,     // Immediate activation
-				maxAmount:        10e6 * 1e8, // 10 million max
-				minRelayFee:      1e4,        // 0.0001 SKA
+				ska1EmissionAmount: 10e6 * 1e8, // 10 million SKA-1 total
+				ska1EmissionHeight: 100000,     // Block 100k emission
+				ska1Active:         true,       // Active on mainnet
+				minRelayFee:        1e4,        // 0.0001 SKA
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if test.params.SKAEmissionAmount != test.expected.emissionAmount {
-				t.Errorf("SKAEmissionAmount: expected %d, got %d",
-					test.expected.emissionAmount, test.params.SKAEmissionAmount)
+			// Check SKA-1 configuration
+			ska1Config := test.params.SKACoins[1]
+			if ska1Config == nil {
+				t.Errorf("SKA-1 configuration missing")
+				return
 			}
 
-			if test.params.SKAEmissionHeight != test.expected.emissionHeight {
-				t.Errorf("SKAEmissionHeight: expected %d, got %d",
-					test.expected.emissionHeight, test.params.SKAEmissionHeight)
+			// Calculate total emission amount for SKA-1
+			var totalEmissionAmount int64
+			for _, amount := range ska1Config.EmissionAmounts {
+				totalEmissionAmount += amount
 			}
 
-			if test.params.SKAActivationHeight != test.expected.activationHeight {
-				t.Errorf("SKAActivationHeight: expected %d, got %d",
-					test.expected.activationHeight, test.params.SKAActivationHeight)
+			if totalEmissionAmount != test.expected.ska1EmissionAmount {
+				t.Errorf("SKA-1 emission amount: expected %d, got %d",
+					test.expected.ska1EmissionAmount, totalEmissionAmount)
 			}
 
-			if test.params.SKAMaxAmount != test.expected.maxAmount {
-				t.Errorf("SKAMaxAmount: expected %d, got %d",
-					test.expected.maxAmount, test.params.SKAMaxAmount)
+			if ska1Config.EmissionHeight != test.expected.ska1EmissionHeight {
+				t.Errorf("SKA-1 emission height: expected %d, got %d",
+					test.expected.ska1EmissionHeight, ska1Config.EmissionHeight)
+			}
+
+			if ska1Config.Active != test.expected.ska1Active {
+				t.Errorf("SKA-1 active status: expected %t, got %t",
+					test.expected.ska1Active, ska1Config.Active)
 			}
 
 			if test.params.SKAMinRelayTxFee != test.expected.minRelayFee {
@@ -212,57 +215,52 @@ func TestValidateTransactionOutputsCoinType(t *testing.T) {
 	}
 }
 
-// TestSKAActivationHeight tests SKA activation height logic for different networks.
-func TestSKAActivationHeight(t *testing.T) {
+// TestSKAPerCoinActivation tests SKA per-coin activation logic for different networks.
+func TestSKAPerCoinActivation(t *testing.T) {
 	tests := []struct {
-		name            string
-		params          *chaincfg.Params
-		blockHeight     int64
-		skaActiveBefore bool
-		skaActiveAt     bool
-		skaActiveAfter  bool
+		name         string
+		params       *chaincfg.Params
+		coinType     cointype.CoinType
+		expectActive bool
 	}{
 		{
-			name:            "SimNet SKA activation at height 10",
-			params:          chaincfg.SimNetParams(),
-			blockHeight:     10,
-			skaActiveBefore: false, // Height 9
-			skaActiveAt:     true,  // Height 10
-			skaActiveAfter:  true,  // Height 11
+			name:         "SimNet SKA-1 is active",
+			params:       chaincfg.SimNetParams(),
+			coinType:     1,
+			expectActive: true,
 		},
 		{
-			name:            "MainNet SKA activation at height 100000",
-			params:          chaincfg.MainNetParams(),
-			blockHeight:     100000,
-			skaActiveBefore: false, // Height 99999
-			skaActiveAt:     true,  // Height 100000
-			skaActiveAfter:  true,  // Height 100001
+			name:         "SimNet SKA-99 is inactive",
+			params:       chaincfg.SimNetParams(),
+			coinType:     99, // Not configured
+			expectActive: false,
+		},
+		{
+			name:         "MainNet SKA-1 is active",
+			params:       chaincfg.MainNetParams(),
+			coinType:     1,
+			expectActive: true,
+		},
+		{
+			name:         "MainNet SKA-2 is inactive",
+			params:       chaincfg.MainNetParams(),
+			coinType:     2,
+			expectActive: false,
+		},
+		{
+			name:         "MainNet SKA-99 is inactive",
+			params:       chaincfg.MainNetParams(),
+			coinType:     99, // Not configured
+			expectActive: false,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Test before activation
-			before := test.blockHeight - 1
-			activeBefore := before >= test.params.SKAActivationHeight
-			if activeBefore != test.skaActiveBefore {
-				t.Errorf("SKA active before (height %d): expected %t, got %t",
-					before, test.skaActiveBefore, activeBefore)
-			}
-
-			// Test at activation
-			activeAt := test.blockHeight >= test.params.SKAActivationHeight
-			if activeAt != test.skaActiveAt {
-				t.Errorf("SKA active at (height %d): expected %t, got %t",
-					test.blockHeight, test.skaActiveAt, activeAt)
-			}
-
-			// Test after activation
-			after := test.blockHeight + 1
-			activeAfter := after >= test.params.SKAActivationHeight
-			if activeAfter != test.skaActiveAfter {
-				t.Errorf("SKA active after (height %d): expected %t, got %t",
-					after, test.skaActiveAfter, activeAfter)
+			isActive := test.params.IsSKACoinTypeActive(test.coinType)
+			if isActive != test.expectActive {
+				t.Errorf("IsSKACoinTypeActive(%d): expected %t, got %t",
+					test.coinType, test.expectActive, isActive)
 			}
 		})
 	}

@@ -19,39 +19,34 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-// TestSKAActivation tests the SKA activation logic.
+// TestSKAActivation tests the SKA per-coin activation logic.
 func TestSKAActivation(t *testing.T) {
 	// Use SimNet parameters for testing
 	params := chaincfg.SimNetParams()
 
 	tests := []struct {
-		name        string
-		blockHeight int64
-		expected    bool
+		name     string
+		coinType cointype.CoinType
+		expected bool
 	}{
 		{
-			name:        "Before activation height",
-			blockHeight: 5,
-			expected:    false,
+			name:     "Active SKA coin type",
+			coinType: 1, // SKA-1 is active in simnet params
+			expected: true,
 		},
 		{
-			name:        "At activation height",
-			blockHeight: 10, // SimNet activation height
-			expected:    true,
-		},
-		{
-			name:        "After activation height",
-			blockHeight: 15,
-			expected:    true,
+			name:     "Inactive SKA coin type",
+			coinType: 99, // Not configured in simnet params
+			expected: false,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := isSKAActive(test.blockHeight, params)
+			result := params.IsSKACoinTypeActive(test.coinType)
 			if result != test.expected {
-				t.Errorf("isSKAActive(%d): expected %t, got %t",
-					test.blockHeight, test.expected, result)
+				t.Errorf("IsSKACoinTypeActive(%d): expected %t, got %t",
+					test.coinType, test.expected, result)
 			}
 		})
 	}
@@ -71,7 +66,7 @@ func TestCreateSKAEmissionTransactionValidation(t *testing.T) {
 	}{
 		{
 			name:        "Mismatched addresses and amounts",
-			addresses:   []string{"addr1", "addr2"},
+			addresses:   []string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", "SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"},
 			amounts:     []int64{50000000000000}, // Only one amount
 			expectError: true,
 			errorMsg:    "length mismatch",
@@ -85,15 +80,15 @@ func TestCreateSKAEmissionTransactionValidation(t *testing.T) {
 		},
 		{
 			name:        "Invalid amount (zero)",
-			addresses:   []string{"addr1", "addr2"},
+			addresses:   []string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", "SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"},
 			amounts:     []int64{0, 100000000000000},
 			expectError: true,
 			errorMsg:    "invalid emission amount",
 		},
 		{
 			name:        "Wrong total amount",
-			addresses:   []string{"addr1", "addr2"},
-			amounts:     []int64{25000000000000, 25000000000000}, // 500,000 total (wrong)
+			addresses:   []string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"},
+			amounts:     []int64{50000000000}, // Wrong amount (should be 1e6 * 1e8)
 			expectError: true,
 			errorMsg:    "does not match chain parameter",
 		},
@@ -256,7 +251,7 @@ func TestIsSKAEmissionTransaction(t *testing.T) {
 // TestValidateSKAEmissionTransaction tests the validation of SKA emission transactions.
 func TestValidateSKAEmissionTransaction(t *testing.T) {
 	params := chaincfg.SimNetParams()
-	emissionHeight := params.SKAEmissionHeight
+	emissionHeight := params.SKACoins[1].EmissionHeight // Use per-coin emission height
 
 	// Create test private key and set up authorization
 	privKey, err := secp256k1.GeneratePrivateKey()
@@ -265,18 +260,22 @@ func TestValidateSKAEmissionTransaction(t *testing.T) {
 	}
 	pubKey := privKey.PubKey()
 
-	// Initialize emission keys and nonces for coin type 1
-	params.SKAEmissionKeys = map[cointype.CoinType]*secp256k1.PublicKey{
-		1: pubKey,
+	// Initialize emission key in per-coin configuration
+	if params.SKACoins[1] == nil {
+		params.SKACoins[1] = &chaincfg.SKACoinConfig{CoinType: 1, Active: true}
 	}
+	params.SKACoins[1].EmissionKey = pubKey
+
+	// Get emission amount from per-coin configuration
+	emissionAmount := params.SKACoins[1].EmissionAmounts[0] // Use first emission amount
 
 	// Create authorization for a valid emission
 	auth := &chaincfg.SKAEmissionAuth{
 		EmissionKey: pubKey,
 		Nonce:       1,
 		CoinType:    1,
-		Amount:      params.SKAEmissionAmount,
-		Height:      emissionHeight,
+		Amount:      emissionAmount,
+		Height:      int64(emissionHeight), // Convert to int64
 		Timestamp:   time.Now().Unix(),
 	}
 
@@ -285,7 +284,7 @@ func TestValidateSKAEmissionTransaction(t *testing.T) {
 	testScript = append(testScript, bytes.Repeat([]byte{0x01}, 20)...) // 20-byte hash
 	testScript = append(testScript, 0x88, 0xac)                        // OP_EQUALVERIFY OP_CHECKSIG
 
-	amounts := []int64{params.SKAEmissionAmount}
+	amounts := []int64{emissionAmount}
 
 	// Create a valid authorized emission transaction
 	validTx := &wire.MsgTx{
@@ -345,13 +344,13 @@ func TestValidateSKAEmissionTransaction(t *testing.T) {
 		{
 			name:        "Valid authorized emission transaction",
 			tx:          validTx,
-			blockHeight: emissionHeight,
+			blockHeight: int64(emissionHeight),
 			expectError: false,
 		},
 		{
 			name:        "Wrong block height outside emission window",
 			tx:          validTx,
-			blockHeight: emissionHeight + 1000, // Way outside emission window
+			blockHeight: int64(emissionHeight + 1000), // Way outside emission window
 			expectError: true,
 			errorMsg:    "invalid height",
 		},

@@ -255,6 +255,11 @@ type SKACoinConfig struct {
 	// EmissionAmounts are the corresponding amounts to be sent to each
 	// address in EmissionAddresses. Must have same length as EmissionAddresses.
 	EmissionAmounts []int64
+
+	// EmissionKey is the authorized public key for creating emission transactions
+	// for this specific SKA coin type. Only transactions signed by the corresponding
+	// private key are valid emissions.
+	EmissionKey *secp256k1.PublicKey
 }
 
 // DNSSeed identifies a DNS seed.
@@ -689,27 +694,6 @@ type Params struct {
 	// SKA (Skarb) dual-coin system parameters
 	// -------------------------------------------------------------------------
 
-	// SKAEmissionAmount is the total amount of SKA coins to be emitted at
-	// the activation height. This is a one-time emission event.
-	SKAEmissionAmount int64
-
-	// SKAEmissionHeight is the block height at which SKA emission occurs.
-	// At this height, the total SKAEmissionAmount will be created and
-	// distributed according to the emission rules.
-	SKAEmissionHeight int64
-
-	// SKAActivationHeight is the block height at which SKA transactions
-	// become valid. This may be the same as SKAEmissionHeight or later.
-	SKAActivationHeight int64
-
-	// SKAMaxAmount is the maximum amount of SKA that can be handled in a
-	// single transaction output. This prevents overflow issues.
-	SKAMaxAmount int64
-
-	// SKAEmissionKeys maps coin types to their authorized emission public keys.
-	// Only transactions signed by the corresponding private key are valid emissions.
-	SKAEmissionKeys map[cointype.CoinType]*secp256k1.PublicKey
-
 	// SKAMinRelayTxFee is the minimum fee rate for SKA transactions to be
 	// relayed by the network. This is separate from VAR transaction fees.
 	SKAMinRelayTxFee int64
@@ -999,10 +983,11 @@ func (p *Params) GetAllSKATypes() []cointype.CoinType {
 // GetSKAEmissionKey returns the authorized emission public key for the specified
 // coin type. Returns nil if no key is configured for this coin type.
 func (p *Params) GetSKAEmissionKey(coinType cointype.CoinType) *secp256k1.PublicKey {
-	if p.SKAEmissionKeys == nil {
+	config := p.GetSKACoinConfig(coinType)
+	if config == nil {
 		return nil
 	}
-	return p.SKAEmissionKeys[coinType]
+	return config.EmissionKey
 }
 
 // IsSKAEmissionAuthorized returns true if the provided coin type has an
