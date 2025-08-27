@@ -934,3 +934,45 @@ func CheckSKAEmissionInBlock(block *dcrutil.Block, blockHeight int64,
 
 	return nil
 }
+
+// extractSKAEmissionsFromBlock extracts all SKA emission records from a block.
+// This is used during block connection/disconnection to update emission state.
+func extractSKAEmissionsFromBlock(block *dcrutil.Block, blockHeight int64) []SKAEmissionRecord {
+	var emissions []SKAEmissionRecord
+
+	for _, tx := range block.Transactions() {
+		msgTx := tx.MsgTx()
+
+		// Check if this is an SKA emission transaction
+		if wire.IsSKAEmissionTransaction(msgTx) {
+			// Extract coin types and create emission records
+			seenCoinTypes := make(map[cointype.CoinType]bool)
+
+			for _, txOut := range msgTx.TxOut {
+				if txOut.CoinType.IsSKA() && !seenCoinTypes[txOut.CoinType] {
+					// Extract nonce from the transaction's authorization
+					var nonce uint64 = 1 // Default nonce for first emission
+
+					// Try to extract authorization for nonce
+					if len(msgTx.TxIn) > 0 && len(msgTx.TxIn[0].SignatureScript) > 0 {
+						auth, err := extractEmissionAuthorization(msgTx.TxIn[0].SignatureScript)
+						if err == nil && auth != nil {
+							nonce = auth.Nonce
+						}
+					}
+
+					emissions = append(emissions, SKAEmissionRecord{
+						CoinType: txOut.CoinType,
+						Nonce:    nonce,
+						Height:   blockHeight,
+						TxHash:   *tx.Hash(),
+					})
+
+					seenCoinTypes[txOut.CoinType] = true
+				}
+			}
+		}
+	}
+
+	return emissions
+}

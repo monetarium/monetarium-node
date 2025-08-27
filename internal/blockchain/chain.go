@@ -720,6 +720,19 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 			return err
 		}
 
+		// Update SKA emission state for any emissions in this block.
+		// This must be done atomically with the block connection to ensure
+		// consistency in case of crashes or interruptions.
+		if b.skaEmissionState != nil {
+			emissions := extractSKAEmissionsFromBlock(block, node.height)
+			if len(emissions) > 0 {
+				err = b.skaEmissionState.ConnectSKAEmissionsTx(dbTx, emissions)
+				if err != nil {
+					return err
+				}
+			}
+		}
+
 		return nil
 	})
 	if err != nil {
@@ -893,6 +906,19 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 		// Similarly, the commitment hashes needed to generate the associated
 		// inclusion proof for the header commitment are not removed for the
 		// same reason.
+
+		// Update SKA emission state for any emissions in the disconnected block.
+		// This must be done atomically with the block disconnection to ensure
+		// consistency during reorganizations.
+		if b.skaEmissionState != nil {
+			emissions := extractSKAEmissionsFromBlock(block, node.height)
+			if len(emissions) > 0 {
+				err = b.skaEmissionState.DisconnectSKAEmissionsTx(dbTx, emissions)
+				if err != nil {
+					return err
+				}
+			}
+		}
 
 		return nil
 	})
