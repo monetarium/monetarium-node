@@ -106,16 +106,14 @@ const (
 )
 
 // mustParseHash converts the passed big-endian hex string into a
-// chainhash.Hash and will return a zero hash if there is an error while logging
-// the issue. It should only be called with hard-coded, and therefore known good,
-// hashes. Any error indicates a programming error in the source code.
+// chainhash.Hash and will panic if there is an error.  It only differs from the
+// one available in chainhash in that it will panic so errors in the source code
+// be detected.  It will only (and must only) be called with hard-coded, and
+// therefore known good, hashes.
 func mustParseHash(s string) *chainhash.Hash {
 	hash, err := chainhash.NewHashFromStr(s)
 	if err != nil {
-		// Log the error instead of panicking to prevent production crashes
-		fmt.Printf("CRITICAL: Invalid hardcoded hash in source file: %s, error: %v\n", s, err)
-		// Return zero hash as fallback - this will be caught by validation logic
-		return &chainhash.Hash{}
+		panic("invalid hash in source file: " + s)
 	}
 	return hash
 }
@@ -445,8 +443,32 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 	// Take action on type.
 	switch {
 	case isSKAEmission:
-		// SKA emission transactions are validated separately.
-		// They are allowed to have null inputs during emission windows.
+		// The referenced outpoint must be null.
+		if !isNullOutpoint(&tx.TxIn[0].PreviousOutPoint) {
+			str := "SKA emission transaction does not have a null outpoint"
+			return ruleError(ErrBadSKAEmissionOutpoint, str)
+		}
+
+		// The fraud proof must also be null.
+		if !isNullFraudProof(tx.TxIn[0]) {
+			str := "SKA emission transaction fraud proof is non-null"
+			return ruleError(ErrBadSKAEmissionFraudProof, str)
+		}
+
+		// Validate the signature script has the proper SKA authorized format.
+		sigScript := tx.TxIn[0].SignatureScript
+		if len(sigScript) < 4 {
+			str := "SKA emission transaction signature script too short"
+			return ruleError(ErrBadSKAEmissionScriptFormat, str)
+		}
+
+		// Check for authorized SKA emission format: [0x01][S][K][A]...
+		if !(sigScript[0] == 0x01 && sigScript[1] == 0x53 &&
+			sigScript[2] == 0x4b && sigScript[3] == 0x41) {
+			str := "SKA emission transaction signature script missing authorized format"
+			return ruleError(ErrBadSKAEmissionScriptFormat, str)
+		}
+
 		// Additional validation happens in mempool and block validation.
 
 	case isVote:
@@ -3576,7 +3598,9 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	// It is safe to ignore overflow and out of range errors here because those
 	// error conditions would have already been caught by the transaction sanity
 	// checks.
-	var totalVAROut, totalSKAOut int64
+	var totalVAROut int64
+	skaOut := make(map[cointype.CoinType]int64)
+
 	for _, txOut := range tx.MsgTx().TxOut {
 		coinType := txOut.CoinType
 		switch {
@@ -3589,7 +3613,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 					coinType, coinType.String())
 				return 0, ruleError(ErrBadTxOutValue, str)
 			}
-			totalSKAOut += txOut.Value
+			skaOut[coinType] += txOut.Value
 		default:
 			// Invalid coin type
 			str := fmt.Sprintf("transaction output has invalid coin type %d", txOut.CoinType)
@@ -3599,7 +3623,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 
 	// For backwards compatibility, if this is a VAR-only transaction,
 	// calculate fees using the original logic
-	if totalSKAOut == 0 {
+	if len(skaOut) == 0 {
 		// Original VAR-only validation logic
 		if totalAtomIn < totalVAROut {
 			str := fmt.Sprintf("total value of all VAR transaction inputs for "+
@@ -3613,7 +3637,8 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 
 	// For dual-coin transactions, implement proper dual-coin input/output validation
 	// Separate input tracking by coin type using UTXO coin type information
-	var totalVARIn, totalSKAIn int64
+	var totalVARIn int64
+	skaIn := make(map[cointype.CoinType]int64)
 
 	// Track inputs by coin type - iterate through inputs again to get coin types
 	for idx, txIn := range msgTx.TxIn {
@@ -3652,7 +3677,12 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 		case inputCoinType == cointype.CoinTypeVAR:
 			totalVARIn += inputAmount
 		case inputCoinType >= 1 && inputCoinType <= cointype.CoinTypeMax:
-			totalSKAIn += inputAmount
+			// Check if this SKA coin type is active
+			if !chainParams.IsSKACoinTypeActive(inputCoinType) {
+				str := fmt.Sprintf("spending inactive SKA coin type %d", inputCoinType)
+				return 0, ruleError(ErrBadTxOutValue, str)
+			}
+			skaIn[inputCoinType] += inputAmount
 		default:
 			str := fmt.Sprintf("transaction input references UTXO with invalid "+
 				"coin type %d", inputCoinType)
@@ -3668,35 +3698,54 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 		return 0, ruleError(ErrSpendTooHigh, str)
 	}
 
-	// Rule 2: SKA inputs must cover SKA outputs (fees allowed for SKA transactions)
-	if totalSKAOut > 0 && totalSKAIn < totalSKAOut {
-		str := fmt.Sprintf("insufficient SKA inputs for transaction %v: "+
-			"SKA inputs %v < SKA outputs %v", txHash, totalSKAIn, totalSKAOut)
-		return 0, ruleError(ErrSpendTooHigh, str)
+	// Rule 2: Each SKA coin type must have inputs >= outputs (conservation per coin type)
+	for coinType, outAmount := range skaOut {
+		inAmount := skaIn[coinType]
+		if inAmount < outAmount {
+			str := fmt.Sprintf("insufficient SKA(%d) inputs for transaction %v: "+
+				"SKA(%d) inputs %v < SKA(%d) outputs %v",
+				coinType, txHash, coinType, inAmount, coinType, outAmount)
+			return 0, ruleError(ErrSpendTooHigh, str)
+		}
 	}
 
 	// Rule 3: Mixed transactions are not allowed (except for specific cases)
-	if totalVAROut > 0 && totalSKAOut > 0 {
+	if totalVAROut > 0 && len(skaOut) > 0 {
 		str := fmt.Sprintf("transaction %v mixes VAR and SKA outputs, which is "+
 			"not allowed", txHash)
 		return 0, ruleError(ErrBadTxOutValue, str)
 	}
 
 	// Calculate and return appropriate fees
-	if totalSKAOut > 0 {
+	if len(skaOut) > 0 {
 		// SKA transaction - calculate SKA fees
+		// First, ensure no VAR inputs in SKA transaction
 		if totalVARIn > 0 {
 			str := fmt.Sprintf("SKA transaction %v contains VAR inputs, "+
 				"which is not allowed", txHash)
 			return 0, ruleError(ErrBadTxOutValue, str)
 		}
 
-		// Calculate SKA fee (inputs - outputs)
-		txFeeInAtom := totalSKAIn - totalSKAOut
+		// SKA transaction - calculate fee for the single SKA type
+		// (mixed SKA types are forbidden, so there's only one type)
+		if len(skaOut) != 1 {
+			// This should never happen due to earlier validation
+			str := fmt.Sprintf("transaction %v has multiple SKA output types, which should have been caught earlier",
+				txHash)
+			return 0, ruleError(ErrBadTxOutValue, str)
+		}
+
+		// Calculate fee for the single SKA type in this transaction
+		var txFeeInAtom int64
+		for coinType, outAmount := range skaOut {
+			inAmount := skaIn[coinType]
+			txFeeInAtom = inAmount - outAmount
+			break // Only one iteration needed
+		}
+
 		if txFeeInAtom < 0 {
-			str := fmt.Sprintf("transaction %v has negative SKA fee: "+
-				"SKA inputs %v - SKA outputs %v = %v",
-				txHash, totalSKAIn, totalSKAOut, txFeeInAtom)
+			str := fmt.Sprintf("transaction %v has negative SKA fee: %v",
+				txHash, txFeeInAtom)
 			return 0, ruleError(ErrSpendTooHigh, str)
 		}
 		return txFeeInAtom, nil

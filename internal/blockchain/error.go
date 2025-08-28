@@ -235,6 +235,18 @@ const (
 	// structure is malformed (e.g., duplicate coin types, invalid coin types).
 	ErrBadCoinbaseOutputStructure = ErrorKind("ErrBadCoinbaseOutputStructure")
 
+	// ErrBadSKAEmissionOutpoint indicates that the outpoint used by an SKA
+	// emission transaction as input was non-null.
+	ErrBadSKAEmissionOutpoint = ErrorKind("ErrBadSKAEmissionOutpoint")
+
+	// ErrBadSKAEmissionFraudProof indicates that the fraud proof for an SKA
+	// emission transaction input was non-null.
+	ErrBadSKAEmissionFraudProof = ErrorKind("ErrBadSKAEmissionFraudProof")
+
+	// ErrBadSKAEmissionScriptFormat indicates that the signature script for
+	// an SKA emission transaction does not have the required authorized format.
+	ErrBadSKAEmissionScriptFormat = ErrorKind("ErrBadSKAEmissionScriptFormat")
+
 	// ErrBadStakebaseAmountIn indicates that the AmountIn (=subsidy) for a
 	// stakebase input was incorrect.
 	ErrBadStakebaseAmountIn = ErrorKind("ErrBadStakebaseAmountIn")
