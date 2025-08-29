@@ -251,12 +251,16 @@ func (bsa *BlockSpaceAllocator) distributeOverflow(
 			break
 		}
 
-		// Calculate bucket shares based on 10%/90% rule
+		// Sort coin types for deterministic distribution
+		sort.Slice(varTypes, func(i, j int) bool { return varTypes[i] < varTypes[j] })
+		sort.Slice(skaTypes, func(i, j int) bool { return skaTypes[i] < skaTypes[j] })
+
+		// Calculate bucket shares based on configured VAR/SKA split
 		var varShare, skaShare uint64
 		if len(varTypes) > 0 && len(skaTypes) > 0 {
-			// Both have demand - use 10%/90% split
-			varShare = uint64(remaining) / 10       // 10% for VAR
-			skaShare = uint64(remaining) - varShare // 90% for SKA
+			// Both have demand - use configured split
+			varShare = uint64(float64(remaining) * bsa.varAllocation)
+			skaShare = uint64(remaining) - varShare // Remainder goes to SKA
 		} else if len(varTypes) > 0 {
 			// Only VAR has demand - gets everything
 			varShare = uint64(remaining)

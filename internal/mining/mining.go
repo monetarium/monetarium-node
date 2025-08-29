@@ -1261,8 +1261,16 @@ func addFeesToCoinbase(coinbaseTx *wire.MsgTx, totalFees wire.FeesByType, powOut
 			continue // Skip zero/negative fees
 		}
 
-		// Create payment script for the miner address
-		scriptVersion, payScript := payToAddress.PaymentScript()
+		// Create payment script for the miner address or anyone-can-spend if nil
+		var scriptVersion uint16
+		var payScript []byte
+		if payToAddress != nil {
+			scriptVersion, payScript = payToAddress.PaymentScript()
+		} else {
+			// Fallback to anyone-can-spend (matches coinbase fallback behavior)
+			scriptVersion = 0
+			payScript = opTrueScript
+		}
 
 		// Create new output for this coin type's fees
 		feeOutput := &wire.TxOut{
@@ -2094,6 +2102,26 @@ nextPriorityQueueItem:
 	log.Debugf("Block space allocation: %.1f%% utilization (%d/%d bytes used)",
 		allocation.GetUtilizationPercentage(), allocation.TotalUsed, allocation.TotalAllocated)
 
+	// Pre-bucket pending transactions by coin type for performance (O(n) instead of O(n*m))
+	var pendingBuckets map[cointype.CoinType]struct {
+		count int
+		size  int64
+	}
+	if g.cfg.FeeCalculator != nil {
+		pendingBuckets = make(map[cointype.CoinType]struct {
+			count int
+			size  int64
+		})
+		pendingTxs := miningView.TxDescs()
+		for _, txDesc := range pendingTxs {
+			coinType := GetTransactionCoinType(txDesc.Tx)
+			bucket := pendingBuckets[coinType]
+			bucket.count++
+			bucket.size += int64(txDesc.Tx.MsgTx().SerializeSize())
+			pendingBuckets[coinType] = bucket
+		}
+	}
+
 	for coinType, coinAlloc := range allocation.Allocations {
 		if coinAlloc.UsedBytes > 0 {
 			log.Debugf("  Coin type %d: %d bytes used (%.1f%% of allocation)",
@@ -2104,19 +2132,9 @@ nextPriorityQueueItem:
 		// Update fee calculator with utilization feedback for dynamic adjustment
 		if g.cfg.FeeCalculator != nil {
 			utilizationRate := float64(coinAlloc.UsedBytes) / float64(coinAlloc.FinalAllocation)
-			// Count approximate pending transactions based on remaining mempool
-			pendingTxs := miningView.TxDescs()
-			pendingCount := 0
-			pendingSize := int64(0)
-			for _, txDesc := range pendingTxs {
-				if GetTransactionCoinType(txDesc.Tx) == coinType {
-					pendingCount++
-					pendingSize += int64(txDesc.Tx.MsgTx().SerializeSize())
-				}
-			}
-
+			bucket := pendingBuckets[coinType]
 			g.cfg.FeeCalculator.UpdateUtilization(coinType,
-				pendingCount, pendingSize, utilizationRate)
+				bucket.count, bucket.size, utilizationRate)
 		}
 	}
 
@@ -2362,7 +2380,7 @@ nextPriorityQueueItem:
 		}
 
 		// Determine coin type for this transaction and add fees by type
-		coinType := wire.GetPrimaryCoinType(tx.MsgTx())
+		coinType := GetTransactionCoinType(tx)
 		totalFees.Add(coinType, fee)
 		txFees = append(txFees, fee)
 
@@ -2382,7 +2400,7 @@ nextPriorityQueueItem:
 		}
 
 		// Determine coin type for this transaction and add fees by type
-		coinType := wire.GetPrimaryCoinType(tx.MsgTx())
+		coinType := GetTransactionCoinType(tx)
 		totalFees.Add(coinType, fee)
 		txFees = append(txFees, fee)
 
