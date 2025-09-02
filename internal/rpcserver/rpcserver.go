@@ -1722,10 +1722,14 @@ func handleExistsAddress(_ context.Context, s *Server, cmd interface{}) (interfa
 		return nil, rpcInternalErr(err, "Sync")
 	}
 
+	timer := time.NewTimer(syncWait)
+	defer timer.Stop()
+
 sync:
 	for !chain.BestSnapshot().Hash.IsEqual(tHash) {
+		timer.Reset(syncWait)
 		select {
-		case <-time.After(syncWait):
+		case <-timer.C:
 			err := fmt.Errorf("%s: index not synced", existsAddrIndex.Name())
 			return nil, rpcInternalErr(err, "Sync")
 		case <-existsAddrIndex.WaitForSync():
@@ -1779,10 +1783,14 @@ func handleExistsAddresses(_ context.Context, s *Server, cmd interface{}) (inter
 		return nil, rpcInternalErr(err, "Sync")
 	}
 
+	timer := time.NewTimer(syncWait)
+	defer timer.Stop()
+
 sync:
 	for !chain.BestSnapshot().Hash.IsEqual(tHash) {
+		timer.Reset(syncWait)
 		select {
-		case <-time.After(syncWait):
+		case <-timer.C:
 			err := fmt.Errorf("%s: index not synced", existsAddrIndex.Name())
 			return nil, rpcInternalErr(err, "Sync")
 		case <-existsAddrIndex.WaitForSync():
@@ -2855,18 +2863,10 @@ func calculatePercentile(values []float64, percentile float64) float64 {
 		return 0
 	}
 
-	// Simple insertion sort for small arrays
+	// Use standard library sort for O(n log n) performance
 	sorted := make([]float64, len(values))
 	copy(sorted, values)
-	for i := 1; i < len(sorted); i++ {
-		key := sorted[i]
-		j := i - 1
-		for j >= 0 && sorted[j] > key {
-			sorted[j+1] = sorted[j]
-			j--
-		}
-		sorted[j+1] = key
-	}
+	sort.Float64s(sorted)
 
 	index := percentile * float64(len(sorted)-1)
 	lower := int(index)
@@ -3276,10 +3276,14 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 			return nil, rpcInternalErr(err, "Sync")
 		}
 
+		timer := time.NewTimer(syncWait)
+		defer timer.Stop()
+
 	sync:
 		for !chain.BestSnapshot().Hash.IsEqual(tHash) {
+			timer.Reset(syncWait)
 			select {
-			case <-time.After(syncWait):
+			case <-timer.C:
 				err := fmt.Errorf("%s: index not synced", txIndex.Name())
 				return nil, rpcInternalErr(err, "Sync")
 			case <-txIndex.WaitForSync():
