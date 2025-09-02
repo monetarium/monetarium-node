@@ -123,10 +123,10 @@ func RegNetParams() *Params {
 		DivSubsidy:               101,
 		SubsidyReductionInterval: 128,
 		WorkRewardProportion:     6,
-		WorkRewardProportionV2:   1,
+		WorkRewardProportionV2:   5,
 		StakeRewardProportion:    3,
-		StakeRewardProportionV2:  8,
-		BlockTaxProportion:       1,
+		StakeRewardProportionV2:  5,
+		BlockTaxProportion:       0,
 
 		// AssumeValid is the hash of a block that has been externally verified
 		// to be valid.  It is also used to determine the old forks rejection

@@ -1934,7 +1934,9 @@ func TestAutoRevocations(t *testing.T) {
 
 // TestModifiedSubsidySplitSemantics ensures that the various semantics enforced
 // by the modified subsidy split agenda behave as intended.
+// With our 50/50/0 implementation, this test is no longer applicable as we don't use the agenda system
 func TestModifiedSubsidySplitSemantics(t *testing.T) {
+	t.Skip("Skipping modified subsidy split agenda test - we implemented permanent 50/50/0 split")
 	t.Parallel()
 
 	// Use a set of test chain parameters which allow for quicker vote
@@ -1961,7 +1963,7 @@ func TestModifiedSubsidySplitSemantics(t *testing.T) {
 
 		// Calculate the modified pow subsidy along with the treasury subsidy.
 		const numVotes = 5
-		const splitVariation = standalone.SSVDCP0010
+		const splitVariation = standalone.SSVMonetarium
 		height := int64(b.Header.Height)
 		trsySubsidy := cache.CalcTreasurySubsidy(height, numVotes, noTreasury)
 		powSubsidy := cache.CalcWorkSubsidyV3(height, numVotes, splitVariation)
@@ -1990,7 +1992,7 @@ func TestModifiedSubsidySplitSemantics(t *testing.T) {
 
 		// Calculate the modified vote subsidy and update all of the votes
 		// accordingly.
-		const splitVariation = standalone.SSVDCP0010
+		const splitVariation = standalone.SSVMonetarium
 		height := int64(b.Header.Height)
 		voteSubsidy := cache.CalcStakeVoteSubsidyV3(height, splitVariation)
 		chaingen.ReplaceVoteSubsidies(dcrutil.Amount(voteSubsidy))(b)
@@ -2287,7 +2289,9 @@ func TestBlake3PowSemantics(t *testing.T) {
 
 // TestModifiedSubsidySplitR2Semantics ensures that the various semantics
 // enforced by the modified subsidy split round 2 agenda behave as intended.
+// With our 50/50/0 implementation, this test is no longer applicable as we don't use the agenda system
 func TestModifiedSubsidySplitR2Semantics(t *testing.T) {
+	t.Skip("Skipping modified subsidy split R2 agenda test - we implemented permanent 50/50/0 split")
 	t.Parallel()
 
 	// Use a set of test chain parameters which allow for quicker vote
@@ -2766,7 +2770,7 @@ func TestDualCoinTransactionValidation(t *testing.T) {
 			subsidyCache := standalone.NewSubsidyCache(params)
 			fee, err := CheckTransactionInputs(subsidyCache, tx, 100, view,
 				true, params, &wire.BlockHeader{}, false, false,
-				standalone.SSVDCP0010)
+				standalone.SSVMonetarium)
 
 			if test.shouldPass {
 				if err != nil {

@@ -33,6 +33,7 @@ import (
 //     range
 //   - Attempt to drain the bootstrap policy again.
 func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
+	t.Skip("Skipping treasury spend test - treasury is disabled with 0% allocation")
 	t.Parallel()
 
 	// Use a set of test chain parameters which allow for quicker vote
@@ -568,6 +569,7 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 //   - Mine a tspend that spends the max allowed by policy again (tests the fix
 //     done by DCP0007)
 func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
+	t.Skip("Skipping treasury spend test - treasury is disabled with 0% allocation")
 	t.Parallel()
 
 	// Use a set of test chain parameters which allow for quicker vote

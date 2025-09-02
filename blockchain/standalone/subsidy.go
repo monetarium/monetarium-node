@@ -346,6 +346,10 @@ const (
 	// SSVDCP0012 specifies the modified subsidy split specified by DCP0012.
 	// In particular, 1% PoW, 89% PoS, and 10% Treasury.
 	SSVDCP0012
+
+	// SSVMonetarium specifies the Monetarium subsidy split.
+	// In particular, 50% PoW, 50% PoS, and 0% Treasury.
+	SSVMonetarium
 )
 
 // CalcWorkSubsidyV3 returns the proof of work subsidy for a block for a given
@@ -386,6 +390,18 @@ func (c *SubsidyCache) CalcWorkSubsidyV3(height int64, voters uint16, splitVaria
 		// subsidy params in order to avoid the need for a major module bump
 		// that would be required if the subsidy params interface were changed.
 		const workSubsidyProportion = 1
+		const totalProportions = 100
+		return c.calcWorkSubsidy(height, voters, workSubsidyProportion,
+			totalProportions)
+
+	case SSVMonetarium:
+		// The work subsidy proportion for Monetarium is 50%.  Thus it is 50
+		// since 50/100 = 50%.
+		//
+		// Note that the value is hard coded here as opposed to using the
+		// subsidy params in order to avoid the need for a major module bump
+		// that would be required if the subsidy params interface were changed.
+		const workSubsidyProportion = 50
 		const totalProportions = 100
 		return c.calcWorkSubsidy(height, voters, workSubsidyProportion,
 			totalProportions)
@@ -524,6 +540,18 @@ func (c *SubsidyCache) CalcStakeVoteSubsidyV3(height int64, splitVariant Subsidy
 		const totalProportions = 100
 		return c.calcStakeVoteSubsidy(height, voteSubsidyProportion,
 			totalProportions)
+
+	case SSVMonetarium:
+		// The stake vote subsidy proportion for Monetarium is 50%.  Thus it
+		// is 50 since 50/100 = 50%.
+		//
+		// Note that the value is hard coded here as opposed to using the
+		// subsidy params in order to avoid the need for a major module bump
+		// that would be required if the subsidy params interface were changed.
+		const voteSubsidyProportion = 50
+		const totalProportions = 100
+		return c.calcStakeVoteSubsidy(height, voteSubsidyProportion,
+			totalProportions)
 	}
 
 	return c.CalcStakeVoteSubsidy(height)
@@ -569,4 +597,50 @@ func (c *SubsidyCache) CalcTreasurySubsidy(height int64, voters uint16, isTreasu
 
 	// Adjust for the number of voters.
 	return (int64(voters) * subsidy) / int64(c.params.VotesPerBlock())
+}
+
+// GetSubsidyProportions returns the work, stake, and treasury proportions
+// for the given subsidy split variant as numerator/denominator pairs.
+// This allows external callers to access the proportions for fee calculations.
+func GetSubsidyProportions(splitVariant SubsidySplitVariant) (work, stake, treasury, total uint16) {
+	switch splitVariant {
+	case SSVDCP0010:
+		// DCP0010: 10% work, 80% stake, 10% treasury
+		return 10, 80, 10, 100
+	case SSVDCP0012:
+		// DCP0012: 1% work, 89% stake, 10% treasury
+		return 1, 89, 10, 100
+	case SSVMonetarium:
+		// Monetarium: 50% work, 50% stake, 0% treasury
+		return 50, 50, 0, 100
+	default: // SSVOriginal
+		// Original: 60% work, 30% stake, 10% treasury
+		// Using proportions that sum to 10 for compatibility
+		return 6, 3, 1, 10
+	}
+}
+
+// CalcFeeSplit calculates the fee distribution between miners and stakers
+// based on the subsidy split variant. The treasury does not receive fees.
+// Returns minerFees and stakerFees that sum to totalFees.
+func CalcFeeSplit(totalFees int64, splitVariant SubsidySplitVariant) (minerFees, stakerFees int64) {
+	work, stake, _, _ := GetSubsidyProportions(splitVariant)
+
+	// Fees are split only between miners and stakers (treasury gets no fees)
+	// Normalize the proportions between work and stake only
+	adjustedTotal := int64(work + stake)
+	if adjustedTotal == 0 {
+		// Shouldn't happen with valid variants, but handle gracefully
+		return 0, 0
+	}
+
+	minerFees = (totalFees * int64(work)) / adjustedTotal
+	stakerFees = (totalFees * int64(stake)) / adjustedTotal
+
+	// Handle any rounding remainder by giving it to miners
+	// This ensures minerFees + stakerFees = totalFees exactly
+	remainder := totalFees - minerFees - stakerFees
+	minerFees += remainder
+
+	return minerFees, stakerFees
 }

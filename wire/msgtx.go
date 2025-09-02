@@ -75,6 +75,45 @@ func GetPrimaryCoinType(tx *MsgTx) cointype.CoinType {
 	return cointype.CoinTypeVAR
 }
 
+// CalcFeeSplitByCoinType applies fee split to multi-coin fees based on
+// work/stake proportions. Returns separate FeesByType maps for miners and stakers.
+// The proportions should be obtained from the subsidy system based on the
+// current subsidy split variant (e.g., SSVMonetarium).
+func CalcFeeSplitByCoinType(feesByType FeesByType, workProportion, stakeProportion uint16) (minerFees, stakerFees FeesByType) {
+	minerFees = NewFeesByType()
+	stakerFees = NewFeesByType()
+
+	// Fees are split only between miners and stakers (treasury gets no fees)
+	adjustedTotal := int64(workProportion + stakeProportion)
+	if adjustedTotal == 0 {
+		// Shouldn't happen with valid proportions, but handle gracefully
+		return minerFees, stakerFees
+	}
+
+	for coinType, totalFee := range feesByType {
+		if totalFee <= 0 {
+			continue
+		}
+
+		// Calculate proportional split
+		minerFee := (totalFee * int64(workProportion)) / adjustedTotal
+		stakerFee := (totalFee * int64(stakeProportion)) / adjustedTotal
+
+		// Handle any rounding remainder by giving it to miners
+		remainder := totalFee - minerFee - stakerFee
+		minerFee += remainder
+
+		if minerFee > 0 {
+			minerFees[coinType] = minerFee
+		}
+		if stakerFee > 0 {
+			stakerFees[coinType] = stakerFee
+		}
+	}
+
+	return minerFees, stakerFees
+}
+
 const (
 	// TxVersion is the initial transaction version.
 	TxVersion uint16 = 1

@@ -133,7 +133,9 @@ func TestProcessOrder(t *testing.T) {
 	g.NextBlock("bpw2", outs[2], ticketOuts[2])
 	g.NextBlock("bpw3", outs[3], ticketOuts[3], func(b *wire.MsgBlock) {
 		// Increase the first proof-of-work coinbase subsidy.
-		b.Transactions[0].TxOut[2].Value++
+		// With the new 50/50 fee split, miners get less fees, so we need
+		// to increase by more to make this block invalid.
+		b.Transactions[0].TxOut[2].Value += 6
 	})
 	g.AcceptHeader("bpw1")
 	g.AcceptBlockData("bpw2")
@@ -143,6 +145,8 @@ func TestProcessOrder(t *testing.T) {
 
 	// Create a fork that ends with block that generates too much dev-org
 	// coinbase, but with a valid fork first.
+	// With 0% treasury allocation, treasury validation is skipped so this
+	// test case is no longer applicable
 	//
 	//   ... -> b1(0) -> bpw1(1) -> bpw2(2)
 	//                          \-> bdc1(2) -> bdc2(3) -> bdc3(4)
@@ -151,14 +155,16 @@ func TestProcessOrder(t *testing.T) {
 	g.NextBlock("bdc1", outs[2], ticketOuts[2])
 	g.NextBlock("bdc2", outs[3], ticketOuts[3])
 	g.NextBlock("bdc3", outs[4], ticketOuts[4], func(b *wire.MsgBlock) {
-		// Increase the proof-of-work dev subsidy by the provided amount.
+		// With 0% treasury, this increase doesn't violate treasury rules
 		b.Transactions[0].TxOut[0].Value++
 	})
 	g.AcceptHeader("bdc1")
 	g.AcceptBlockData("bdc2")
 	g.AcceptBlockData("bdc3")
-	g.RejectBlock("bdc1", ErrNoTreasury)
-	g.ExpectTip("bdc2")
+	// With 0% treasury allocation, bdc1 should be accepted since treasury validation is skipped
+	g.AcceptBlock("bdc1")
+	// The tip will be bdc3 (height 165) since it's the longest valid chain
+	g.ExpectTip("bdc3")
 }
 
 // genSharedProcessTestBlocks either generates a new set of blocks used in the

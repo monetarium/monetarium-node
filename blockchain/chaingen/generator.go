@@ -429,7 +429,7 @@ func (g *Generator) calcFullSubsidy(blockHeight uint32) dcrutil.Amount {
 // same code to generate them.
 func (g *Generator) calcPoWSubsidy(fullSubsidy dcrutil.Amount, blockHeight uint32, numVotes uint16) dcrutil.Amount {
 	const (
-		powProportion    = 6
+		powProportion    = 5
 		totalProportions = 10
 	)
 	powSubsidy := (fullSubsidy * powProportion) / totalProportions
@@ -455,7 +455,7 @@ func (g *Generator) calcPoSSubsidy(heightVotedOn uint32) dcrutil.Amount {
 	}
 
 	const (
-		posProportion    = 3
+		posProportion    = 5
 		totalProportions = 10
 	)
 	fullSubsidy := g.calcFullSubsidy(heightVotedOn)
@@ -470,7 +470,7 @@ func (g *Generator) calcPoSSubsidy(heightVotedOn uint32) dcrutil.Amount {
 // same code to generate them.
 func (g *Generator) calcDevSubsidy(fullSubsidy dcrutil.Amount, blockHeight uint32, numVotes uint16) dcrutil.Amount {
 	const (
-		devProportion    = 1
+		devProportion    = 0
 		totalProportions = 10
 	)
 	devSubsidy := (fullSubsidy * devProportion) / totalProportions
@@ -2568,9 +2568,9 @@ func updateVoteCommitments(block *wire.MsgBlock) {
 //
 // 1. A coinbase with the following outputs:
 //
-//   - One that pays the required 10% subsidy to the dev org
+//   - One that pays the required 0% subsidy to the dev org
 //   - One that contains a standard coinbase OP_RETURN script
-//   - Six that pay the required 60% subsidy to an OP_TRUE p2sh script
+//   - Six that pay the required 50% subsidy to an OP_TRUE p2sh script
 //
 // 2. When a spendable output is provided:
 //
@@ -2704,16 +2704,37 @@ func (g *Generator) NextBlock(blockName string, spend *SpendableOut, ticketSpend
 		coinbaseTx := g.CreateCoinbaseTx(nextHeight, numVotes)
 		regularTxns = []*wire.MsgTx{coinbaseTx}
 
-		// Increase the PoW subsidy to account for any fees in the stake
-		// tree.
-		coinbaseTx.TxOut[2].Value += int64(stakeTreeFees)
+		// Increase the PoW subsidy to account for any fees in the stake tree.
+		// Fee distribution depends on whether we're before or after stake validation.
+		var minerShareOfFees dcrutil.Amount
+		if int64(nextHeight) < g.params.StakeValidationHeight {
+			// Before stake validation, miners get 100% of fees since there are no active stakers
+			minerShareOfFees = stakeTreeFees
+		} else {
+			// After stake validation, fees are split 50/50 between miners and stakers
+			// This matches the validator's use of CalcFeeSplit with SSVMonetarium
+			const powProportion = 5
+			const totalProportions = 10 // 5 for pow, 5 for pos with 50/50 split
+			minerShareOfFees = (stakeTreeFees * powProportion) / totalProportions
+		}
+		coinbaseTx.TxOut[2].Value += int64(minerShareOfFees)
 
 		// Create a transaction to spend the provided utxo if needed.
 		if spend != nil {
-			// Create the transaction with a fee of 1 atom for the
-			// miner and increase the PoW subsidy accordingly.
+			// Create the transaction with a fee of 1 atom.
+			// Fee distribution follows the same rules as stake tree fees.
 			fee := dcrutil.Amount(1)
-			coinbaseTx.TxOut[2].Value += int64(fee)
+			var minerShareOfRegularFee dcrutil.Amount
+			if int64(nextHeight) < g.params.StakeValidationHeight {
+				// Before stake validation, miners get 100% of fees
+				minerShareOfRegularFee = fee
+			} else {
+				// After stake validation, fees are split 50/50
+				const powProportion = 5
+				const totalProportions = 10
+				minerShareOfRegularFee = (fee * powProportion) / totalProportions
+			}
+			coinbaseTx.TxOut[2].Value += int64(minerShareOfRegularFee)
 
 			// Create a transaction that spends from the provided
 			// spendable output and includes an additional unique

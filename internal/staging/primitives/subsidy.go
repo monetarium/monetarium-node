@@ -116,11 +116,13 @@ type SubsidyParams interface {
 //
 //	Prior to DCP0010: PoW: 6, PoS: 3, Treasury: 1 => 6+3+1 = 10
 //	   After DCP0010: PoW: 1, PoS: 8, Treasury: 1 => 1+8+1 = 10
+//	50/50 Miner/Staker: PoW: 5, PoS: 5, Treasury: 0 => 5+5+0 = 10
 //
 // Therefore, the subsidy split percentages are:
 //
 //	Prior to DCP0010: PoW: 6/10 = 60%, PoS: 3/10 = 30%, Treasury: 1/10 = 10%
 //	   After DCP0010: PoW: 1/10 = 10%, PoS: 8/10 = 80%, Treasury: 1/10 = 10%
+//	50/50 Miner/Staker: PoW: 5/10 = 50%, PoS: 5/10 = 50%, Treasury: 0/10 = 0%
 const totalProportions = 10
 
 // SubsidyCache provides efficient access to consensus-critical subsidy
@@ -337,9 +339,9 @@ func (c *SubsidyCache) CalcWorkSubsidy(height int64, voters uint16, useDCP0010 b
 		return c.calcWorkSubsidy(height, voters, workSubsidyProportion)
 	}
 
-	// The work subsidy proportion defined in DCP0010 is 10%.  Thus it is 1
-	// since 1/10 = 10%.
-	const workSubsidyProportion = 1
+	// The work subsidy proportion is now 50% (50/50 split with stakers).  Thus it is 5
+	// since 5/10 = 50%.
+	const workSubsidyProportion = 5
 	return c.calcWorkSubsidy(height, voters, workSubsidyProportion)
 }
 
@@ -405,9 +407,9 @@ func (c *SubsidyCache) CalcStakeVoteSubsidy(height int64, useDCP0010 bool) int64
 		return c.calcStakeVoteSubsidy(height, voteSubsidyProportion)
 	}
 
-	// The stake vote subsidy proportion defined in DCP0010 is 80%.  Thus it is
-	// 8 since 8/10 = 80%.
-	const voteSubsidyProportion = 8
+	// The stake vote subsidy proportion is now 50% (50/50 split with miners).  Thus it is
+	// 5 since 5/10 = 50%.
+	const voteSubsidyProportion = 5
 	return c.calcStakeVoteSubsidy(height, voteSubsidyProportion)
 }
 
@@ -425,34 +427,6 @@ func (c *SubsidyCache) CalcStakeVoteSubsidy(height int64, useDCP0010 bool) int64
 //
 // This function is safe for concurrent access.
 func (c *SubsidyCache) CalcTreasurySubsidy(height int64, voters uint16, useDCP0006 bool) int64 {
-	// The first two blocks have special subsidy rules.
-	if height <= 1 {
-		return 0
-	}
-
-	// The subsidy is zero if there are not enough voters once voting
-	// begins.  A block without enough voters will fail to validate anyway.
-	stakeValidationHeight := c.params.StakeValidationBeginHeight()
-	if height >= stakeValidationHeight && voters < c.minVotesRequired {
-		return 0
-	}
-
-	// Calculate the full block subsidy and reduce it according to the treasury
-	// proportion.
-	//
-	// The treasury proportion is 10% both prior to DCP0010 and after it.  Thus,
-	// it is 1 since 1/10 = 10%.
-	//
-	// However, there is no need to multiply by 1 since the result is the same.
-	subsidy := c.CalcBlockSubsidy(height)
-	subsidy /= totalProportions
-
-	// Ignore any potential subsidy reductions due to the number of votes
-	// prior to the point voting begins or when DCP0006 is active.
-	if height < stakeValidationHeight || useDCP0006 {
-		return subsidy
-	}
-
-	// Adjust for the number of voters.
-	return (int64(voters) * subsidy) / int64(c.params.VotesPerBlock())
+	// Treasury subsidy is now 0% in the 50/50 miner/staker split.
+	return 0
 }

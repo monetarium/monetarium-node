@@ -4194,18 +4194,40 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 				node.voters, subsidySplitVariant)
 			subsidyTreasury := b.subsidyCache.CalcTreasurySubsidy(node.height,
 				node.voters, isTreasuryEnabled)
+
+			// Calculate miner's share of fees
+			var minerFeesTotal int64
+			if node.height < b.chainParams.StakeValidationHeight {
+				// Before stake validation, miners get 100% of fees since there are no active stakers
+				minerFeesTotal = totalFees.Total()
+			} else {
+				// After stake validation, fees are split between miners and stakers based on subsidy proportions
+				// Treasury never receives fees
+				minerFeesTotal, _ = standalone.CalcFeeSplit(totalFees.Total(), subsidySplitVariant)
+			}
+
 			if isTreasuryEnabled {
 				// The treasury payout is done via a treasurybase in the stake
 				// tree when the treasury agenda is active.
-				expAtomOut = subsidyWork + totalFees.Total()
+				expAtomOut = subsidyWork + minerFeesTotal
 			} else {
-				expAtomOut = subsidyWork + subsidyTreasury + totalFees.Total()
+				expAtomOut = subsidyWork + subsidyTreasury + minerFeesTotal
 			}
 		}
 
 		// AmountIn for the input should be equal to the subsidy.
 		coinbaseIn := txs[0].MsgTx().TxIn[0]
-		subsidyWithoutFees := expAtomOut - totalFees.Total()
+		// Calculate subsidy without fees for input validation
+		// Get miner's fee share to subtract from expected output
+		var minerFeesForInput int64
+		if node.height < b.chainParams.StakeValidationHeight {
+			// Before stake validation, miners get 100% of fees
+			minerFeesForInput = totalFees.Total()
+		} else {
+			// After stake validation, use the split proportions
+			minerFeesForInput, _ = standalone.CalcFeeSplit(totalFees.Total(), subsidySplitVariant)
+		}
+		subsidyWithoutFees := expAtomOut - minerFeesForInput
 		if (coinbaseIn.ValueIn != subsidyWithoutFees) &&
 			(node.height > 0) {
 			errStr := fmt.Sprintf("bad coinbase subsidy in input;"+
@@ -4238,7 +4260,18 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 		}
 
 		if hasMultiCoinFees || hasNonVAROutputs {
-			if err := validateCoinbaseMultiOutput(coinbaseTx, totalFees, subsidyWithoutFees); err != nil {
+			// Calculate miner's share of fees by coin type
+			var minerFeesByType wire.FeesByType
+			if node.height < b.chainParams.StakeValidationHeight {
+				// Before stake validation, miners get 100% of all coin type fees
+				minerFeesByType = totalFees
+			} else {
+				// After stake validation, split fees based on subsidy proportions
+				work, stake, _, _ := standalone.GetSubsidyProportions(subsidySplitVariant)
+				minerFeesByType, _ = wire.CalcFeeSplitByCoinType(totalFees, work, stake)
+			}
+
+			if err := validateCoinbaseMultiOutput(coinbaseTx, minerFeesByType, subsidyWithoutFees); err != nil {
 				return err
 			}
 		}
@@ -4293,9 +4326,17 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 			// height of the current block.
 			voteSubsidy := b.subsidyCache.CalcStakeVoteSubsidyV3(node.height-1,
 				subsidySplitVariant)
-			expAtomOut = voteSubsidy * int64(node.voters)
+
+			// Calculate staker's share of fees based on configured proportions
+			// Fees are split between miners and stakers (treasury gets no fees)
+			_, stakerFeesTotal := standalone.CalcFeeSplit(totalFees.Total(), subsidySplitVariant)
+
+			// Stakers receive both subsidy and their share of fees
+			expAtomOut = (voteSubsidy * int64(node.voters)) + stakerFeesTotal
 		} else {
-			expAtomOut = totalFees.Total()
+			// Before stake validation height, there are no stakers to receive fees
+			// All fees go to miners (handled in regular tree validation)
+			expAtomOut = 0
 		}
 
 		if totalAtomOutStake > expAtomOut {
@@ -4547,23 +4588,10 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		return err
 	}
 
-	// Determine which subsidy split variant to use depending on the agendas
-	// that are active as of the block being checked.
-	isSubsidySplitEnabled, err := b.isSubsidySplitAgendaActive(node.parent)
-	if err != nil {
-		return err
-	}
-	isSubsidySplitR2Enabled, err := b.isSubsidySplitR2AgendaActive(node.parent)
-	if err != nil {
-		return err
-	}
-	subsidySplitVariant := standalone.SSVOriginal
-	switch {
-	case isSubsidySplitR2Enabled:
-		subsidySplitVariant = standalone.SSVDCP0012
-	case isSubsidySplitEnabled:
-		subsidySplitVariant = standalone.SSVDCP0010
-	}
+	// Use Monetarium subsidy split (50% miners, 50% stakers, 0% treasury)
+	// Note: We're not checking DCP agenda activation since we always want
+	// to use the Monetarium split for production
+	subsidySplitVariant := standalone.SSVMonetarium
 
 	const stakeTreeTrue = true
 	err = b.checkTransactionsAndConnect(0, node, block.STransactions(),
