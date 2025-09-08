@@ -254,6 +254,20 @@ func checkBlockScripts(block *dcrutil.Block, utxoView *UtxoViewpoint, txTree boo
 			continue
 		}
 
+		// Skip SSFee transactions which have null inputs and are validated
+		// separately through validateSSFeeTxns for proper fee distribution.
+		// SSFee transactions distribute non-VAR fees and don't require
+		// script validation since they have no real inputs to validate.
+		if !txTree && stake.DetermineTxType(msgTx) == stake.TxTypeSSFee {
+			continue
+		}
+
+		// Skip SKA emission transactions which have null inputs and are
+		// validated through CheckSKAEmissionInBlock with cryptographic checks.
+		if wire.IsSKAEmissionTransaction(msgTx) {
+			continue
+		}
+
 		for txInIdx, txIn := range msgTx.TxIn {
 			// Skip coinbases.
 			if txIn.PreviousOutPoint.Index == math.MaxUint32 {

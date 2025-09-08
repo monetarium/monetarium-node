@@ -2105,13 +2105,23 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 			totalRevocations++
 
 		case stake.TxTypeSSFee:
-			// SSFee transactions distribute non-VAR fees to stakers
-			// They are allowed after stake validation height when fees are split
+			// SSFee transactions distribute non-VAR fees to stakers and miners.
+			// They have null inputs (like coinbase/treasurybase) and use OP_RETURN
+			// markers to distinguish between staker fees (SF) and miner fees (MF).
+			// They are allowed after stake validation height when fees are split.
 			if header.Height < stakeValidationHeight {
 				str := fmt.Sprintf("block contains SSFee transaction at index %d "+
 					"before stake validation height %d", txIdx, stakeValidationHeight)
 				return ruleError(ErrStakeFees, str)
 			}
+
+			// Validate SSFee has null input like coinbase/treasurybase
+			if len(stx.TxIn) != 1 || !isNullOutpoint(&stx.TxIn[0].PreviousOutPoint) {
+				str := fmt.Sprintf("SSFee transaction at index %d must have exactly "+
+					"one null input", txIdx)
+				return ruleError(ErrStakeFees, str)
+			}
+
 			totalSSFee++
 			ssFeeTxns = append(ssFeeTxns, stx)
 			// SSFee transactions will be validated during fee distribution checks
@@ -2249,6 +2259,13 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 			return ruleError(ErrBlockTooBig, str)
 		}
 
+		// Enforce per-coin-type block space allocation using the same
+		// allocator logic as the mining module to ensure consistency.
+		err = b.validateBlockSpaceAllocation(block, maxBlockSize, prevNode)
+		if err != nil {
+			return err
+		}
+
 		// The calculated merkle root(s) of the transaction trees must match
 		// the associated entries in the header.
 		err = b.checkMerkleRoots(block.MsgBlock(), prevNode)
@@ -2372,13 +2389,138 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 	return nil
 }
 
+// validateBlockSpaceAllocation ensures that the block respects per-coin-type
+// space allocation limits (10% VAR, 90% SKA).
+// Note: We implement the validation directly here to avoid circular dependency
+// with the mining package. The logic mirrors what BlockSpaceAllocator does.
+func (b *BlockChain) validateBlockSpaceAllocation(block *dcrutil.Block, maxBlockSize int64, prevNode *blockNode) error {
+	// Define allocation percentages (matching mining module)
+	const (
+		varAllocationPercent = 0.10 // 10% for VAR
+		skaAllocationPercent = 0.90 // 90% for SKA (total)
+	)
+
+	// Helper function to get coin type from transaction
+	getCoinType := func(tx *dcrutil.Tx) cointype.CoinType {
+		msgTx := tx.MsgTx()
+
+		// Special cases for transactions with no real outputs
+		isTreasuryActive, _ := b.isTreasuryAgendaActive(prevNode)
+		if standalone.IsCoinBaseTx(msgTx, isTreasuryActive) {
+			return cointype.CoinTypeVAR // Coinbase is always VAR
+		}
+		if stake.IsTreasuryBase(msgTx) {
+			return cointype.CoinTypeVAR // Treasurybase is always VAR
+		}
+		if wire.IsSKAEmissionTransaction(msgTx) {
+			// SKA emission - get type from first output
+			if len(msgTx.TxOut) > 0 {
+				return msgTx.TxOut[0].CoinType
+			}
+			return cointype.CoinTypeVAR // Fallback
+		}
+		if stake.DetermineTxType(msgTx) == stake.TxTypeSSFee {
+			// SSFee - get type from first non-OP_RETURN output
+			for _, out := range msgTx.TxOut {
+				if len(out.PkScript) > 0 && out.PkScript[0] == txscript.OP_RETURN {
+					continue
+				}
+				return out.CoinType
+			}
+			return cointype.CoinTypeVAR // Fallback
+		}
+
+		// For regular transactions, determine coin type from outputs
+		// (all outputs must have the same coin type due to earlier validation)
+		if len(msgTx.TxOut) > 0 {
+			return msgTx.TxOut[0].CoinType
+		}
+
+		return cointype.CoinTypeVAR // Default to VAR if no outputs
+	}
+
+	// Track space used by coin type
+	spaceUsed := make(map[cointype.CoinType]int64)
+
+	// Count space in regular tree
+	for _, tx := range block.Transactions() {
+		coinType := getCoinType(tx)
+		txSize := int64(tx.MsgTx().SerializeSize())
+		spaceUsed[coinType] += txSize
+	}
+
+	// Count space in stake tree
+	for _, tx := range block.STransactions() {
+		coinType := getCoinType(tx)
+		txSize := int64(tx.MsgTx().SerializeSize())
+		spaceUsed[coinType] += txSize
+	}
+
+	// Calculate allocations
+	varMaxSpace := int64(float64(maxBlockSize) * varAllocationPercent)
+	skaMaxSpace := int64(float64(maxBlockSize) * skaAllocationPercent)
+
+	// Check VAR space
+	varUsed := spaceUsed[cointype.CoinTypeVAR]
+	if varUsed > varMaxSpace {
+		return ruleError(ErrBlockTooBig, fmt.Sprintf(
+			"VAR transactions exceed allocation: used %d bytes > max %d bytes (%.0f%% of %d)",
+			varUsed, varMaxSpace, varAllocationPercent*100, maxBlockSize))
+	}
+
+	// Check total SKA space (all non-VAR coin types combined)
+	var totalSKAUsed int64
+	for coinType, used := range spaceUsed {
+		if coinType != cointype.CoinTypeVAR {
+			totalSKAUsed += used
+		}
+	}
+
+	if totalSKAUsed > skaMaxSpace {
+		return ruleError(ErrBlockTooBig, fmt.Sprintf(
+			"SKA transactions exceed allocation: used %d bytes > max %d bytes (%.0f%% of %d)",
+			totalSKAUsed, skaMaxSpace, skaAllocationPercent*100, maxBlockSize))
+	}
+
+	// Validation passed - block respects per-coin-type allocations
+	return nil
+}
+
+// getSSFeeType extracts the type of SSFee transaction from its OP_RETURN output.
+// Returns "SF" for staker fees, "MF" for miner fees, or an error if not found.
+func getSSFeeType(tx *wire.MsgTx) (string, error) {
+	for _, out := range tx.TxOut {
+		// Look for OP_RETURN output
+		if len(out.PkScript) >= 3 && out.PkScript[0] == txscript.OP_RETURN {
+			// Check for data push opcode
+			if out.PkScript[1] == txscript.OP_DATA_2 && len(out.PkScript) >= 4 {
+				marker := string(out.PkScript[2:4])
+				if marker == "SF" || marker == "MF" {
+					return marker, nil
+				}
+			}
+		}
+	}
+	return "", fmt.Errorf("SSFee transaction missing valid OP_RETURN marker (SF or MF)")
+}
+
 // validateSSFeeTxns validates that SSFee transactions properly distribute
-// non-VAR fees to the stakers who voted in the block.
+// non-VAR fees to the stakers who voted in the block and to miners.
+//
+// SSFee Transaction Structure:
+// - Input: Single null input (like coinbase/treasurybase) with ValueIn set to fee amount
+// - Outputs: Distribution to stakers (for staker SSFee) or miner (for miner SSFee)
+// - OP_RETURN marker: Contains "SF" for staker fees or "MF" for miner fees
+// - Coin Type: All outputs must be the same non-VAR coin type
 //
 // This function ensures:
 // - Each SSFee tx distributes fees for exactly one non-VAR coin type
-// - The total distributed matches the staker's share of fees for that coin type
-// - Distribution is proportional to vote contributions
+// - The total distributed matches the expected share of fees for that coin type
+// - No VAR fees are distributed through SSFee (VAR fees go through SSGen)
+// - All non-VAR coin types with fees have corresponding SSFee transactions
+//
+// Note: SSFee transactions skip script validation in checkBlockScripts since
+// they have null inputs and their validity is enforced through this function.
 func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 	ssFeeTxns []*wire.MsgTx, totalFees wire.FeesByType, subsidySplitVariant standalone.SubsidySplitVariant) error {
 
@@ -2387,12 +2529,13 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 		return nil
 	}
 
-	// Calculate staker's share of fees by coin type
+	// Calculate miner's and staker's share of fees by coin type
 	work, stake, _, _ := standalone.GetSubsidyProportions(subsidySplitVariant)
-	_, stakerFeesByType := wire.CalcFeeSplitByCoinType(totalFees, work, stake)
+	minerFeesByType, stakerFeesByType := wire.CalcFeeSplitByCoinType(totalFees, work, stake)
 
-	// Track which coin types have been distributed
-	distributedCoinTypes := make(map[cointype.CoinType]int64)
+	// Track which coin types have been distributed by miners and stakers
+	distributedMinerFees := make(map[cointype.CoinType]int64)
+	distributedStakerFees := make(map[cointype.CoinType]int64)
 
 	// Validate each SSFee transaction
 	for _, ssFeeTx := range ssFeeTxns {
@@ -2402,8 +2545,22 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 				"SSFee transaction has no outputs")
 		}
 
-		// Get the coin type from the first output (all must be the same)
-		coinType := ssFeeTx.TxOut[0].CoinType
+		// Determine SSFee type (SF for staker, MF for miner)
+		feeType, err := getSSFeeType(ssFeeTx)
+		if err != nil {
+			return ruleError(ErrStakeFees, err.Error())
+		}
+
+		// Get the coin type from the first non-OP_RETURN output
+		var coinType cointype.CoinType
+		for _, out := range ssFeeTx.TxOut {
+			// Skip OP_RETURN outputs
+			if len(out.PkScript) > 0 && out.PkScript[0] == txscript.OP_RETURN {
+				continue
+			}
+			coinType = out.CoinType
+			break
+		}
 
 		// Verify this is not VAR (VAR fees are distributed via SSGen)
 		if coinType == cointype.CoinTypeVAR {
@@ -2411,47 +2568,106 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 				"SSFee transaction cannot distribute VAR fees")
 		}
 
-		// Check if we've already seen a distribution for this coin type
-		if _, exists := distributedCoinTypes[coinType]; exists {
-			return ruleError(ErrStakeFees,
-				fmt.Sprintf("duplicate SSFee transaction for coin type %d", coinType))
-		}
-
-		// Sum the total distributed in this SSFee tx
-		var totalDistributed int64
-		for _, out := range ssFeeTx.TxOut {
-			// Check for overflow before adding
-			if out.Value < 0 {
+		// Check which type of SSFee this is and validate accordingly
+		if feeType == "MF" {
+			// Miner SSFee validation
+			// Check if we've already seen a miner distribution for this coin type
+			if _, exists := distributedMinerFees[coinType]; exists {
 				return ruleError(ErrStakeFees,
-					fmt.Sprintf("SSFee transaction has negative output value: %d", out.Value))
+					fmt.Sprintf("duplicate miner SSFee transaction for coin type %d", coinType))
 			}
-			if totalDistributed > math.MaxInt64-out.Value {
+
+			// Sum the total distributed (excluding OP_RETURN)
+			var totalDistributed int64
+			for _, out := range ssFeeTx.TxOut {
+				// Skip OP_RETURN outputs
+				if len(out.PkScript) > 0 && out.PkScript[0] == txscript.OP_RETURN {
+					continue
+				}
+				// Check for overflow before adding
+				if out.Value < 0 {
+					return ruleError(ErrStakeFees,
+						fmt.Sprintf("miner SSFee transaction has negative output value: %d", out.Value))
+				}
+				if totalDistributed > math.MaxInt64-out.Value {
+					return ruleError(ErrStakeFees,
+						"miner SSFee transaction total would overflow")
+				}
+				totalDistributed += out.Value
+			}
+
+			// Verify the total matches the miner's share for this coin type
+			expectedAmount := minerFeesByType.Get(coinType)
+			if totalDistributed != expectedAmount {
 				return ruleError(ErrStakeFees,
-					"SSFee transaction total would overflow")
+					fmt.Sprintf("miner SSFee for coin type %d distributes %d, expected %d",
+						coinType, totalDistributed, expectedAmount))
 			}
-			totalDistributed += out.Value
-		}
 
-		// Verify the total matches the staker's share for this coin type
-		expectedAmount := stakerFeesByType.Get(coinType)
-		if totalDistributed != expectedAmount {
-			return ruleError(ErrStakeFees,
-				fmt.Sprintf("SSFee for coin type %d distributes %d, expected %d",
-					coinType, totalDistributed, expectedAmount))
-		}
+			distributedMinerFees[coinType] = totalDistributed
 
-		distributedCoinTypes[coinType] = totalDistributed
+		} else if feeType == "SF" {
+			// Staker SSFee validation
+			// Check if we've already seen a staker distribution for this coin type
+			if _, exists := distributedStakerFees[coinType]; exists {
+				return ruleError(ErrStakeFees,
+					fmt.Sprintf("duplicate staker SSFee transaction for coin type %d", coinType))
+			}
+
+			// Sum the total distributed (excluding OP_RETURN)
+			var totalDistributed int64
+			for _, out := range ssFeeTx.TxOut {
+				// Skip OP_RETURN outputs
+				if len(out.PkScript) > 0 && out.PkScript[0] == txscript.OP_RETURN {
+					continue
+				}
+				// Check for overflow before adding
+				if out.Value < 0 {
+					return ruleError(ErrStakeFees,
+						fmt.Sprintf("staker SSFee transaction has negative output value: %d", out.Value))
+				}
+				if totalDistributed > math.MaxInt64-out.Value {
+					return ruleError(ErrStakeFees,
+						"staker SSFee transaction total would overflow")
+				}
+				totalDistributed += out.Value
+			}
+
+			// Verify the total matches the staker's share for this coin type
+			expectedAmount := stakerFeesByType.Get(coinType)
+			if totalDistributed != expectedAmount {
+				return ruleError(ErrStakeFees,
+					fmt.Sprintf("staker SSFee for coin type %d distributes %d, expected %d",
+						coinType, totalDistributed, expectedAmount))
+			}
+
+			distributedStakerFees[coinType] = totalDistributed
+		}
 	}
 
-	// Verify all non-VAR coin types with fees have been distributed
+	// Verify all non-VAR staker fees have been distributed
 	for coinType, amount := range stakerFeesByType {
 		if coinType == cointype.CoinTypeVAR {
 			continue // VAR fees are handled in SSGen
 		}
 		if amount > 0 {
-			if _, distributed := distributedCoinTypes[coinType]; !distributed {
+			if _, distributed := distributedStakerFees[coinType]; !distributed {
 				return ruleError(ErrStakeFees,
-					fmt.Sprintf("missing SSFee transaction for coin type %d with %d fees",
+					fmt.Sprintf("missing staker SSFee transaction for coin type %d with %d fees",
+						coinType, amount))
+			}
+		}
+	}
+
+	// Verify all non-VAR miner fees have been distributed
+	for coinType, amount := range minerFeesByType {
+		if coinType == cointype.CoinTypeVAR {
+			continue // VAR miner fees go to coinbase
+		}
+		if amount > 0 {
+			if _, distributed := distributedMinerFees[coinType]; !distributed {
+				return ruleError(ErrStakeFees,
+					fmt.Sprintf("missing miner SSFee transaction for coin type %d with %d fees",
 						coinType, amount))
 			}
 		}
@@ -3237,6 +3453,10 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint,
 // inputs, it also calculates the total fees for the transaction and returns
 // that value.
 //
+// Note: SSFee transactions are not processed here as they have null inputs
+// like coinbase/treasurybase transactions. They are validated separately
+// through validateSSFeeTxns to ensure proper non-VAR fee distribution.
+//
 // NOTE: The transaction MUST have already been sanity checked with the
 // standalone.CheckTransactionSanity function prior to calling this function.
 func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
@@ -3257,7 +3477,17 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	}
 
 	// SKA emission transactions have no real inputs (only null input).
+	// They bypass input validation here because their authorization is
+	// validated separately through CheckSKAEmissionInBlock which ensures
+	// cryptographic signatures, admin keys, and emission rules are enforced.
 	if wire.IsSKAEmissionTransaction(msgTx) {
+		return 0, nil
+	}
+
+	// SSFee transactions have null inputs and distribute non-VAR fees.
+	// They bypass input validation here because they are validated
+	// separately through validateSSFeeTxns for proper fee distribution.
+	if stake.DetermineTxType(msgTx) == stake.TxTypeSSFee {
 		return 0, nil
 	}
 
@@ -3782,7 +4012,17 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 		}
 	}
 
-	// SKA emission transactions have null inputs by design.
+	// SKA emission transactions have null inputs by design and skip standard
+	// script validation. This is secure because SKA emissions are validated
+	// through ValidateAuthorizedSKAEmissionTransaction which performs:
+	// - Cryptographic signature verification binding to the transaction
+	// - Admin key authorization checks
+	// - Nonce-based replay protection
+	// - Network ID verification
+	// - Emission window and amount validation
+	// This comprehensive validation happens during block validation in
+	// CheckSKAEmissionInBlock, ensuring SKA emissions are secure despite
+	// bypassing standard script checks.
 	if wire.IsSKAEmissionTransaction(msgTx) {
 		return 0, nil
 	}

@@ -2598,7 +2598,7 @@ nextPriorityQueueItem:
 				log.Warnf("Fee overflow protection triggered for coin type %d: capping fee at maximum safe value", coinType)
 				totalFees[coinType] = math.MaxInt64 / int64(voters)
 			}
-			
+
 			// Now safe to scale
 			scaledFee := totalFees[coinType] * int64(voters) / int64(g.cfg.ChainParams.TicketsPerBlock)
 			totalFees[coinType] = scaledFee
