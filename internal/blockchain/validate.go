@@ -3791,7 +3791,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 		switch {
 		case coinType == cointype.CoinTypeVAR:
 			totalVAROut += txOut.Value
-		case coinType >= 1 && coinType <= 255:
+		case coinType >= 1 && coinType <= cointype.CoinTypeMax:
 			// Check if this SKA coin type is active
 			if !chainParams.IsSKACoinTypeActive(coinType) {
 				str := fmt.Sprintf("transaction output uses inactive SKA coin type %d (%s)",
