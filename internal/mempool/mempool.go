@@ -990,6 +990,12 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint, txDesc *TxD
 //
 // This function MUST be called with the mempool lock held (for reads).
 func (mp *TxPool) checkPoolDoubleSpend(tx *dcrutil.Tx, txType stake.TxType, isTreasuryEnabled bool) error {
+	// SKA emission transactions have null inputs that don't represent real coins
+	// being spent, so skip double-spend checks for them entirely.
+	if wire.IsSKAEmissionTransaction(tx.MsgTx()) {
+		return nil
+	}
+
 	for i, txIn := range tx.MsgTx().TxIn {
 		// We don't care about double spends of stake bases.
 		if i == 0 && (txType == stake.TxTypeSSGen ||
