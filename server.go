@@ -2926,6 +2926,19 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		txMemPool := s.txMemPool
 		handleConnectedBlockTxns := func(txns []*dcrutil.Tx) {
 			for _, tx := range txns {
+				// Skip SKA emission transactions similar to how we skip coinbase.
+				// SKA emissions create new coins and don't belong in the mempool
+				// after being mined, just like coinbase transactions.
+				if wire.IsSKAEmissionTransaction(tx.MsgTx()) {
+					// Remove it from mempool if it exists (it might have been submitted via RPC)
+					// Unlike coinbase which never exists in mempool, SKA emissions can be
+					// submitted to mempool before being mined.
+					txMemPool.RemoveTransaction(tx, false)
+					// Still mark it as confirmed for tracking purposes
+					s.TransactionConfirmed(tx)
+					continue
+				}
+
 				txMemPool.RemoveTransaction(tx, false)
 				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled)
 				txMemPool.RemoveDoubleSpends(tx)
