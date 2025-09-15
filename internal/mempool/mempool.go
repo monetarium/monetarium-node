@@ -973,13 +973,9 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint, txDesc *TxD
 
 	// Record transaction fee for coin-type-specific tracking
 	if mp.feeCalculator != nil {
-		// Determine the primary coin type from inputs
-		primaryCoinType, err := mp.primaryCoinTypeFromInputs(utxoView, msgTx, txType)
-		if err != nil {
-			// If we can't determine from inputs (e.g., orphan or error),
-			// fall back to output-based detection for single-coin transactions
-			primaryCoinType = mp.determinePrimaryCoinType(msgTx)
-		}
+		// Determine the primary coin type from outputs
+		// (inputs and outputs always have the same coin type)
+		primaryCoinType := mp.determinePrimaryCoinType(msgTx)
 
 		// Record with the primary coin type
 		mp.feeCalculator.RecordTransactionFee(primaryCoinType, txDesc.Fee,
@@ -1753,11 +1749,9 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 		return nil, err
 	}
 
-	// Determine primary coin type from inputs (not outputs)
-	primaryCoinType, err := mp.primaryCoinTypeFromInputs(utxoView, msgTx, txType)
-	if err != nil {
-		return nil, txRuleError(ErrMixedCoinTypes, err.Error())
-	}
+	// Determine primary coin type from outputs
+	// (inputs and outputs always have the same coin type, already validated above)
+	primaryCoinType := mp.determinePrimaryCoinType(msgTx)
 
 	// SKA can only be used for regular transactions (not stake/treasury)
 	if primaryCoinType.IsSKA() && txType != stake.TxTypeRegular {
@@ -2571,53 +2565,6 @@ func New(cfg *Config) *TxPool {
 	return mp
 }
 
-// primaryCoinTypeFromInputs determines the primary coin type for a transaction
-// based on its inputs. This is more accurate than output-based detection since
-// we enforce no mixing of coin types for regular transactions.
-func (mp *TxPool) primaryCoinTypeFromInputs(utxoView *blockchain.UtxoViewpoint,
-	msgTx *wire.MsgTx, txType stake.TxType) (cointype.CoinType, error) {
-
-	var haveCoinType bool
-	var primaryCoinType cointype.CoinType
-
-	for i, txIn := range msgTx.TxIn {
-		// Skip stakebase inputs (first input of votes)
-		if i == 0 && txType == stake.TxTypeSSGen {
-			continue
-		}
-
-		// Skip treasury spends (they have special inputs)
-		if txType == stake.TxTypeTSpend {
-			continue
-		}
-
-		entry := utxoView.LookupEntry(txIn.PreviousOutPoint)
-		if entry == nil || entry.IsSpent() {
-			// This will be caught by orphan handling
-			continue
-		}
-
-		if !haveCoinType {
-			primaryCoinType = entry.CoinType()
-			haveCoinType = true
-		} else if primaryCoinType != entry.CoinType() {
-			return 0, fmt.Errorf("mixed input coin types: %v and %v",
-				primaryCoinType, entry.CoinType())
-		}
-	}
-
-	// If no inputs were found (e.g., emission or coinbase), default to VAR
-	// unless we can determine from outputs (for emissions)
-	if !haveCoinType {
-		if wire.IsSKAEmissionTransaction(msgTx) && len(msgTx.TxOut) > 0 {
-			return msgTx.TxOut[0].CoinType, nil
-		}
-		return cointype.CoinTypeVAR, nil
-	}
-
-	return primaryCoinType, nil
-}
-
 // computeFeesByType calculates the transaction fees for each coin type involved.
 // For our single-coin-type transactions, this will return a map with one entry.
 func (mp *TxPool) computeFeesByType(utxoView *blockchain.UtxoViewpoint,
@@ -2682,8 +2629,8 @@ func (mp *TxPool) computeFeesByType(utxoView *blockchain.UtxoViewpoint,
 
 // determinePrimaryCoinType determines the primary coin type for a transaction
 // based on the majority of its outputs.
-// This is a fallback method used when UTXO information is not available.
-// For mempool transactions, use primaryCoinTypeFromInputs instead.
+// Since inputs and outputs always have the same coin type after validation,
+// this provides an efficient way to determine the transaction's coin type.
 func (mp *TxPool) determinePrimaryCoinType(msgTx *wire.MsgTx) cointype.CoinType {
 	// Count outputs by coin type
 	coinTypeCounts := make(map[cointype.CoinType]int)
@@ -2742,12 +2689,8 @@ func (mp *TxPool) ProcessConfirmedTransactions(block *dcrutil.Block, isTreasuryE
 		for _, tx := range txns {
 			mp.mtx.RLock()
 			if poolTxDesc, exists := mp.pool[*tx.Hash()]; exists {
-				// Use the accurate coin type and fee data from mempool
-				primaryCoinType, err := mp.primaryCoinTypeFromInputs(nil, tx.MsgTx(), poolTxDesc.Type)
-				if err != nil {
-					// Fallback to output-based detection for edge cases
-					primaryCoinType = mp.determinePrimaryCoinType(tx.MsgTx())
-				}
+				// Determine coin type from outputs (inputs and outputs always match)
+				primaryCoinType := mp.determinePrimaryCoinType(tx.MsgTx())
 				txSize := int64(tx.MsgTx().SerializeSize())
 				mp.feeCalculator.RecordTransactionFee(primaryCoinType, poolTxDesc.Fee, txSize, true) // true = confirmed
 			}

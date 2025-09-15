@@ -1494,25 +1494,9 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress stdaddr.Address) (*Bloc
 		return nil, err
 	}
 
-	isSubsidyEnabled, err := g.cfg.IsSubsidySplitAgendaActive(&prevHash)
-	if err != nil {
-		return nil, err
-	}
-
-	isSubsidyR2Enabled, err := g.cfg.IsSubsidySplitR2AgendaActive(&prevHash)
-	if err != nil {
-		return nil, err
-	}
-
 	// Determine which subsidy split variant to use depending on the active
 	// agendas.
-	subsidySplitVariant := standalone.SSVOriginal
-	switch {
-	case isSubsidyR2Enabled:
-		subsidySplitVariant = standalone.SSVDCP0012
-	case isSubsidyEnabled:
-		subsidySplitVariant = standalone.SSVDCP0010
-	}
+	subsidySplitVariant := standalone.SSVMonetarium
 
 	var (
 		isTVI            bool

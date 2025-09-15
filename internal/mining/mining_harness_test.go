@@ -86,13 +86,8 @@ type fakeChain struct {
 // determineSubsidySplitVariant returns the subsidy split variant to use based
 // on the agendas that are active on the fake chain instance.
 func (c *fakeChain) determineSubsidySplitVariant() standalone.SubsidySplitVariant {
-	switch {
-	case c.isSubsidySplitR2AgendaActive:
-		return standalone.SSVDCP0012
-	case c.isSubsidySplitAgendaActive:
-		return standalone.SSVDCP0010
-	}
-	return standalone.SSVOriginal
+	// Always use SSVMonetarium for Monetarium fork
+	return standalone.SSVMonetarium
 }
 
 // AddBlock adds a block that will be available to the BlockByHash function of
