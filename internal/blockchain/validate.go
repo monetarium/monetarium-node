@@ -2523,19 +2523,21 @@ func getSSFeeType(tx *wire.MsgTx) (string, error) {
 }
 
 // validateSSFeeTxns validates that SSFee transactions properly distribute
-// non-VAR fees to the stakers who voted in the block and to miners.
+// fees to the stakers who voted in the block and to miners.
 //
 // SSFee Transaction Structure:
 // - Input: Single null input (like coinbase/treasurybase) with ValueIn set to fee amount
 // - Outputs: Distribution to stakers (for staker SSFee) or miner (for miner SSFee)
 // - OP_RETURN marker: Contains "SF" for staker fees or "MF" for miner fees
-// - Coin Type: All outputs must be the same non-VAR coin type
+// - Coin Type: All outputs must be the same coin type
 //
 // This function ensures:
-// - Each SSFee tx distributes fees for exactly one non-VAR coin type
+// - Each SSFee tx distributes fees for exactly one coin type
 // - The total distributed matches the expected share of fees for that coin type
-// - No VAR fees are distributed through SSFee (VAR fees go through SSGen)
-// - All non-VAR coin types with fees have corresponding SSFee transactions
+// - Staker SSFee (SF) can distribute any coin type including VAR
+// - Miner SSFee (MF) distributes non-VAR only (VAR miner fees go to coinbase)
+// - All coin types with staker fees have corresponding SSFee transactions
+// - All non-VAR coin types with miner fees have corresponding SSFee transactions
 //
 // Note: SSFee transactions skip script validation in checkBlockScripts since
 // they have null inputs and their validity is enforced through this function.
@@ -2657,11 +2659,8 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 		}
 	}
 
-	// Verify all non-VAR staker fees have been distributed
+	// Verify all staker fees (including VAR) have been distributed
 	for coinType, amount := range stakerFeesByType {
-		if coinType == cointype.CoinTypeVAR {
-			continue // VAR fees are handled in SSGen
-		}
 		if amount > 0 {
 			if _, distributed := distributedStakerFees[coinType]; !distributed {
 				return ruleError(ErrStakeFees,

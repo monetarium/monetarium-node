@@ -1346,6 +1346,28 @@ func CheckSSFee(tx *wire.MsgTx) error {
 	// All outputs must have the same coin type
 	if len(tx.TxOut) > 0 {
 		firstCoinType := tx.TxOut[0].CoinType
+
+		// Determine if this is a miner SSFee (MF) or staker SSFee (SF)
+		// by checking the marker in the OP_RETURN output
+		isMinerFee := false
+		for _, out := range tx.TxOut {
+			script := out.PkScript
+			if len(script) >= minScriptLen &&
+				script[0] == opReturn &&
+				script[1] == opData6 &&
+				script[2] == markerM && // 'M'
+				script[3] == markerF { // 'F'
+				isMinerFee = true
+				break
+			}
+		}
+
+		// Miner SSFee (MF) cannot distribute VAR (VAR miner fees go to coinbase)
+		// Staker SSFee (SF) CAN distribute VAR (VAR staker fees use SSFee)
+		if isMinerFee && firstCoinType == cointype.CoinTypeVAR {
+			return fmt.Errorf("miner SSFee tx cannot use VAR coin type")
+		}
+
 		for i, out := range tx.TxOut {
 			if out.CoinType != firstCoinType {
 				return fmt.Errorf("SSFee tx output %d has coin type %d, expected %d",

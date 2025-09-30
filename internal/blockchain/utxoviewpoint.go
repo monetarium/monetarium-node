@@ -952,6 +952,12 @@ func (view *UtxoViewpoint) fetchInputUtxos(block *dcrutil.Block,
 			continue
 		}
 
+		// Ignore SSFee transactions since they have null inputs like treasurybase.
+		isSSFee := stake.IsSSFee(msgTx)
+		if isSSFee {
+			continue
+		}
+
 		isVote := stake.IsSSGen(msgTx)
 		for txInIdx, txIn := range msgTx.TxIn {
 			// Ignore stakebase since it has no input.
