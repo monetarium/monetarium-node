@@ -496,20 +496,9 @@ func (msg *MsgTx) serialize(serType TxSerializeType) ([]byte, error) {
 	buf := bytes.NewBuffer(make([]byte, 0, expectedSize))
 	err := mtxCopy.Serialize(buf)
 	if err != nil {
-		// Enhanced debug logging for dual-coin transactions
-		if len(msg.TxOut) > 0 && msg.TxOut[0].CoinType != 0 {
-			fmt.Printf("DEBUG: serialize error for dual-coin tx - serType=%d, expectedSize=%d, error=%v\n",
-				serType, expectedSize, err)
-		}
 		return nil, err
 	}
 	result := buf.Bytes()
-
-	// Debug logging for size mismatches
-	if len(result) != expectedSize && len(msg.TxOut) > 0 && msg.TxOut[0].CoinType != 0 {
-		fmt.Printf("DEBUG: Size mismatch for dual-coin tx - expected=%d, actual=%d, serType=%d\n",
-			expectedSize, len(result), serType)
-	}
 
 	return result, nil
 }
@@ -590,20 +579,9 @@ func (msg *MsgTx) TxHashFull() chainhash.Hash {
 	prefixHash := msg.TxHash()
 	witnessHash := msg.TxHashWitness()
 
-	// Debug logging for merkle root issue
-	if len(msg.TxOut) > 0 && msg.TxOut[0].CoinType != 0 {
-		fmt.Printf("DEBUG: TxHashFull for dual-coin tx - prefixHash=%x, witnessHash=%x\n",
-			prefixHash[:8], witnessHash[:8])
-	}
-
 	copy(concat[0:], prefixHash[:])
 	copy(concat[chainhash.HashSize:], witnessHash[:])
 	fullHash := chainhash.HashH(concat)
-
-	// Additional debug for dual-coin transactions
-	if len(msg.TxOut) > 0 && msg.TxOut[0].CoinType != 0 {
-		fmt.Printf("DEBUG: TxHashFull result=%x\n", fullHash[:8])
-	}
 
 	return fullHash
 }

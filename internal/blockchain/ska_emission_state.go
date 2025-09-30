@@ -204,15 +204,20 @@ func (s *SKAEmissionState) saveWithTx(dbTx database.Tx) error {
 		return fmt.Errorf("failed to save format version: %w", err)
 	}
 
-	// Save each coin type's state
-	for coinType := cointype.CoinType(1); coinType <= cointype.CoinType(255); coinType++ {
-		nonce, hasNonce := s.nonces[coinType]
-		_, isEmitted := s.emitted[coinType]
+	// Build a set of all coin types that have state
+	// This avoids iterating through all 255 coin types when only a few have data
+	coinTypesToSave := make(map[cointype.CoinType]bool)
+	for ct := range s.nonces {
+		coinTypesToSave[ct] = true
+	}
+	for ct := range s.emitted {
+		coinTypesToSave[ct] = true
+	}
 
-		if !hasNonce && !isEmitted {
-			// No state for this coin type, skip
-			continue
-		}
+	// Save each coin type's state
+	for coinType := range coinTypesToSave {
+		nonce := s.nonces[coinType]
+		isEmitted := s.emitted[coinType]
 
 		// Create key (1 byte coin type)
 		key := []byte{byte(coinType)}

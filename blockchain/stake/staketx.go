@@ -1316,15 +1316,16 @@ func CheckSSFee(tx *wire.MsgTx) error {
 			len(tx.TxOut), MaxOutputsPerSSFee)
 	}
 
-	// SSFee transactions must have an OP_RETURN output with "SF" marker
+	// SSFee transactions must have an OP_RETURN output with "SF" or "MF" marker
 	// to distinguish them from coinbase/treasurybase.
-	// Format: OP_RETURN + OP_DATA_6 + "SF" + height(4 bytes)
+	// Format: OP_RETURN + OP_DATA_6 + "SF"/"MF" + height(4 bytes)
 	const (
 		opReturn     = 0x6a
 		opData6      = 0x06
 		markerS      = 0x53 // 'S'
 		markerF      = 0x46 // 'F'
-		minScriptLen = 8    // OP_RETURN + OP_DATA_6 + "SF" + 4 bytes height
+		markerM      = 0x4D // 'M'
+		minScriptLen = 8    // OP_RETURN + OP_DATA_6 + "SF"/"MF" + 4 bytes height
 	)
 	hasMarker := false
 	for _, out := range tx.TxOut {
@@ -1332,14 +1333,14 @@ func CheckSSFee(tx *wire.MsgTx) error {
 		if len(script) >= minScriptLen &&
 			script[0] == opReturn &&
 			script[1] == opData6 &&
-			script[2] == markerS &&
-			script[3] == markerF {
+			((script[2] == markerS && script[3] == markerF) || // "SF" - Stake Fee
+				(script[2] == markerM && script[3] == markerF)) { // "MF" - Miner Fee
 			hasMarker = true
 			break
 		}
 	}
 	if !hasMarker {
-		return fmt.Errorf("SSFee tx missing required SF marker in OP_RETURN output")
+		return fmt.Errorf("SSFee tx missing required SF or MF marker in OP_RETURN output")
 	}
 
 	// All outputs must have the same coin type

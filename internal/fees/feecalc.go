@@ -152,10 +152,6 @@ func (calc *CoinTypeFeeCalculator) CalculateMinFee(serializedSize int64, coinTyp
 	// Apply dynamic multiplier based on network utilization
 	dynamicFee := float64(baseFee) * feeRate.DynamicFeeMultiplier
 
-	// DEBUG: Log the fee calculation details
-	log.Debugf("DEBUG: Fee calculation for coinType %d: baseFee=%d, multiplier=%.3f, dynamicFee=%.1f",
-		coinType, baseFee, feeRate.DynamicFeeMultiplier, dynamicFee)
-
 	// Ensure minimum fee is at least 1 atom if fee rate > 0
 	if dynamicFee == 0 && feeRate.MinRelayFee > 0 {
 		dynamicFee = float64(feeRate.MinRelayFee)

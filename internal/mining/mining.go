@@ -522,22 +522,12 @@ func standardTreasurybaseOpReturn(height uint32) ([]byte, error) {
 // Once the agenda is active, it returns the combined merkle root for the
 // regular and stake transaction trees in accordance with DCP0005.
 func calcBlockMerkleRoot(regularTxns, stakeTxns []*wire.MsgTx, hdrCmtActive bool) chainhash.Hash {
-	// Debug logging for non-VAR coin type transactions in block template
-	for i, tx := range regularTxns {
-		if len(tx.TxOut) > 0 && tx.TxOut[0].CoinType != 0 {
-			txHash := tx.TxHashFull()
-			log.Debugf("DEBUG: Block template - tx[%d] hash=%x (coin type %d)", i, txHash[:8], tx.TxOut[0].CoinType)
-		}
-	}
-
 	if !hdrCmtActive {
 		merkleRoot := standalone.CalcTxTreeMerkleRoot(regularTxns)
-		log.Debugf("DEBUG: Block template merkle root (old method)=%x", merkleRoot[:8])
 		return merkleRoot
 	}
 
 	merkleRoot := standalone.CalcCombinedTxTreeMerkleRoot(regularTxns, stakeTxns)
-	log.Debugf("DEBUG: Block template merkle root (combined)=%x", merkleRoot[:8])
 	return merkleRoot
 }
 
@@ -669,12 +659,6 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache,
 		PkScript: workSubsidyScript,
 	})
 
-	// DEBUG: Log coinbase outputs before returning
-	log.Debugf("DEBUG: createCoinbaseTx - Created coinbase with %d outputs:", len(tx.TxOut))
-	for i, out := range tx.TxOut {
-		log.Debugf("DEBUG: createCoinbaseTx - Output[%d]: Value=%d, CoinType=%d", i, out.Value, out.CoinType)
-	}
-
 	return dcrutil.NewTx(tx)
 }
 
@@ -765,13 +749,15 @@ func createSSFeeTx(coinType cointype.CoinType, totalFee int64, voters []*dcrutil
 	tx.Version = 3 // Same version as modern votes
 
 	// Add null input (like coinbase/treasurybase)
+	// SignatureScript must be explicitly empty (not nil) for validation
 	tx.AddTxIn(&wire.TxIn{
 		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
 			wire.MaxPrevOutIndex, wire.TxTreeRegular),
-		Sequence:    wire.MaxTxInSequenceNum,
-		BlockHeight: wire.NullBlockHeight,
-		BlockIndex:  wire.NullBlockIndex,
-		ValueIn:     totalFee,
+		Sequence:        wire.MaxTxInSequenceNum,
+		BlockHeight:     wire.NullBlockHeight,
+		BlockIndex:      wire.NullBlockIndex,
+		ValueIn:         totalFee,
+		SignatureScript: []byte{},
 	})
 
 	// Validate totalFee to prevent overflow
@@ -902,13 +888,15 @@ func createMinerSSFeeTx(coinType cointype.CoinType, totalFee int64,
 	tx.Version = 3 // Same version as staker SSFee
 
 	// Add null input (like coinbase/treasurybase)
+	// SignatureScript must be explicitly empty (not nil) for validation
 	tx.AddTxIn(&wire.TxIn{
 		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
 			wire.MaxPrevOutIndex, wire.TxTreeRegular),
-		Sequence:    wire.MaxTxInSequenceNum,
-		BlockHeight: wire.NullBlockHeight,
-		BlockIndex:  wire.NullBlockIndex,
-		ValueIn:     totalFee,
+		Sequence:        wire.MaxTxInSequenceNum,
+		BlockHeight:     wire.NullBlockHeight,
+		BlockIndex:      wire.NullBlockIndex,
+		ValueIn:         totalFee,
+		SignatureScript: []byte{},
 	})
 
 	// Create payment script for the miner address or anyone-can-spend if nil
@@ -1140,7 +1128,6 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64,
 		calculatedMerkleRoot := calcBlockMerkleRoot(block.Transactions,
 			block.STransactions, hdrCmtActive)
 		header.MerkleRoot = calculatedMerkleRoot
-		log.Debugf("DEBUG: Set header.MerkleRoot (location 1) = %x", calculatedMerkleRoot[:8])
 
 		// Calculate the required difficulty for the block.
 		reqDifficulty, err := g.cfg.CalcNextRequiredDifficulty(prevHash, ts)
@@ -1175,7 +1162,6 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64,
 
 		// Make sure the block validates.
 		btBlock := dcrutil.NewBlockDeepCopyCoinbase(&block)
-		log.Debugf("DEBUG: Before CheckConnectBlockTemplate (location 1), header.MerkleRoot = %x", btBlock.MsgBlock().Header.MerkleRoot[:8])
 		err = g.cfg.CheckConnectBlockTemplate(btBlock)
 		if err != nil {
 			str := fmt.Sprintf("failed to check template: %v while "+
@@ -2000,8 +1986,6 @@ nextPriorityQueueItem:
 
 		// Check if transaction fits within coin type allocation
 		coinType := GetTransactionCoinType(tx)
-		log.Debugf("DEBUG: Evaluating transaction %s (coinType=%d, size=%d) for block inclusion",
-			tx.Hash(), coinType, txSize)
 
 		if !transactionTracker.CanAddTransaction(tx) {
 			log.Tracef("Skipping tx %s (coin type %d, size %v) because it "+
@@ -2017,11 +2001,8 @@ nextPriorityQueueItem:
 		// for overflow.
 		numSigOps := int64(prioItem.txDesc.TotalSigOps)
 		numSigOpsBundle := numSigOps + int64(ancestorStats.TotalSigOps)
-		log.Debugf("DEBUG: Checking sigops for tx %s - numSigOps=%d, numSigOpsBundle=%d, blockSigOps=%d, max=%d",
-			tx.Hash(), numSigOps, numSigOpsBundle, blockSigOps, blockchain.MaxSigOpsPerBlock)
 		if blockSigOps+numSigOpsBundle < blockSigOps ||
 			blockSigOps+numSigOpsBundle > blockchain.MaxSigOpsPerBlock {
-			log.Debugf("DEBUG: Transaction %s REJECTED due to sigops limit", tx.Hash())
 			log.Tracef("Skipping tx %s because it would "+
 				"exceed the maximum sigops per block", tx.Hash())
 			logSkippedDeps(tx, deps)
@@ -2052,37 +2033,25 @@ nextPriorityQueueItem:
 		// transactions and SKA emission transactions. Use coin-type-aware fee validation when available.
 		skipForLowFee := false
 		isSKAEmission := wire.IsSKAEmissionTransaction(tx.MsgTx())
-		log.Debugf("DEBUG: Fee validation check for tx %s - tree=%d, isSKAEmission=%v",
-			tx.Hash(), tx.Tree(), isSKAEmission)
 		if tx.Tree() != wire.TxTreeStake && !isSKAEmission {
 			if g.cfg.FeeCalculator != nil {
 				// Use coin-type-specific fee validation
 				txSize := int64(tx.MsgTx().SerializeSize())
-				log.Debugf("DEBUG: Validating fees for tx %s - fee=%d, size=%d, coinType=%d",
-					tx.Hash(), prioItem.txDesc.Fee, txSize, prioItem.coinType)
 				err := g.cfg.FeeCalculator.ValidateTransactionFees(prioItem.txDesc.Fee,
 					txSize, prioItem.coinType, false)
 				if err != nil {
-					log.Debugf("DEBUG: Transaction %s REJECTED due to fee validation: %v", tx.Hash(), err)
 					log.Tracef("Skipping tx %s with coin type %d: %v",
 						tx.Hash(), prioItem.coinType, err)
 					skipForLowFee = true
-				} else {
-					log.Debugf("DEBUG: Transaction %s passed fee validation", tx.Hash())
 				}
 			} else {
 				// Fallback to standard fee validation
-				log.Debugf("DEBUG: Using fallback fee validation for tx %s - feePerKB=%.2f, min=%d",
-					tx.Hash(), prioItem.feePerKB, g.cfg.Policy.TxMinFreeFee)
 				if prioItem.feePerKB < float64(g.cfg.Policy.TxMinFreeFee) {
-					log.Debugf("DEBUG: Transaction %s REJECTED due to low fee per KB", tx.Hash())
 					log.Tracef("Skipping tx %s with feePerKB %.2f < TxMinFreeFee %d ",
 						tx.Hash(), prioItem.feePerKB, g.cfg.Policy.TxMinFreeFee)
 					skipForLowFee = true
 				}
 			}
-		} else {
-			log.Debugf("DEBUG: Skipping fee validation for tx %s (stake or SKA emission)", tx.Hash())
 		}
 
 		if skipForLowFee {
@@ -2097,13 +2066,10 @@ nextPriorityQueueItem:
 			// preconditions before allowing it to be added to the block.
 			// The fraud proof is not checked because it will be filled in
 			// by the miner.
-			log.Debugf("DEBUG: Calling CheckTransactionInputs for tx %s (coinType=%d)",
-				bundledTx.Tx.Hash(), GetTransactionCoinType(bundledTx.Tx))
 			_, err = g.cfg.CheckTransactionInputs(bundledTx.Tx, nextBlockHeight,
 				blockUtxos, false, &bestHeader, isTreasuryEnabled,
 				isAutoRevocationsEnabled, subsidySplitVariant)
 			if err != nil {
-				log.Debugf("DEBUG: CheckTransactionInputs FAILED for tx %s: %v", bundledTx.Tx.Hash(), err)
 				log.Tracef("Skipping tx %s due to error in "+
 					"CheckTransactionInputs: %v", bundledTx.Tx.Hash(), err)
 				logSkippedDeps(bundledTx.Tx, deps)
@@ -2843,7 +2809,6 @@ nextPriorityQueueItem:
 	calculatedMerkleRoot := calcBlockMerkleRoot(msgBlock.Transactions,
 		msgBlock.STransactions, hdrCmtActive)
 	msgBlock.Header.MerkleRoot = calculatedMerkleRoot
-	log.Debugf("DEBUG: Set msgBlock.Header.MerkleRoot (location 2) = %x", calculatedMerkleRoot[:8])
 
 	// Calculate the stake root or commitment root depending on the result of
 	// the header commitments agenda vote.
@@ -2866,7 +2831,6 @@ nextPriorityQueueItem:
 	// consensus rules to ensure it properly connects to the current best
 	// chain with no issues.
 	block := dcrutil.NewBlockDeepCopyCoinbase(&msgBlock)
-	log.Debugf("DEBUG: Before CheckConnectBlockTemplate (location 2), header.MerkleRoot = %x", block.MsgBlock().Header.MerkleRoot[:8])
 	err = g.cfg.CheckConnectBlockTemplate(block)
 	if err != nil {
 		str := fmt.Sprintf("failed to do final check for check connect "+

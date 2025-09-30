@@ -1902,14 +1902,6 @@ func (b *BlockChain) checkMerkleRoots(block *wire.MsgBlock, prevNode *blockNode)
 		// leaves to another merkle tree and ensure the final calculated merkle
 		// root matches the entry in the block header.
 
-		// Debug logging for non-VAR coin type transactions
-		for i, tx := range block.Transactions {
-			if len(tx.TxOut) > 0 && tx.TxOut[0].CoinType != 0 {
-				txHash := tx.TxHashFull()
-				log.Debugf("DEBUG: Block validation - tx[%d] hash=%x (coin type %d)", i, txHash[:8], tx.TxOut[0].CoinType)
-			}
-		}
-
 		wantMerkleRoot := standalone.CalcCombinedTxTreeMerkleRoot(
 			block.Transactions, block.STransactions)
 		if header.MerkleRoot != wantMerkleRoot {
