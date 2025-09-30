@@ -1008,9 +1008,10 @@ func countSpentStakeOutputs(block *dcrutil.Block) int {
 			continue
 		}
 
-		// Exclude treasurybase and treasury spends since neither have any
-		// inputs.
-		if stake.IsTreasuryBase(stx) || stake.IsTSpend(stx) {
+		// Exclude treasurybase, treasury spends, and SSFee since they have
+		// no real inputs (null inputs only).
+		if stake.IsTreasuryBase(stx) || stake.IsTSpend(stx) ||
+			stake.DetermineTxType(stx) == stake.TxTypeSSFee {
 			continue
 		}
 

@@ -86,8 +86,8 @@ const (
 
 	// MaxOutputsPerSSFee is the maximum number of outputs in an SSFee tx,
 	// which distributes fees to stakers who voted in the block.
-	// Maximum of 5 votes per block means max 5 outputs for fee distributions.
-	MaxOutputsPerSSFee = 5
+	// Maximum of 5 votes per block + 1 OP_RETURN marker = 6 outputs max.
+	MaxOutputsPerSSFee = 6
 
 	// SStxPKHMinOutSize is the minimum size of an OP_RETURN commitment output
 	// for an SStx tx.
@@ -1279,17 +1279,18 @@ func IsSSRtx(tx *wire.MsgTx) bool {
 }
 
 // CheckSSFee returns an error if a transaction is not a stake fee distribution
-// transaction. These transactions distribute non-VAR fees to stakers.
+// transaction. These transactions distribute transaction fees to stakers.
 //
 // SSFee transactions are specified as below:
 // Inputs: Single null input (like coinbase/treasurybase)
 // Outputs: Fee distributions to stakers (max 5, one per voter)
 //
 // The transaction must have:
+// - Not a coinbase or treasurybase transaction
 // - Version >= 3 (same as votes after DCP0001)
 // - Exactly 1 input (null input)
 // - Between 1 and MaxOutputsPerSSFee outputs
-// - All outputs must have the same non-VAR coin type
+// - All outputs must have the same coin type (VAR or SKA)
 func CheckSSFee(tx *wire.MsgTx) error {
 	// Check version (must be at least version 3 like modern votes)
 	const minSSFeeVersion = 3
@@ -1315,12 +1316,35 @@ func CheckSSFee(tx *wire.MsgTx) error {
 			len(tx.TxOut), MaxOutputsPerSSFee)
 	}
 
-	// All outputs must have the same coin type (and it must not be VAR)
+	// SSFee transactions must have an OP_RETURN output with "SF" marker
+	// to distinguish them from coinbase/treasurybase.
+	// Format: OP_RETURN + OP_DATA_6 + "SF" + height(4 bytes)
+	const (
+		opReturn     = 0x6a
+		opData6      = 0x06
+		markerS      = 0x53 // 'S'
+		markerF      = 0x46 // 'F'
+		minScriptLen = 8    // OP_RETURN + OP_DATA_6 + "SF" + 4 bytes height
+	)
+	hasMarker := false
+	for _, out := range tx.TxOut {
+		script := out.PkScript
+		if len(script) >= minScriptLen &&
+			script[0] == opReturn &&
+			script[1] == opData6 &&
+			script[2] == markerS &&
+			script[3] == markerF {
+			hasMarker = true
+			break
+		}
+	}
+	if !hasMarker {
+		return fmt.Errorf("SSFee tx missing required SF marker in OP_RETURN output")
+	}
+
+	// All outputs must have the same coin type
 	if len(tx.TxOut) > 0 {
 		firstCoinType := tx.TxOut[0].CoinType
-		if firstCoinType == cointype.CoinTypeVAR {
-			return fmt.Errorf("SSFee tx cannot distribute VAR fees (use SSGen)")
-		}
 		for i, out := range tx.TxOut {
 			if out.CoinType != firstCoinType {
 				return fmt.Errorf("SSFee tx output %d has coin type %d, expected %d",

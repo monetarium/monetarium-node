@@ -262,6 +262,15 @@ func (view *UtxoViewpoint) connectStakeTransaction(tx *dcrutil.Tx,
 		return nil
 	}
 
+	// SSFee transactions don't have any inputs to spend (they have a null input like coinbase).
+	// They distribute fees to stakers and should only add their outputs to the UTXO set.
+	isSSFee := stake.DetermineTxType(msgTx) == stake.TxTypeSSFee
+	if isSSFee {
+		// Add the transaction's outputs as available utxos.
+		view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled)
+		return nil
+	}
+
 	// Spend the referenced utxos by marking them spent in the view and, if a
 	// slice was provided for the spent txout details, append an entry to it.
 	isVote := stake.IsSSGen(msgTx)
@@ -1060,12 +1069,13 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 		outpoint.Index = uint32(txOutIdx)
 		filteredSet.add(view, &outpoint)
 	}
-	// Ignore coinbases, treasurybases, and treasury spends since none of them
-	// have any inputs.
+	// Ignore coinbases, treasurybases, treasury spends, and SSFee transactions
+	// since none of them have real inputs (they have null inputs).
 	isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
 	isTreasuryBase := txType == stake.TxTypeTreasuryBase
 	isTreasurySpend := txType == stake.TxTypeTSpend
-	if !isCoinBase && !isTreasuryBase && !isTreasurySpend {
+	isSSFee := txType == stake.TxTypeSSFee
+	if !isCoinBase && !isTreasuryBase && !isTreasurySpend && !isSSFee {
 		isVote := txType == stake.TxTypeSSGen
 		for txInIdx, txIn := range msgTx.TxIn {
 			// Ignore stakebase since it has no input.

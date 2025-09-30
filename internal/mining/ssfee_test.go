@@ -75,13 +75,12 @@ func TestCreateSSFeeTx(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "invalid VAR fee distribution",
+			name:        "valid VAR fee distribution",
 			coinType:    cointype.CoinTypeVAR,
 			totalFee:    1000,
 			voters:      voters,
 			height:      100,
-			expectError: true,
-			errorMsg:    "SSFee cannot distribute VAR fees",
+			expectError: false,
 		},
 		{
 			name:        "no voters",

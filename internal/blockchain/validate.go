@@ -417,7 +417,7 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 	// Determine type.
 	var isCoinBase, isVote, isTicket, isRevocation bool
 	var isTreasuryBase, isTreasuryAdd, isTreasurySpend bool
-	var isSKAEmission bool
+	var isSKAEmission, isSSFee bool
 	switch stake.DetermineTxType(tx) {
 	case stake.TxTypeSSGen:
 		isVote = true
@@ -425,6 +425,8 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 		isTicket = true
 	case stake.TxTypeSSRtx:
 		isRevocation = true
+	case stake.TxTypeSSFee:
+		isSSFee = true
 	case stake.TxTypeTreasuryBase:
 		isTreasuryBase = true
 	case stake.TxTypeTAdd:
@@ -570,6 +572,29 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 			return ruleError(ErrBadTSpendScriptLen, str)
 		}
 
+	case isSSFee:
+		// SSFee transactions distribute fees to stakers.
+		// They have a null input (like coinbase) and are validated separately.
+		// The referenced outpoint must be null.
+		if !isNullOutpoint(&tx.TxIn[0].PreviousOutPoint) {
+			str := "SSFee transaction does not have a null outpoint"
+			return ruleError(ErrBadTxInput, str)
+		}
+
+		// The fraud proof must also be null.
+		if !isNullFraudProof(tx.TxIn[0]) {
+			str := "SSFee transaction fraud proof is non-null"
+			return ruleError(ErrBadTxInput, str)
+		}
+
+		// SignatureScript length must be zero (like treasurybase).
+		slen := len(tx.TxIn[0].SignatureScript)
+		if slen != 0 {
+			str := fmt.Sprintf("SSFee transaction script length is not "+
+				"zero: %v", slen)
+			return ruleError(ErrBadTxInput, str)
+		}
+
 	case isTreasuryAdd:
 		if len(tx.TxOut) == 2 && tx.TxOut[1].Value == 0 {
 			str := "treasury add transaction change cannot be 0"
@@ -595,7 +620,7 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 
 	// Enforce additional rules on regular (non-stake) transactions.
 	isStakeTx := isVote || isTicket || isRevocation || isTreasuryAdd ||
-		isTreasurySpend || isTreasuryBase
+		isTreasurySpend || isTreasuryBase || isSSFee
 	if !isStakeTx {
 		// Note that prior to the explicit version upgrades agenda, transaction
 		// script versions are allowed to go up to a max uint16, so fall back to
@@ -2491,9 +2516,10 @@ func (b *BlockChain) validateBlockSpaceAllocation(block *dcrutil.Block, maxBlock
 func getSSFeeType(tx *wire.MsgTx) (string, error) {
 	for _, out := range tx.TxOut {
 		// Look for OP_RETURN output
-		if len(out.PkScript) >= 3 && out.PkScript[0] == txscript.OP_RETURN {
-			// Check for data push opcode
-			if out.PkScript[1] == txscript.OP_DATA_2 && len(out.PkScript) >= 4 {
+		// Format: OP_RETURN + OP_DATA_6 + "SF"/"MF" (2 bytes) + height (4 bytes)
+		if len(out.PkScript) >= 8 && out.PkScript[0] == txscript.OP_RETURN {
+			// Check for OP_DATA_6 (6 bytes of data: 2 byte marker + 4 byte height)
+			if out.PkScript[1] == txscript.OP_DATA_6 {
 				marker := string(out.PkScript[2:4])
 				if marker == "SF" || marker == "MF" {
 					return marker, nil
@@ -2560,12 +2586,6 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 			}
 			coinType = out.CoinType
 			break
-		}
-
-		// Verify this is not VAR (VAR fees are distributed via SSGen)
-		if coinType == cointype.CoinTypeVAR {
-			return ruleError(ErrStakeFees,
-				"SSFee transaction cannot distribute VAR fees")
 		}
 
 		// Check which type of SSFee this is and validate accordingly
@@ -3484,7 +3504,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 		return 0, nil
 	}
 
-	// SSFee transactions have null inputs and distribute non-VAR fees.
+	// SSFee transactions have null inputs and distribute fees to stakers.
 	// They bypass input validation here because they are validated
 	// separately through validateSSFeeTxns for proper fee distribution.
 	if stake.DetermineTxType(msgTx) == stake.TxTypeSSFee {
@@ -4027,6 +4047,12 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 		return 0, nil
 	}
 
+	// SSFee transactions have null inputs like coinbase and don't have any
+	// real inputs to validate for P2SH signature operations.
+	if stake.DetermineTxType(msgTx) == stake.TxTypeSSFee {
+		return 0, nil
+	}
+
 	// Accumulate the number of signature operations in all transaction
 	// inputs.
 	totalSigOps := 0
@@ -4201,6 +4227,14 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64,
 		isSSGen := stake.IsSSGen(msgTx)
 		isTreasuryBase := isTreasuryEnabled && stake.IsTreasuryBase(msgTx)
 		isTreasurySpend := isTreasuryEnabled && stake.IsTSpend(msgTx)
+		isSSFee := stake.DetermineTxType(msgTx) == stake.TxTypeSSFee
+
+		// Skip SSFee entirely - fees are validated separately in validateSSFeeTxns.
+		// Including SSFee here would double-count fees already accounted for in
+		// regular tree validation.
+		if isSSFee {
+			continue
+		}
 
 		for i, in := range msgTx.TxIn {
 			// Ignore stakebases.
@@ -4209,7 +4243,7 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64,
 			}
 
 			// Ignore treasury spends and treasurybases since they have no
-			// inputs.
+			// inputs or have null inputs.
 			if isTreasuryBase || isTreasurySpend {
 				continue
 			}
@@ -4831,19 +4865,10 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		return err
 	}
 
-	const stakeTreeFalse = false
-	err = b.checkTransactionsAndConnect(stakeTreeFees, node,
-		block.Transactions(), view, stxos, stakeTreeFalse, subsidySplitVariant)
-	if err != nil {
-		log.Tracef("checkTransactionsAndConnect failed for regular tree: %v",
-			err)
-		return err
-	}
-
-	// Validate SSFee transactions if present
-	// We need to compute the total fees from regular transactions to validate SSFee distributions
+	// Calculate fees and validate SSFee transactions BEFORE spending UTXOs.
+	// This must happen before checkTransactionsAndConnect which marks UTXOs as spent.
 	if node.height >= b.chainParams.StakeValidationHeight {
-		// Calculate total fees from regular tree
+		// Calculate total fees from regular tree while UTXOs are still available
 		totalFees := wire.NewFeesByType()
 		for idx, tx := range block.Transactions()[1:] { // Skip coinbase
 			// Calculate transaction fee
@@ -4867,6 +4892,45 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 			_ = idx // Avoid unused variable warning
 		}
 
+		// ALSO calculate fees from stake tree (ticket purchases pay fees!)
+		for _, stx := range block.STransactions() {
+			// Skip special stake transactions that don't pay fees
+			txType := stake.DetermineTxType(stx.MsgTx())
+			if txType == stake.TxTypeSSGen || // Votes don't pay fees
+				txType == stake.TxTypeTreasuryBase ||
+				txType == stake.TxTypeTSpend ||
+				txType == stake.TxTypeSSFee { // SSFee doesn't pay fees
+				continue
+			}
+
+			// Calculate fee for this stake transaction (e.g., ticket purchase)
+			var totalIn int64
+			for _, txIn := range stx.MsgTx().TxIn {
+				entry := view.LookupEntry(txIn.PreviousOutPoint)
+				if entry == nil {
+					continue
+				}
+				totalIn += entry.Amount()
+			}
+			var totalOut int64
+			for _, txOut := range stx.MsgTx().TxOut {
+				totalOut += txOut.Value
+			}
+			txFee := totalIn - totalOut
+			if txFee > 0 {
+				coinType := wire.GetPrimaryCoinType(stx.MsgTx())
+				totalFees.Add(coinType, txFee)
+			}
+		}
+
+		// Scale fees by voter participation (same as mining code does at line 2581)
+		// This ensures SSFee validation uses the same fee amounts that were used
+		// when creating the SSFee transactions.
+		for coinType := range totalFees {
+			scaledFee := totalFees[coinType] * int64(node.voters) / int64(b.chainParams.TicketsPerBlock)
+			totalFees[coinType] = scaledFee
+		}
+
 		// Get SSFee transactions from the stake tree
 		var ssFeeTxns []*wire.MsgTx
 		for _, stx := range block.STransactions() {
@@ -4877,11 +4941,22 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 
 		// Validate SSFee transactions if any exist
 		if len(ssFeeTxns) > 0 {
+			log.Infof("Validating %d SSFee transaction(s) for block height %d with total fees %v (voters=%d)",
+				len(ssFeeTxns), node.height, totalFees, node.voters)
 			err = b.validateSSFeeTxns(block, node, ssFeeTxns, totalFees, subsidySplitVariant)
 			if err != nil {
 				return err
 			}
 		}
+	}
+
+	const stakeTreeFalse = false
+	err = b.checkTransactionsAndConnect(stakeTreeFees, node,
+		block.Transactions(), view, stxos, stakeTreeFalse, subsidySplitVariant)
+	if err != nil {
+		log.Tracef("checkTransactionsAndConnect failed for regular tree: %v",
+			err)
+		return err
 	}
 
 	// Enforce all relative lock times via sequence numbers for the regular

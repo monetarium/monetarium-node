@@ -733,22 +733,16 @@ func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, nextBlockHeight
 	return retTx, nil
 }
 
-// createSSFeeTx creates a stake fee distribution transaction for non-VAR coins.
-// These transactions distribute fees collected from non-VAR transactions to the
-// stakers who voted in the block.
+// createSSFeeTx creates a stake fee distribution transaction.
+// These transactions distribute transaction fees to the stakers who voted in the block.
 //
 // The transaction has:
 // - Version 3+ (same as modern votes)
 // - Single null input (like coinbase)
 // - Outputs to each voter proportional to their contribution
-// - All outputs have the same non-VAR coin type
+// - All outputs have the same coin type (VAR or SKA)
 func createSSFeeTx(coinType cointype.CoinType, totalFee int64, voters []*dcrutil.Tx,
 	nextBlockHeight int64) (*dcrutil.Tx, error) {
-
-	// SSFee cannot be used for VAR fees (those go through SSGen)
-	if coinType == cointype.CoinTypeVAR {
-		return nil, fmt.Errorf("SSFee cannot distribute VAR fees")
-	}
 
 	// Need at least one voter to distribute to
 	if len(voters) == 0 {
@@ -2596,12 +2590,8 @@ nextPriorityQueueItem:
 
 		// Create SSFee transactions for staker fees if there are voters
 		if voters > 0 {
-			// Create SSFee transactions for each non-VAR coin type with staker fees
+			// Create SSFee transactions for each coin type with staker fees
 			for coinType, stakerFee := range stakerFees {
-				if coinType == cointype.CoinTypeVAR {
-					// VAR fees are distributed through votes (SSGen)
-					continue
-				}
 				if stakerFee <= 0 {
 					continue
 				}

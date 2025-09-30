@@ -174,7 +174,12 @@ func TestNewBlockTemplate(t *testing.T) {
 
 	// Validate the number of stake transactions in the generated block template.
 	gotStx := len(blockTemplate.Block.STransactions)
-	wantStx := numVotes + 1 // + 1 for stakebase.
+	// Expected: votes + treasurybase + VAR SSFee (if there are fees and voters)
+	wantStx := numVotes + 1 // + 1 for treasurybase.
+	// If there are regular transactions with fees and voters, expect a VAR SSFee transaction
+	if numTxs > numVotes && numVotes > 0 {
+		wantStx++ // + 1 for VAR SSFee distributing staker portion of fees
+	}
 	if gotStx != wantStx {
 		t.Fatalf("unexpected number of stake transactions in template --  got %v, "+
 			"want %v", gotStx, wantStx)
@@ -381,7 +386,12 @@ func TestNewBlockTemplateAutoRevocations(t *testing.T) {
 
 	// Validate the number of stake transactions in the generated block template.
 	gotStx := len(blockTemplate.Block.STransactions)
-	wantStx := numVotes + numRevocations + 1 // + 1 for stakebase.
+	// Expected: votes + revocations + treasurybase + VAR SSFee (if there are fees and voters)
+	wantStx := numVotes + numRevocations + 1 // + 1 for treasurybase.
+	// If there are regular transactions with fees and voters, expect a VAR SSFee transaction
+	if numTxs > numVotes && numVotes > 0 {
+		wantStx++ // + 1 for VAR SSFee distributing staker portion of fees
+	}
 	if gotStx != wantStx {
 		t.Fatalf("unexpected number of stake transactions in template --  got %v, "+
 			"want %v", gotStx, wantStx)
