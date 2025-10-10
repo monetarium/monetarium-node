@@ -180,6 +180,10 @@ const (
 	// block reward subsidy split to 1% PoW, 89% PoS, and 10% Treasury as
 	// defined in DCP0012.
 	VoteIDChangeSubsidySplitR2 = "changesubsidysplitr2"
+
+	// VoteIDActivateSKA2 is the vote ID for activating SKA-2 coin type for use
+	// in transactions.
+	VoteIDActivateSKA2 = "activateska2"
 )
 
 // ConsensusDeployment defines details related to a specific consensus rule

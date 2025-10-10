@@ -32,10 +32,19 @@ func TestNewCoinTypeFeeCalculator(t *testing.T) {
 		t.Errorf("Expected default min relay fee %d, got %d", defaultMinRelayFee, calc.defaultMinRelayFee)
 	}
 
-	// Check that VAR and SKA fee rates are initialized
+	// Check that VAR and active SKA fee rates are initialized
 	supportedTypes := calc.GetSupportedCoinTypes()
-	if len(supportedTypes) != 2 {
-		t.Errorf("Expected 2 supported coin types, got %d", len(supportedTypes))
+
+	// Count expected types: VAR + active SKA coins
+	expectedCount := 1 // VAR
+	for _, config := range params.SKACoins {
+		if config.Active {
+			expectedCount++
+		}
+	}
+
+	if len(supportedTypes) != expectedCount {
+		t.Errorf("Expected %d supported coin types, got %d", expectedCount, len(supportedTypes))
 	}
 
 	varFound, skaFound := false, false

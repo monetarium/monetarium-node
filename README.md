@@ -225,12 +225,3 @@ https://decred.org/community/
 
 The [integrated github issue tracker](https://github.com/decred/dcrd/issues)
 is used for this project.
-
-## Documentation
-
-The documentation for dcrd is a work-in-progress.  It is located in the
-[docs](https://github.com/decred/dcrd/tree/master/docs) folder.
-
-## License
-
-dcrd is licensed under the [copyfree](http://copyfree.org) ISC License.

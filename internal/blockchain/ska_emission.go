@@ -54,6 +54,38 @@ func isSKAEmissionWindowActive(blockHeight int64, chainParams *chaincfg.Params) 
 	return false
 }
 
+// hasVotePassed checks if a consensus vote has passed and is active at the
+// given block node. This is used to validate SKA-2+ activations require
+// stakeholder approval through the voting system.
+func (b *BlockChain) hasVotePassed(voteID string, prevNode *blockNode) bool {
+	deployment, ok := b.deploymentData[voteID]
+	if !ok {
+		return false
+	}
+
+	state := b.deploymentState(prevNode, &deployment)
+	return state.State == ThresholdActive
+}
+
+// HasVotePassedAtHeight checks if a consensus vote has passed and is active at
+// the given block height. This is a convenience wrapper around hasVotePassed
+// that looks up the block node by height.
+func (b *BlockChain) HasVotePassedAtHeight(voteID string, blockHeight int64) bool {
+	// We need to check the vote state at the parent of the block being validated
+	// because deployment states are calculated based on the parent block
+	b.chainLock.RLock()
+	defer b.chainLock.RUnlock()
+
+	// Find the node at blockHeight - 1 (the parent of the block being validated)
+	node := b.bestChain.NodeByHeight(blockHeight - 1)
+	if node == nil {
+		// If we can't find the node, vote hasn't passed
+		return false
+	}
+
+	return b.hasVotePassed(voteID, node)
+}
+
 // CheckSKAEmissionAlreadyExists checks if a coin type has already been emitted
 // in the blockchain. This now uses the persistent blockchain state for O(1)
 // lookups instead of scanning blocks.
@@ -153,12 +185,13 @@ func CreateAuthorizedSKAEmissionTransaction(auth *chaincfg.SKAEmissionAuth,
 	// transaction hash, which we haven't computed yet. The signature will be
 	// verified during transaction validation in ValidateAuthorizedSKAEmissionTransaction.
 
-	// Create the authorized emission transaction
+	// Create the authorized emission transaction with Expiry set to window end
+	// This ensures automatic mempool cleanup if the emission window expires
 	tx := &wire.MsgTx{
 		SerType:  wire.TxSerializeFull,
 		Version:  1,
 		LockTime: 0,
-		Expiry:   0,
+		Expiry:   uint32(emissionEnd),
 	}
 
 	// Create signature script with authorization data
@@ -257,6 +290,10 @@ func createEmissionAuthScript(auth *chaincfg.SKAEmissionAuth) ([]byte, error) {
 // - Emission window validation
 // - Authorization amount matching
 // - Governance parameter enforcement
+//
+// Note: Stakeholder vote activation (for SKA-2+) is checked at block validation level
+// in CheckSKAEmissionInBlock, not here, to allow mempool to accept transactions before
+// vote passes.
 func ValidateAuthorizedSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
 	chain ChainStateProvider, chainParams *chaincfg.Params) error {
 
@@ -281,6 +318,10 @@ func ValidateAuthorizedSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
 		return fmt.Errorf("SKA emission transaction at invalid height %d for coin type %d",
 			blockHeight, coinType)
 	}
+
+	// Note: Stakeholder vote check for SKA-2+ is performed in CheckSKAEmissionInBlock
+	// at the block validation level, not here at transaction validation level.
+	// This allows the mempool to accept emission transactions before the vote passes.
 
 	// Validate transaction structure
 	if len(tx.TxIn) != 1 {
@@ -405,8 +446,11 @@ func ValidateAuthorizedSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
 		return fmt.Errorf("SKA emission transaction must have LockTime 0")
 	}
 
-	if tx.Expiry != 0 {
-		return fmt.Errorf("SKA emission transaction must have Expiry 0")
+	// Expiry must be set to the emission window end for automatic mempool cleanup
+	// This prevents the transaction from lingering in mempool if the window expires
+	if tx.Expiry == 0 || int64(tx.Expiry) > emissionEnd {
+		return fmt.Errorf("SKA emission Expiry must be set to emission window end (block %d), got %d",
+			emissionEnd, tx.Expiry)
 	}
 
 	// Note: Nonce is NOT updated here during validation to avoid side effects.
@@ -631,8 +675,16 @@ func validateEmissionAuthorization(auth *chaincfg.SKAEmissionAuth, chain ChainSt
 // 2. Non-emission windows must not contain any SKA emission transactions
 // 3. No SKA transactions are allowed before activation height
 // 4. Each coin type can only be emitted once (first valid emission wins)
-func CheckSKAEmissionInBlock(block *dcrutil.Block, blockHeight int64,
+//
+// This function is called with the chain lock held and must not acquire it again.
+func CheckSKAEmissionInBlock(block *dcrutil.Block, prevNode *blockNode,
 	chain *BlockChain, chainParams *chaincfg.Params) error {
+
+	// Calculate block height from prevNode
+	blockHeight := int64(1)
+	if prevNode != nil {
+		blockHeight = prevNode.height + 1
+	}
 
 	// Check if any emission window is active
 	isEmissionWindowActive := isSKAEmissionWindowActive(blockHeight, chainParams)
@@ -666,6 +718,18 @@ func CheckSKAEmissionInBlock(block *dcrutil.Block, blockHeight int64,
 				// Check for multiple emission transactions in the same block
 				if emissionTxCoinTypes[coinType] {
 					return fmt.Errorf("multiple emission transactions for coin type %d at height %d - only one emission per coin type allowed", coinType, blockHeight)
+				}
+
+				// For SKA-2 and higher coin types, verify stakeholder vote has passed
+				// SKA-1 is always active and doesn't require voting
+				if coinType >= 2 {
+					voteID := fmt.Sprintf("activateska%d", coinType)
+					// Use hasVotePassed with prevNode to avoid re-acquiring the chain lock
+					// that the caller already holds (prevents deadlock)
+					if !chain.hasVotePassed(voteID, prevNode) {
+						return fmt.Errorf("cannot emit %s at height %d: stakeholder vote %s has not activated this coin type",
+							coinType, blockHeight, voteID)
+					}
 				}
 
 				// Check if this coin type has already been emitted in previous blocks

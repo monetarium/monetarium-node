@@ -4061,6 +4061,9 @@ func newServer(ctx context.Context, profiler *profileServer,
 		// Add SKA emission state checks for mempool protection
 		HasSKAEmissionOccurred: s.chain.HasSKAEmissionOccurred,
 		GetSKAEmissionNonce:    s.chain.GetSKAEmissionNonce,
+		HasVotePassedAtHeight: func(voteID string, height int64) bool {
+			return s.chain.HasVotePassedAtHeight(voteID, height)
+		},
 		TSpendMinedOnAncestor: func(tspend chainhash.Hash) error {
 			tipHash := s.chain.BestSnapshot().Hash
 			return s.chain.CheckTSpendExists(tipHash, tspend)

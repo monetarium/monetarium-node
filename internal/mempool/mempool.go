@@ -110,6 +110,12 @@ type Config struct {
 	// for an SKA coin type.
 	GetSKAEmissionNonce func(cointype.CoinType) uint64
 
+	// HasVotePassedAtHeight checks if a consensus vote has passed and is active
+	// at the specified block height. This is used to validate SKA-2+ emissions
+	// which require stakeholder approval before they can be mined.
+	// Returns false if the vote doesn't exist or hasn't activated yet.
+	HasVotePassedAtHeight func(voteID string, height int64) bool
+
 	// HeaderByHash returns the block header identified by the given hash or an
 	// error if it doesn't exist.  Note that this will return headers from both
 	// the main chain and any side chains.
@@ -1345,6 +1351,37 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 				str := fmt.Sprintf("transaction %v is a duplicate SKA emission - coin type %d already has pending emission %v in mempool",
 					txHash, coinType, existingEmission)
 				return nil, txRuleError(ErrDuplicate, str)
+			}
+
+			// SKA-2 and higher require stakeholder vote activation
+			// Only accept to mempool if vote has passed (ready to mine)
+			if coinType >= 2 {
+				voteID := fmt.Sprintf("activateska%d", coinType)
+				if mp.cfg.HasVotePassedAtHeight != nil {
+					if !mp.cfg.HasVotePassedAtHeight(voteID, nextBlockHeight) {
+						str := fmt.Sprintf("transaction %v cannot be accepted - stakeholder vote %s has not activated coin type %d yet (resubmit after vote passes)",
+							txHash, voteID, coinType)
+						return nil, txRuleError(ErrInvalid, str)
+					}
+				}
+			}
+
+			// Check emission window
+			if config, exists := mp.cfg.ChainParams.SKACoins[coinType]; exists {
+				emissionStart := int64(config.EmissionHeight)
+				emissionEnd := emissionStart + int64(config.EmissionWindow)
+
+				if nextBlockHeight < emissionStart {
+					str := fmt.Sprintf("transaction %v is outside emission window - too early (emission starts at block %d, current height %d)",
+						txHash, emissionStart, bestHeight)
+					return nil, txRuleError(ErrInvalid, str)
+				}
+
+				if nextBlockHeight > emissionEnd {
+					str := fmt.Sprintf("transaction %v is outside emission window - expired (emission ended at block %d, current height %d)",
+						txHash, emissionEnd, bestHeight)
+					return nil, txRuleError(ErrInvalid, str)
+				}
 			}
 		}
 

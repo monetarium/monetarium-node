@@ -303,7 +303,9 @@ func TestSKAEmissionDuplicateProtection(t *testing.T) {
 		Transactions: []*wire.MsgTx{tx},
 	})
 
-	err := CheckSKAEmissionInBlock(block, 150, chain, params)
+	// Create a prevNode for height 149 (so block is at height 150)
+	prevNode := &blockNode{height: 149}
+	err := CheckSKAEmissionInBlock(block, prevNode, chain, params)
 	if err == nil {
 		t.Fatal("CRITICAL: Duplicate emission accepted!")
 	}
@@ -488,7 +490,9 @@ func TestSKAPreActivationProtection(t *testing.T) {
 		Transactions: []*wire.MsgTx{inactiveTx},
 	})
 
-	err := CheckSKAEmissionInBlock(block, 150, chain, params)
+	// Create a prevNode for height 149 (so block is at height 150)
+	prevNode := &blockNode{height: 149}
+	err := CheckSKAEmissionInBlock(block, prevNode, chain, params)
 	if err == nil {
 		t.Fatal("SKA transaction with inactive coin type should be rejected")
 	}
@@ -516,7 +520,7 @@ func TestSKAPreActivationProtection(t *testing.T) {
 		Transactions: []*wire.MsgTx{activeTx},
 	})
 
-	err = CheckSKAEmissionInBlock(block, 150, chain, params)
+	err = CheckSKAEmissionInBlock(block, prevNode, chain, params)
 	if err != nil && bytes.Contains([]byte(err.Error()), []byte("inactive coin type")) {
 		t.Errorf("SKA transaction with active coin type incorrectly rejected: %v", err)
 	}
@@ -525,10 +529,18 @@ func TestSKAPreActivationProtection(t *testing.T) {
 // Helper functions for tests
 
 func createTestEmissionTx(_ *testing.T, addresses []string, amounts []int64, coinType cointype.CoinType, params *chaincfg.Params) *wire.MsgTx {
+	// Calculate emission window end for Expiry field
+	var expiry uint32
+	if config, exists := params.SKACoins[coinType]; exists {
+		emissionStart := int64(config.EmissionHeight)
+		emissionEnd := emissionStart + int64(config.EmissionWindow)
+		expiry = uint32(emissionEnd)
+	}
+
 	tx := &wire.MsgTx{
 		Version:  1,
 		LockTime: 0,
-		Expiry:   0,
+		Expiry:   expiry,
 	}
 
 	// Add null input for emission

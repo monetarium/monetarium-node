@@ -314,6 +314,10 @@ func TestValidateAuthorizedSKAEmissionTransactionBasic(t *testing.T) {
 
 	amounts := []int64{emissionAmount}
 
+	// Calculate Expiry (emission window end)
+	emissionWindow := int64(params.SKACoins[1].EmissionWindow)
+	expiry := uint32(int64(emissionHeight) + emissionWindow)
+
 	// Create a valid authorized emission transaction
 	validTx := &wire.MsgTx{
 		TxIn: []*wire.TxIn{{
@@ -324,7 +328,7 @@ func TestValidateAuthorizedSKAEmissionTransactionBasic(t *testing.T) {
 			SignatureScript: []byte{0x01, 0x53, 0x4b, 0x41}, // "SKA" marker initially
 		}},
 		LockTime: 0,
-		Expiry:   0,
+		Expiry:   expiry,
 	}
 
 	// Add output with test script

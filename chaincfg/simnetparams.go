@@ -147,10 +147,10 @@ func SimNetParams() *Params {
 		//
 		// The miner confirmation window is defined as:
 		//   target proof of work timespan / target proof of work spacing
-		RuleChangeActivationQuorum:     160, // 10 % of RuleChangeActivationInterval * TicketsPerBlock
-		RuleChangeActivationMultiplier: 3,   // 75%
+		RuleChangeActivationQuorum:     5, // 10 % of RuleChangeActivationInterval * TicketsPerBlock (5 votes for 10 blocks * 5 tickets)
+		RuleChangeActivationMultiplier: 3, // 75%
 		RuleChangeActivationDivisor:    4,
-		RuleChangeActivationInterval:   320, // 320 seconds
+		RuleChangeActivationInterval:   10, // 10 blocks for fast testing (was 320)
 		Deployments: map[uint32][]ConsensusDeployment{
 			4: {{
 				Vote: Vote{
@@ -496,6 +496,34 @@ func SimNetParams() *Params {
 				StartTime:      0,             // Always available for vote
 				ExpireTime:     math.MaxInt64, // Never expires
 			}},
+			12: {{
+				Vote: Vote{
+					Id:          VoteIDActivateSKA2,
+					Description: "Activate SKA-2 (Skarb-2) coin type for transactions",
+					Mask:        0x0006, // Bits 1 and 2
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain from voting",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep SKA-2 inactive",
+						Bits:        0x0002, // Bit 1
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "activate SKA-2 for use",
+						Bits:        0x0004, // Bit 2
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  0,             // Immediately available for vote
+				ExpireTime: math.MaxInt64, // Never expires
+			}},
 		},
 
 		// Enforce current block version once majority of the network has
@@ -542,7 +570,7 @@ func SimNetParams() *Params {
 		StakeDiffAlpha:          1,
 		StakeDiffWindowSize:     8,
 		StakeDiffWindows:        8,
-		StakeVersionInterval:    8 * 2 * 7,
+		StakeVersionInterval:    8 * 2 * 7,     // 112 blocks
 		MaxFreshStakePerBlock:   20,            // 4*TicketsPerBlock
 		StakeEnabledHeight:      16 + 16,       // CoinbaseMaturity + TicketMaturity
 		StakeValidationHeight:   16 + (64 * 2), // CoinbaseMaturity + TicketPoolSize*2
@@ -642,10 +670,10 @@ func SimNetParams() *Params {
 				Name:           "Skarb-2",
 				Symbol:         "SKA-2",
 				MaxSupply:      5e5 * 1e8, // 500k SKA-2 for testing
-				EmissionHeight: 200,       // After stake validation (144)
+				EmissionHeight: 200,       // After vote activation and test script completion
 				EmissionWindow: 100,       // 100-block emission window for testing
-				Active:         false,     // Initially inactive
-				Description:    "Secondary SKA coin type for simnet testing",
+				Active:         false,     // Initially inactive, activated by stakeholder vote
+				Description:    "Secondary SKA coin type requiring stakeholder vote activation for simnet testing",
 				// Governance-approved emission distribution for simnet testing
 				EmissionAddresses: []string{
 					"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", // Full amount to treasury
@@ -654,7 +682,7 @@ func SimNetParams() *Params {
 					5e5 * 1e8, // 500,000 SKA-2 to treasury
 				},
 				// SIMNET TEST KEY - NOT FOR PRODUCTION USE
-				EmissionKey: mustParseHexPubKeySimnet("03389ffce9cd9ae88dcc0631e88a821ffdbe9bfe26381749838fca9302ccaa9ddd"),
+				EmissionKey: mustParseHexPubKeySimnet("02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"),
 			},
 		},
 
