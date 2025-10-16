@@ -50,7 +50,7 @@ func MainNetParams() *Params {
 			PrevBlock: chainhash.Hash{}, // All zero.
 			// MerkleRoot: Calculated below.
 			StakeRoot:    chainhash.Hash{},
-			Timestamp:    time.Unix(1454954400, 0), // Mon, 08 Feb 2016 18:00:00 GMT
+			Timestamp:    time.Unix(1760649600, 0), // Thu, 16 Oct 2025 00:00:00 GMT
 			Bits:         0x1b01ffff,               // Difficulty 32767
 			SBits:        2 * 1e8,                  // 2 Coin
 			Nonce:        0x00000000,
@@ -138,12 +138,11 @@ func MainNetParams() *Params {
 		AssumeValid: *newHashFromStr("f04628f2fe7fd0d33055dc326936a6af3772ec5226525bc8fca50631f3081faa"),
 
 		// MinKnownChainWork is the minimum amount of known total work for the
-		// chain at a given point in time.  This is intended to be updated
-		// periodically with new releases.
+		// chain at a given point in time.
 		//
-		// Block bf7f2d914bea1b97f5db0cd914f0ff6ca7f8675e1c4d0984776a74de48948568
-		// Height: 869216
-		MinKnownChainWork: hexToBigInt("000000000000000000000000000000000000000000243845fb2fb3d8f20ddfeb"),
+		// Not set for Monetarium mainnet to allow bootstrap from genesis.
+		// This is a new network, not a continuation of Decred's chain.
+		MinKnownChainWork: nil,
 
 		// The miner confirmation window is defined as:
 		//   target proof of work timespan / target proof of work spacing
