@@ -3599,9 +3599,14 @@ func TestHandleGenerate(t *testing.T) {
 			NumBlocks: 2,
 		},
 		mockMiningState: defaultMockMiningState(),
-		mockCPUMiner:    cpu,
-		wantErr:         true,
-		errCode:         dcrjson.ErrRPCDifficulty,
+		mockChainParams: func() *chaincfg.Params {
+			params := cloneParams(defaultChainParams)
+			params.GenerateSupported = false // Explicitly disable for this test
+			return params
+		}(),
+		mockCPUMiner: cpu,
+		wantErr:      true,
+		errCode:      dcrjson.ErrRPCDifficulty,
 	}, {
 		name:            "handleGenerate: generate 0 blocks",
 		handler:         handleGenerate,

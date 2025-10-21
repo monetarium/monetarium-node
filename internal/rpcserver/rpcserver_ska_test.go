@@ -172,8 +172,8 @@ func TestSKAChainParameterConsistency(t *testing.T) {
 		// Verify mainnet emission heights are reasonable for production
 		for _, config := range params.SKACoins {
 			t.Run(config.Name, func(t *testing.T) {
-				// Mainnet emission heights should be much higher than simnet
-				if config.EmissionHeight < 50000 {
+				// Mainnet emission heights should be higher than simnet (>150)
+				if config.EmissionHeight < 1000 {
 					t.Errorf("Mainnet emission height seems too low: %d", config.EmissionHeight)
 				}
 

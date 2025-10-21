@@ -1161,11 +1161,11 @@ func loadConfig(appName string) (*config, []string, error) {
 	}
 
 	// Don't allow unsynchronized mining on mainnet.
-	//if cfg.AllowUnsyncedMining && cfg.params == &mainNetParams {
-	//	str := "%s: allowunsyncedmining cannot be activated on mainnet"
-	//	err := fmt.Errorf(str, funcName)
-	//	return nil, nil, err
-	//}
+	if cfg.AllowUnsyncedMining && cfg.params == &mainNetParams {
+		str := "%s: allowunsyncedmining cannot be activated on mainnet"
+		err := fmt.Errorf(str, funcName)
+		return nil, nil, err
+	}
 
 	// Always allow unsynchronized mining on simnet and regnet.
 	if cfg.SimNet || cfg.RegNet {

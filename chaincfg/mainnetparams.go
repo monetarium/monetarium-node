@@ -51,7 +51,7 @@ func MainNetParams() *Params {
 			// MerkleRoot: Calculated below.
 			StakeRoot:    chainhash.Hash{},
 			Timestamp:    time.Unix(1760649600, 0), // Thu, 16 Oct 2025 00:00:00 GMT
-			Bits:         0x1b01ffff,               // Difficulty 32767
+			Bits:         0x1d00ffff,               // Difficulty 1 - CPU mining friendly for bootstrap
 			SBits:        2 * 1e8,                  // 2 Coin
 			Nonce:        0x00000000,
 			StakeVersion: 0,
@@ -98,8 +98,8 @@ func MainNetParams() *Params {
 		PowLimit:             mainPowLimit,
 		PowLimitBits:         mainPowLimitBits,
 		ReduceMinDifficulty:  false,
-		MinDiffReductionTime: 0, // Does not apply since ReduceMinDifficulty false
-		GenerateSupported:    false,
+		MinDiffReductionTime: 0,    // Does not apply since ReduceMinDifficulty false
+		GenerateSupported:    true, // Enable CPU mining for Monetarium mainnet bootstrap
 		MaximumBlockSizes:    []int{393216},
 		MaxTxSize:            393216,
 		TargetTimePerBlock:   time.Minute * 5,
@@ -532,7 +532,7 @@ func MainNetParams() *Params {
 		StakeVersionInterval:    144 * 2 * 7, // ~1 week
 		MaxFreshStakePerBlock:   20,          // 4*TicketsPerBlock
 		StakeEnabledHeight:      256 + 256,   // CoinbaseMaturity + TicketMaturity
-		StakeValidationHeight:   1024,        // ~14 days
+		StakeValidationHeight:   1024,        // ~7 days
 		StakeBaseSigScript:      []byte{0x00, 0x00},
 		StakeMajorityMultiplier: 3,
 		StakeMajorityDivisor:    4,

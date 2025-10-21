@@ -21,6 +21,7 @@ import (
 	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/gcs/v4/blockcf2"
+	"github.com/decred/dcrd/internal/blockalloc"
 	"github.com/decred/dcrd/internal/blockchain"
 	"github.com/decred/dcrd/internal/fees"
 	"github.com/decred/dcrd/txscript/v4"
@@ -1636,7 +1637,7 @@ mempoolLoop:
 		// ordered below.
 
 		// Determine the primary coin type for this transaction
-		primaryCoinType := GetTransactionCoinType(tx)
+		primaryCoinType := blockalloc.GetTransactionCoinType(tx)
 
 		prioItem := &txPrioItem{
 			txDesc:   txDesc,
@@ -1768,7 +1769,7 @@ mempoolLoop:
 		// Create basic allocator for backward compatibility
 		blockSpaceAllocator = NewBlockSpaceAllocator(g.cfg.Policy.BlockMaxSize, g.cfg.ChainParams)
 	}
-	transactionTracker := NewTransactionSizeTracker(blockSpaceAllocator)
+	transactionTracker := blockalloc.NewTransactionSizeTracker(blockSpaceAllocator.BlockSpaceAllocator)
 
 	// Choose which transactions make it into the block.
 nextPriorityQueueItem:
@@ -1985,7 +1986,7 @@ nextPriorityQueueItem:
 		}
 
 		// Check if transaction fits within coin type allocation
-		coinType := GetTransactionCoinType(tx)
+		coinType := blockalloc.GetTransactionCoinType(tx)
 
 		if !transactionTracker.CanAddTransaction(tx) {
 			log.Tracef("Skipping tx %s (coin type %d, size %v) because it "+
@@ -2125,7 +2126,7 @@ nextPriorityQueueItem:
 
 			// Record transaction fee for coin-type-specific fee estimation
 			if g.cfg.FeeCalculator != nil {
-				bundledCoinType := GetTransactionCoinType(bundledTx)
+				bundledCoinType := blockalloc.GetTransactionCoinType(bundledTx)
 				bundledSize := int64(bundledTx.MsgTx().SerializeSize())
 				g.cfg.FeeCalculator.RecordTransactionFee(bundledCoinType,
 					bundledTxDesc.Fee, bundledSize, true)
@@ -2222,7 +2223,7 @@ nextPriorityQueueItem:
 		})
 		pendingTxs := miningView.TxDescs()
 		for _, txDesc := range pendingTxs {
-			coinType := GetTransactionCoinType(txDesc.Tx)
+			coinType := blockalloc.GetTransactionCoinType(txDesc.Tx)
 			bucket := pendingBuckets[coinType]
 			bucket.count++
 			bucket.size += int64(txDesc.Tx.MsgTx().SerializeSize())
@@ -2498,7 +2499,7 @@ nextPriorityQueueItem:
 		}
 
 		// Determine coin type for this transaction and add fees by type
-		coinType := GetTransactionCoinType(tx)
+		coinType := blockalloc.GetTransactionCoinType(tx)
 		totalFees.Add(coinType, fee)
 		txFees = append(txFees, fee)
 
@@ -2518,7 +2519,7 @@ nextPriorityQueueItem:
 		}
 
 		// Determine coin type for this transaction and add fees by type
-		coinType := GetTransactionCoinType(tx)
+		coinType := blockalloc.GetTransactionCoinType(tx)
 		totalFees.Add(coinType, fee)
 		txFees = append(txFees, fee)
 

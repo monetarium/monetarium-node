@@ -22,6 +22,7 @@ import (
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/gcs/v4/blockcf2"
+	"github.com/decred/dcrd/internal/blockalloc"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
 )
@@ -2408,15 +2409,10 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 }
 
 // validateBlockSpaceAllocation ensures that the block respects per-coin-type
-// space allocation limits (10% VAR, 90% SKA).
-// Note: We implement the validation directly here to avoid circular dependency
-// with the mining package. The logic mirrors what BlockSpaceAllocator does.
+// space allocation limits using the same allocation logic as mining.
 func (b *BlockChain) validateBlockSpaceAllocation(block *dcrutil.Block, maxBlockSize int64, prevNode *blockNode) error {
-	// Define allocation percentages (matching mining module)
-	const (
-		varAllocationPercent = 0.10 // 10% for VAR
-		skaAllocationPercent = 0.90 // 90% for SKA (total)
-	)
+	// Create allocator using the standard block allocation logic
+	allocator := blockalloc.NewBlockSpaceAllocator(uint32(maxBlockSize), b.chainParams)
 
 	// Helper function to get coin type from transaction
 	getCoinType := func(tx *dcrutil.Tx) cointype.CoinType {
@@ -2457,50 +2453,49 @@ func (b *BlockChain) validateBlockSpaceAllocation(block *dcrutil.Block, maxBlock
 		return cointype.CoinTypeVAR // Default to VAR if no outputs
 	}
 
-	// Track space used by coin type
-	spaceUsed := make(map[cointype.CoinType]int64)
+	// Measure actual space usage per coin type
+	spaceUsed := make(map[cointype.CoinType]uint32)
 
 	// Count space in regular tree
 	for _, tx := range block.Transactions() {
 		coinType := getCoinType(tx)
-		txSize := int64(tx.MsgTx().SerializeSize())
+		txSize := uint32(tx.MsgTx().SerializeSize())
 		spaceUsed[coinType] += txSize
 	}
 
 	// Count space in stake tree
 	for _, tx := range block.STransactions() {
 		coinType := getCoinType(tx)
-		txSize := int64(tx.MsgTx().SerializeSize())
+		txSize := uint32(tx.MsgTx().SerializeSize())
 		spaceUsed[coinType] += txSize
 	}
 
-	// Calculate allocations
-	varMaxSpace := int64(float64(maxBlockSize) * varAllocationPercent)
-	skaMaxSpace := int64(float64(maxBlockSize) * skaAllocationPercent)
+	// Use allocator to determine what's allowed (with spillover logic)
+	allocation := allocator.AllocateBlockSpace(spaceUsed)
 
-	// Check VAR space
-	varUsed := spaceUsed[cointype.CoinTypeVAR]
-	if varUsed > varMaxSpace {
-		return ruleError(ErrBlockTooBig, fmt.Sprintf(
-			"VAR transactions exceed allocation: used %d bytes > max %d bytes (%.0f%% of %d)",
-			varUsed, varMaxSpace, varAllocationPercent*100, maxBlockSize))
-	}
-
-	// Check total SKA space (all non-VAR coin types combined)
-	var totalSKAUsed int64
+	// Validate each coin type respects its final allocation
 	for coinType, used := range spaceUsed {
-		if coinType != cointype.CoinTypeVAR {
-			totalSKAUsed += used
+		coinAlloc := allocation.GetAllocationForCoinType(coinType)
+		if coinAlloc == nil {
+			// No allocation for this coin type - shouldn't happen but be safe
+			continue
+		}
+
+		if used > coinAlloc.FinalAllocation {
+			return ruleError(ErrBlockTooBig, fmt.Sprintf(
+				"%s transactions exceed allocation: used %d bytes > max %d bytes",
+				coinType.String(), used, coinAlloc.FinalAllocation))
 		}
 	}
 
-	if totalSKAUsed > skaMaxSpace {
+	// Also check total block size as a safety check
+	if allocation.TotalUsed > uint32(maxBlockSize) {
 		return ruleError(ErrBlockTooBig, fmt.Sprintf(
-			"SKA transactions exceed allocation: used %d bytes > max %d bytes (%.0f%% of %d)",
-			totalSKAUsed, skaMaxSpace, skaAllocationPercent*100, maxBlockSize))
+			"block exceeds maximum size: used %d bytes > max %d bytes",
+			allocation.TotalUsed, maxBlockSize))
 	}
 
-	// Validation passed - block respects per-coin-type allocations
+	// Validation passed - block respects per-coin-type allocations with spillover
 	return nil
 }
 

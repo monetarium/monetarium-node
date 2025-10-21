@@ -72,9 +72,18 @@ func TestEstimateSupply(t *testing.T) {
 	}
 }
 
+// cloneMainNetParamsForTests returns a copy of MainNetParams with
+// StakeValidationHeight set to 4096 for legacy difficulty tests.
+// This preserves the original test expectations without affecting actual mainnet params.
+func cloneMainNetParamsForTests() *chaincfg.Params {
+	params := chaincfg.MainNetParams()
+	params.StakeValidationHeight = 4096
+	return params
+}
+
 // assertStakeDiffParamsMainNet ensure the passed params have the values used in
 // the tests related to mainnet stake difficulty calculation.
-func assertStakeDiffParamsMainNet(t *testing.T, params *chaincfg.Params) {
+func assertStakeDiffParamsMainNet(t *testing.T, params *chaincfg.Params, expectedSVH int64) {
 	if params.MinimumStakeDiff != 200000000 {
 		_, file, line, _ := runtime.Caller(1)
 		t.Fatalf("%s:%d -- expect params with minimum stake diff of "+
@@ -86,10 +95,10 @@ func assertStakeDiffParamsMainNet(t *testing.T, params *chaincfg.Params) {
 		t.Fatalf("%s:%d -- expect params with ticket maturity of "+
 			"%d, got %d", file, line, 256, params.TicketMaturity)
 	}
-	if params.StakeValidationHeight != 4096 {
+	if params.StakeValidationHeight != expectedSVH {
 		_, file, line, _ := runtime.Caller(1)
 		t.Fatalf("%s:%d -- expect params with stake val height of %d, "+
-			"got %d", file, line, 4096, params.StakeValidationHeight)
+			"got %d", file, line, expectedSVH, params.StakeValidationHeight)
 	}
 	if params.StakeDiffWindowSize != 144 {
 		_, file, line, _ := runtime.Caller(1)
@@ -152,8 +161,11 @@ func TestCalcNextRequiredStakeDiffV2(t *testing.T) {
 	// used by the tests are the expected ones.  All of the test values will
 	// need to be updated if these parameters change since they are manually
 	// calculated based on them.
-	params := chaincfg.MainNetParams()
-	assertStakeDiffParamsMainNet(t, params)
+	//
+	// Use cloned params with StakeValidationHeight=4096 to preserve original
+	// test expectations (mainnet now uses 1024).
+	params := cloneMainNetParamsForTests()
+	assertStakeDiffParamsMainNet(t, params, 4096)
 	minStakeDiff := params.MinimumStakeDiff
 	ticketMaturity := uint32(params.TicketMaturity)
 	stakeValidationHeight := params.StakeValidationHeight
@@ -448,9 +460,12 @@ func TestEstimateNextStakeDiffV2(t *testing.T) {
 	// Assert the param values directly used by the tests are the expected
 	// ones.  All of the test values will need to be updated if these
 	// parameters change since they are manually calculated based on them.
-	mainNetParams := chaincfg.MainNetParams()
+	//
+	// Use cloned params with StakeValidationHeight=4096 to preserve original
+	// test expectations (mainnet now uses 1024).
+	mainNetParams := cloneMainNetParamsForTests()
 	testNetParams := chaincfg.TestNet3Params()
-	assertStakeDiffParamsMainNet(t, mainNetParams)
+	assertStakeDiffParamsMainNet(t, mainNetParams, 4096)
 	assertStakeDiffParamsTestNet(t, testNetParams)
 	minStakeDiffMainNet := mainNetParams.MinimumStakeDiff
 	minStakeDiffTestNet := testNetParams.MinimumStakeDiff
