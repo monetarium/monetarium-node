@@ -1909,6 +1909,7 @@ nextPriorityQueueItem:
 		// Skip if the SStx commit value is below the value required by the
 		// stake diff.
 		if isSStx && (tx.MsgTx().TxOut[0].Value < best.NextStakeDiff) {
+			log.Debugf("Skipping ticket %s: price %d < stake diff %d", tx.Hash(), tx.MsgTx().TxOut[0].Value, best.NextStakeDiff)
 			continue
 		}
 
@@ -1932,6 +1933,7 @@ nextPriorityQueueItem:
 				hashInSlice(*ticketHash, best.MissedTickets)
 
 			if !eligible {
+				log.Debugf("Skipping revocation %s: ticket %s not eligible", tx.Hash(), ticketHash)
 				continue
 			}
 		}
@@ -1939,6 +1941,7 @@ nextPriorityQueueItem:
 		if miningView.isRejected(tx.Hash()) {
 			// If the transaction or any of its ancestors have been rejected,
 			// discard the transaction.
+			log.Debugf("Skipping tx %s: rejected by ancestor check", tx.Hash())
 			continue
 		}
 
@@ -1958,6 +1961,7 @@ nextPriorityQueueItem:
 			// If the fee decreased due to ancestors being included in the
 			// template and the transaction has no parents, then enqueue it one
 			// more time with an accurate feePerKb.
+			log.Debugf("Requeuing tx %s for fee recalc: %.2f -> %.2f (no ancestors)", tx.Hash(), oldFee, prioItem.feePerKB)
 			heap.Push(priorityQueue, prioItem)
 			prioritizedTxns[*tx.Hash()] = struct{}{}
 			continue
@@ -1970,6 +1974,7 @@ nextPriorityQueueItem:
 			// ancestors that have already been included in the block template.
 			// The transaction will be added back to the priority queue when all
 			// parent transactions are included in the template.
+			log.Debugf("Skipping tx %s: fee decreased %.2f -> %.2f (has %d ancestors)", tx.Hash(), oldFee, prioItem.feePerKB, ancestorStats.NumAncestors)
 			continue
 		}
 
@@ -2015,6 +2020,7 @@ nextPriorityQueueItem:
 		// valid for the next block.
 		if isSSGen {
 			if foundWinningTickets[tx.MsgTx().TxIn[1].PreviousOutPoint.Hash] {
+				log.Debugf("Skipping vote %s: already processed", tx.Hash())
 				continue
 			}
 			msgTx := tx.MsgTx()
@@ -2026,6 +2032,7 @@ nextPriorityQueueItem:
 			}
 
 			if !isEligible {
+				log.Debugf("Skipping vote %s: not eligible for next block", tx.Hash())
 				continue
 			}
 		}
