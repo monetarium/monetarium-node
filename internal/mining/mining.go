@@ -1769,6 +1769,63 @@ mempoolLoop:
 		// Create basic allocator for backward compatibility
 		blockSpaceAllocator = NewBlockSpaceAllocator(g.cfg.Policy.BlockMaxSize, g.cfg.ChainParams)
 	}
+
+	// Calculate total pending transaction bytes from mempool for each coin type.
+	// This provides visibility into the allocation decisions and helps with debugging.
+	mempoolPendingBytes := make(map[cointype.CoinType]uint32)
+	for _, txDesc := range sourceTxns {
+		coinType := blockalloc.GetTransactionCoinType(txDesc.Tx)
+		txSize := uint32(txDesc.Tx.MsgTx().SerializeSize())
+		mempoolPendingBytes[coinType] += txSize
+	}
+
+	// Log initial allocation based on actual mempool demand.
+	// This helps diagnose issues where SKA reserves space but has no transactions.
+	if len(mempoolPendingBytes) > 0 {
+		initialAlloc := blockSpaceAllocator.AllocateBlockSpace(mempoolPendingBytes)
+		varAlloc := initialAlloc.GetAllocationForCoinType(cointype.CoinTypeVAR)
+		varPending := mempoolPendingBytes[cointype.CoinTypeVAR]
+
+		var varAllocSize uint32
+		if varAlloc != nil {
+			varAllocSize = varAlloc.FinalAllocation
+		}
+
+		log.Debugf("Block template mempool analysis: VAR pending=%d bytes, "+
+			"VAR allocation=%d bytes, block max=%d bytes",
+			varPending, varAllocSize, g.cfg.Policy.BlockMaxSize)
+
+		// Log VAR allocation efficiency
+		if varAllocSize > 0 && varPending > 0 {
+			efficiency := float64(varPending) / float64(varAllocSize) * 100
+			log.Debugf("VAR allocation efficiency: %.1f%% (%d used of %d allocated)",
+				efficiency, varPending, varAllocSize)
+		} else if varAllocSize > 0 && varPending == 0 {
+			log.Debugf("VAR allocation: %d bytes allocated, but 0 bytes pending (allocation unused)",
+				varAllocSize)
+		}
+
+		// Log SKA pending if any
+		for coinType, pending := range mempoolPendingBytes {
+			if coinType.IsSKA() && pending > 0 {
+				skaAlloc := initialAlloc.GetAllocationForCoinType(coinType)
+				var skaAllocSize uint32
+				if skaAlloc != nil {
+					skaAllocSize = skaAlloc.FinalAllocation
+				}
+				log.Debugf("Block template mempool analysis: %s pending=%d bytes, "+
+					"%s allocation=%d bytes", coinType, pending, coinType, skaAllocSize)
+
+				// Log SKA allocation efficiency
+				if skaAllocSize > 0 {
+					skaEfficiency := float64(pending) / float64(skaAllocSize) * 100
+					log.Debugf("%s allocation efficiency: %.1f%% (%d used of %d allocated)",
+						coinType, skaEfficiency, pending, skaAllocSize)
+				}
+			}
+		}
+	}
+
 	transactionTracker := blockalloc.NewTransactionSizeTracker(blockSpaceAllocator.BlockSpaceAllocator)
 
 	// Choose which transactions make it into the block.
@@ -1843,7 +1900,7 @@ nextPriorityQueueItem:
 		// Tspend window.
 		if isTSpend {
 			if !isTVI {
-				log.Tracef("Skipping tspend %v because block "+
+				log.Debugf("Skipping tspend %v because block "+
 					"is not on a TVI: %v", tx.Hash(),
 					nextBlockHeight)
 				continue
@@ -1856,7 +1913,7 @@ nextPriorityQueueItem:
 				exp, g.cfg.ChainParams.TreasuryVoteInterval,
 				g.cfg.ChainParams.TreasuryVoteIntervalMultiplier) {
 
-				log.Tracef("Skipping treasury spend %v at height %d because it "+
+				log.Debugf("Skipping treasury spend %v at height %d because it "+
 					"has an expiry of %d that is outside of the voting window",
 					tx.Hash(), nextBlockHeight, exp)
 				continue
@@ -1867,7 +1924,7 @@ nextPriorityQueueItem:
 			err = g.cfg.CheckTSpendHasVotes(prevHash,
 				dcrutil.NewTx(tx.MsgTx()))
 			if err != nil {
-				log.Tracef("Skipping tspend %v because it doesn't have enough "+
+				log.Debugf("Skipping tspend %v because it doesn't have enough "+
 					"votes: height %v reason '%v'", tx.Hash(), nextBlockHeight, err)
 				continue
 			}
@@ -1880,7 +1937,7 @@ nextPriorityQueueItem:
 			// TSpends either by approval % or by expiry.
 			tspendAmount := tx.MsgTx().TxIn[0].ValueIn
 			if maxTreasurySpend-tspendAmount < 0 {
-				log.Tracef("Skipping tspend %v because it spends "+
+				log.Debugf("Skipping tspend %v because it spends "+
 					"more than allowed: treasury %d tspend %d",
 					tx.Hash(), maxTreasurySpend, tspendAmount)
 				continue
@@ -1890,7 +1947,7 @@ nextPriorityQueueItem:
 
 		// Skip if we already have too many TAdds.
 		if isTAdd && numTAdds >= blockchain.MaxTAddsPerBlock {
-			log.Tracef("Skipping tadd %s because it would exceed "+
+			log.Debugf("Skipping tadd %s because it would exceed "+
 				"the max number of tadds allowed in a block",
 				tx.Hash())
 			logSkippedDeps(tx, deps)
@@ -1900,7 +1957,7 @@ nextPriorityQueueItem:
 		// Skip if we already have too many SStx.
 		if isSStx && (numSStx >=
 			int(g.cfg.ChainParams.MaxFreshStakePerBlock)) {
-			log.Tracef("Skipping sstx %s because it would exceed "+
+			log.Debugf("Skipping sstx %s because it would exceed "+
 				"the max number of sstx allowed in a block", tx.Hash())
 			logSkippedDeps(tx, deps)
 			continue
@@ -1984,7 +2041,7 @@ nextPriorityQueueItem:
 
 		// Check for arithmetic overflow
 		if blockPlusTxSize < blockSize {
-			log.Tracef("Skipping tx %s due to size arithmetic overflow", tx.Hash())
+			log.Debugf("Skipping tx %s due to size arithmetic overflow", tx.Hash())
 			logSkippedDeps(tx, deps)
 			miningView.reject(tx.Hash())
 			continue
@@ -1994,7 +2051,7 @@ nextPriorityQueueItem:
 		coinType := blockalloc.GetTransactionCoinType(tx)
 
 		if !transactionTracker.CanAddTransaction(tx) {
-			log.Tracef("Skipping tx %s (coin type %d, size %v) because it "+
+			log.Debugf("Skipping tx %s (coin type %d, size %v) because it "+
 				"would exceed the coin type allocation; cur block "+
 				"size %v, cur num tx %v", tx.Hash(), coinType, txSize,
 				blockSize, len(blockTxns))
@@ -2009,7 +2066,7 @@ nextPriorityQueueItem:
 		numSigOpsBundle := numSigOps + int64(ancestorStats.TotalSigOps)
 		if blockSigOps+numSigOpsBundle < blockSigOps ||
 			blockSigOps+numSigOpsBundle > blockchain.MaxSigOpsPerBlock {
-			log.Tracef("Skipping tx %s because it would "+
+			log.Debugf("Skipping tx %s because it would "+
 				"exceed the maximum sigops per block", tx.Hash())
 			logSkippedDeps(tx, deps)
 			miningView.reject(tx.Hash())
@@ -2048,14 +2105,14 @@ nextPriorityQueueItem:
 				err := g.cfg.FeeCalculator.ValidateTransactionFees(prioItem.txDesc.Fee,
 					txSize, prioItem.coinType, false)
 				if err != nil {
-					log.Tracef("Skipping tx %s with coin type %d: %v",
+					log.Debugf("Skipping tx %s with coin type %d: %v",
 						tx.Hash(), prioItem.coinType, err)
 					skipForLowFee = true
 				}
 			} else {
 				// Fallback to standard fee validation
 				if prioItem.feePerKB < float64(g.cfg.Policy.TxMinFreeFee) {
-					log.Tracef("Skipping tx %s with feePerKB %.2f < TxMinFreeFee %d ",
+					log.Debugf("Skipping tx %s with feePerKB %.2f < TxMinFreeFee %d ",
 						tx.Hash(), prioItem.feePerKB, g.cfg.Policy.TxMinFreeFee)
 					skipForLowFee = true
 				}
@@ -2078,7 +2135,7 @@ nextPriorityQueueItem:
 				blockUtxos, false, &bestHeader, isTreasuryEnabled,
 				isAutoRevocationsEnabled, subsidySplitVariant)
 			if err != nil {
-				log.Tracef("Skipping tx %s due to error in "+
+				log.Debugf("Skipping tx %s due to error in "+
 					"CheckTransactionInputs: %v", bundledTx.Tx.Hash(), err)
 				logSkippedDeps(bundledTx.Tx, deps)
 				miningView.reject(bundledTx.Tx.Hash())
@@ -2099,7 +2156,7 @@ nextPriorityQueueItem:
 				err = g.cfg.ValidateTransactionScripts(bundledTx.Tx, blockUtxos,
 					scriptFlags, isAutoRevocationsEnabled)
 				if err != nil {
-					log.Tracef("Skipping tx %s due to error in "+
+					log.Debugf("Skipping tx %s due to error in "+
 						"ValidateTransactionScripts: %v", bundledTx.Tx.Hash(), err)
 					logSkippedDeps(bundledTx.Tx, deps)
 					miningView.reject(bundledTx.Tx.Hash())

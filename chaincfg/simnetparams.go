@@ -104,8 +104,8 @@ func SimNetParams() *Params {
 		ReduceMinDifficulty:  false,
 		MinDiffReductionTime: 0, // Does not apply since ReduceMinDifficulty false
 		GenerateSupported:    true,
-		MaximumBlockSizes:    []int{1000000, 1310720},
-		MaxTxSize:            1000000,
+		MaximumBlockSizes:    []int{393216},
+		MaxTxSize:            393216,
 		TargetTimePerBlock:   time.Second,
 
 		// Version 1 difficulty algorithm (EMA + BLAKE256) parameters.

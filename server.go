@@ -595,6 +595,7 @@ type server struct {
 	chain                *blockchain.BlockChain
 	txMemPool            *mempool.TxPool
 	feeEstimator         *fees.Estimator
+	feeCalculator        *fees.CoinTypeFeeCalculator // Shared fee calculator for mining and RPC
 	cpuMiner             *cpuminer.CPUMiner
 	mixMsgPool           *mixpool.Pool
 	modifyRebroadcastInv chan interface{}
@@ -3920,6 +3921,10 @@ func newServer(ctx context.Context, profiler *profileServer,
 	}
 	s.feeEstimator = fe
 
+	// Create shared fee calculator for dual-coin system
+	// This single instance is used by both mining and RPC to ensure consistent fee estimates
+	s.feeCalculator = fees.NewCoinTypeFeeCalculator(chainParams, cfg.minRelayTxFee)
+
 	if cfg.AllowOldForks {
 		srvrLog.Info("Processing forks deep in history is enabled")
 	}
@@ -4119,7 +4124,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 			TimeSource:                 s.timeSource,
 			SubsidyCache:               s.subsidyCache,
 			ChainParams:                s.chainParams,
-			FeeCalculator:              fees.NewCoinTypeFeeCalculator(s.chainParams, cfg.minRelayTxFee),
+			FeeCalculator:              s.feeCalculator, // Use shared fee calculator
 			MiningTimeOffset:           cfg.MiningTimeOffset,
 			BestSnapshot:               s.chain.BestSnapshot,
 			BlockByHash:                s.chain.BlockByHash,
@@ -4289,7 +4294,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 			ConnMgr:               &rpcConnManager{&s},
 			SyncMgr:               &rpcSyncMgr{server: &s, syncMgr: s.syncManager},
 			FeeEstimator:          s.feeEstimator,
-			CoinTypeFeeCalculator: &rpcCoinTypeFeeCalculator{fees.NewCoinTypeFeeCalculator(chainParams, cfg.minRelayTxFee)},
+			CoinTypeFeeCalculator: &rpcCoinTypeFeeCalculator{s.feeCalculator}, // Use shared fee calculator
 			TimeSource:            s.timeSource,
 			Services:              s.services,
 			AddrManager:           s.addrManager,

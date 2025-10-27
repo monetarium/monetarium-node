@@ -113,7 +113,7 @@ func MainNetParams() *Params {
 
 		// Version 2 difficulty algorithm (ASERT + BLAKE3) parameters.
 		WorkDiffV2Blake3StartBits: 0x1d00ffff, // Difficulty 1 - easy CPU mining for bootstrap
-		WorkDiffV2HalfLifeSecs:    43200,       // 144 * TimePerBlock (12 hours)
+		WorkDiffV2HalfLifeSecs:    43200,      // 144 * TimePerBlock (12 hours)
 
 		// Subsidy parameters.
 		BaseSubsidy:              6400000000, // 64 VAR per block
@@ -525,13 +525,13 @@ func MainNetParams() *Params {
 		LegacyCoinType:   20, // for backwards compatibility
 
 		// Decred PoS parameters
-		MinimumStakeDiff:   2 * 1e8, // 2 Coin
-		TicketPoolSize:     8192,
-		TicketsPerBlock:    5,
-		TicketMaturity:     16,    // TEMPORARY: Reduced from 256 for testing staking issues
-		TicketExpiry:       40960, // 5*TicketPoolSize
-		CoinbaseMaturity:   16,    // TEMPORARY: Reduced from 256 for testing staking issues
-		SStxChangeMaturity: 1,
+		MinimumStakeDiff:        2 * 1e8, // 2 Coin
+		TicketPoolSize:          8192,
+		TicketsPerBlock:         5,
+		TicketMaturity:          16,    // TEMPORARY: Reduced from 256 for testing staking issues
+		TicketExpiry:            40960, // 5*TicketPoolSize
+		CoinbaseMaturity:        16,    // TEMPORARY: Reduced from 256 for testing staking issues
+		SStxChangeMaturity:      1,
 		TicketPoolSizeWeight:    4,
 		StakeDiffAlpha:          1, // Minimal
 		StakeDiffWindowSize:     144,
