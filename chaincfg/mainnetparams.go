@@ -596,13 +596,9 @@ func MainNetParams() *Params {
 				Description:    "Primary asset-backed SKA coin type for mainnet",
 				// Governance-approved emission distribution (TO BE REPLACED WITH REAL ADDRESSES)
 				EmissionAddresses: []string{
-					"MsExampleTreasuryAddress1234567890", // Treasury fund (70%)
-					"MsExampleDevFundAddress1234567890",  // Development fund (20%)
-					"MsExampleStakingAddress1234567890",  // Staking rewards (10%)
+					"MsMz7mvUPBu5GDFexM2W8KiFxEeToFAC4Wv",
 				},
 				EmissionAmounts: []int64{
-					7e6 * 1e8, // 7,000,000 SKA-1 to treasury
-					2e6 * 1e8, // 2,000,000 SKA-1 to development
 					1e6 * 1e8, // 1,000,000 SKA-1 to staking rewards
 				},
 				// SECURITY NOTE: This is a placeholder key for development ONLY
