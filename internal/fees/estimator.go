@@ -781,6 +781,16 @@ func (stats *Estimator) AddMemPoolTransaction(txHash *chainhash.Hash, fee, size 
 		return
 	}
 
+	// Ignore tickets (SStx) for the purposes of fee estimation. Tickets
+	// compete in a separate block space limited to MaxFreshStakePerBlock
+	// (typically 20 per block) and have higher mining priority than regular
+	// transactions. Including them in fee estimates would artificially
+	// inflate regular transaction fees during periods of high ticket demand,
+	// such as network bootstrap when many tickets are being purchased.
+	if txType == stake.TxTypeSStx {
+		return
+	}
+
 	// Note that we use this less exact version instead of fee * 1000 / size
 	// (using ints) because it naturally "downsamples" the fee rates towards the
 	// minimum at values less than 0.001 VAR/KB. This is needed because due to
