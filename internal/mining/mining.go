@@ -1639,10 +1639,14 @@ mempoolLoop:
 		// Determine the primary coin type for this transaction
 		primaryCoinType := blockalloc.GetTransactionCoinType(tx)
 
+		// Check if this is an SKA emission transaction
+		isSKAEmission := wire.IsSKAEmissionTransaction(msgTx)
+
 		prioItem := &txPrioItem{
-			txDesc:   txDesc,
-			txType:   txDesc.Type,
-			coinType: primaryCoinType,
+			txDesc:        txDesc,
+			txType:        txDesc.Type,
+			coinType:      primaryCoinType,
+			isSKAEmission: isSKAEmission,
 		}
 		for i, txIn := range tx.MsgTx().TxIn {
 			// Evaluate if this is a stakebase input or not. If it is, continue
@@ -2048,9 +2052,17 @@ nextPriorityQueueItem:
 		}
 
 		// Check if transaction fits within coin type allocation
+		// SKA emission transactions bypass this check because:
+		// 1. They are the first transaction of their SKA type (always fit)
+		// 2. They must be included at emission height (critical system transaction)
+		// 3. Block space is guaranteed to be available for them
 		coinType := blockalloc.GetTransactionCoinType(tx)
+		isSKAEmission := wire.IsSKAEmissionTransaction(tx.MsgTx())
 
-		if !transactionTracker.CanAddTransaction(tx) {
+		if isSKAEmission {
+			log.Infof("Including SKA emission tx %s (coin type %d, size %v) with guaranteed block space",
+				tx.Hash(), coinType, txSize)
+		} else if !transactionTracker.CanAddTransaction(tx) {
 			log.Debugf("Skipping tx %s (coin type %d, size %v) because it "+
 				"would exceed the coin type allocation; cur block "+
 				"size %v, cur num tx %v", tx.Hash(), coinType, txSize,
@@ -2107,7 +2119,7 @@ nextPriorityQueueItem:
 		// But allows valid mempool transactions (that passed dynamic fee
 		// validation at entry time) to eventually be mined.
 		skipForLowFee := false
-		isSKAEmission := wire.IsSKAEmissionTransaction(tx.MsgTx())
+		// Note: isSKAEmission already declared above for blockspace check
 		if tx.Tree() != wire.TxTreeStake && !isSKAEmission {
 			// Only enforce static minimum relay fee, not dynamic multiplier
 			minStaticFee := float64(g.cfg.Policy.TxMinFreeFee)
@@ -2178,7 +2190,14 @@ nextPriorityQueueItem:
 			// Add the transaction to the block, increment counters, and
 			// save the fees and signature operation counts to the block
 			// template.
-			log.Debugf("Adding transaction %v to block at height %d", bundledTx.Hash(), nextBlockHeight)
+			if wire.IsSKAEmissionTransaction(bundledTx.MsgTx()) {
+				coinType := blockalloc.GetTransactionCoinType(bundledTx)
+				maturityBlock := nextBlockHeight + int64(g.cfg.ChainParams.CoinbaseMaturity)
+				log.Infof("Added SKA emission transaction %v (coin type %d) to block at height %d, matures at block %d",
+					bundledTx.Hash(), coinType, nextBlockHeight, maturityBlock)
+			} else {
+				log.Debugf("Adding transaction %v to block at height %d", bundledTx.Hash(), nextBlockHeight)
+			}
 			blockTxns = append(blockTxns, bundledTx)
 			blockSize += uint32(bundledTx.MsgTx().SerializeSize())
 			bundledTxSigOps := int64(bundledTxDesc.TotalSigOps)
