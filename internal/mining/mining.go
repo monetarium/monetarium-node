@@ -2323,7 +2323,12 @@ nextPriorityQueueItem:
 
 		// Update fee calculator with utilization feedback for dynamic adjustment
 		if g.cfg.FeeCalculator != nil {
-			utilizationRate := float64(coinAlloc.UsedBytes) / float64(coinAlloc.FinalAllocation)
+			var utilizationRate float64
+			if coinAlloc.FinalAllocation > 0 {
+				utilizationRate = float64(coinAlloc.UsedBytes) / float64(coinAlloc.FinalAllocation)
+			}
+			// utilizationRate is 0.0 if allocation is 0 (no space allocated)
+
 			bucket := pendingBuckets[coinType]
 			g.cfg.FeeCalculator.UpdateUtilization(coinType,
 				bucket.count, bucket.size, utilizationRate)

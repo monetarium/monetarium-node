@@ -125,7 +125,10 @@ func (view *UtxoViewpoint) AddTxOut(tx *dcrutil.Tx, txOutIdx uint32,
 	}
 
 	// Set encoded flags for the transaction.
-	isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
+	// SKA emissions and SSFee transactions have null inputs like coinbase but are NOT coinbase.
+	isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) &&
+		!wire.IsSKAEmissionTransaction(msgTx) &&
+		stake.DetermineTxType(msgTx) != stake.TxTypeSSFee
 	hasExpiry := msgTx.Expiry != wire.NoExpiryValue
 	txType := stake.DetermineTxType(msgTx)
 	tree := wire.TxTreeRegular
@@ -160,7 +163,10 @@ func (view *UtxoViewpoint) AddTxOuts(tx *dcrutil.Tx, blockHeight int64,
 
 	// Set encoded flags for the transaction.
 	msgTx := tx.MsgTx()
-	isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
+	// SKA emissions and SSFee transactions have null inputs like coinbase but are NOT coinbase.
+	isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) &&
+		!wire.IsSKAEmissionTransaction(msgTx) &&
+		stake.DetermineTxType(msgTx) != stake.TxTypeSSFee
 	hasExpiry := msgTx.Expiry != wire.NoExpiryValue
 	txType := stake.DetermineTxType(msgTx)
 	tree := wire.TxTreeRegular

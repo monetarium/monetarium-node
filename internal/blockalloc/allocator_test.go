@@ -983,3 +983,126 @@ func TestMinFunction(t *testing.T) {
 		}
 	}
 }
+
+// TestAllocationOverflowBug tests the critical bug where VAR allocation exceeds maxBlockSize.
+// This reproduces the mainnet issue where:
+// - Max block: 375,000 bytes
+// - VAR pending: 1,738 bytes
+// - SKA-1 pending: 254 bytes
+// - VAR allocation: 410,508 bytes (109% of max!)
+//
+// Root cause: VAR's unused space from initial allocation is being redistributed back to VAR,
+// causing double-counting of VAR's unused space.
+func TestAllocationOverflowBug(t *testing.T) {
+	// Use mainnet config with SKA-1 active
+	params := chaincfg.MainNetParams()
+	allocator := NewBlockSpaceAllocator(375000, params)
+
+	// Exact scenario from mainnet logs
+	pending := map[cointype.CoinType]uint32{
+		cointype.CoinTypeVAR: 1738, // Very small VAR pending
+		cointype.CoinType(1): 254,  // Very small SKA-1 pending
+	}
+
+	result := allocator.AllocateBlockSpace(pending)
+
+	// CRITICAL: Total allocations must NEVER exceed maxBlockSize
+	totalAllocated := uint32(0)
+	for _, alloc := range result.Allocations {
+		totalAllocated += alloc.FinalAllocation
+	}
+
+	if totalAllocated > 375000 {
+		t.Errorf("CRITICAL BUG: Total allocations (%d) exceed maxBlockSize (375000) by %d bytes!",
+			totalAllocated, totalAllocated-375000)
+
+		// Debug output to help diagnose
+		varAlloc := result.GetAllocationForCoinType(cointype.CoinTypeVAR)
+		skaAlloc := result.GetAllocationForCoinType(cointype.CoinType(1))
+		t.Logf("VAR: base=%d, final=%d, pending=%d, used=%d",
+			varAlloc.BaseAllocation, varAlloc.FinalAllocation, varAlloc.PendingBytes, varAlloc.UsedBytes)
+		t.Logf("SKA-1: base=%d, final=%d, pending=%d, used=%d",
+			skaAlloc.BaseAllocation, skaAlloc.FinalAllocation, skaAlloc.PendingBytes, skaAlloc.UsedBytes)
+	}
+
+	// Verify each coin type's allocation doesn't exceed maxBlockSize
+	for coinType, alloc := range result.Allocations {
+		if alloc.FinalAllocation > 375000 {
+			t.Errorf("Coin type %s allocation (%d) exceeds maxBlockSize (375000)",
+				coinType, alloc.FinalAllocation)
+		}
+	}
+
+	// Sanity check: UsedBytes should never exceed FinalAllocation
+	for coinType, alloc := range result.Allocations {
+		if alloc.UsedBytes > alloc.FinalAllocation {
+			t.Errorf("Coin type %s used (%d) exceeds final allocation (%d)",
+				coinType, alloc.UsedBytes, alloc.FinalAllocation)
+		}
+	}
+
+	// Verify VAR gets all leftover space
+	varAlloc := result.GetAllocationForCoinType(cointype.CoinTypeVAR)
+	skaAlloc := result.GetAllocationForCoinType(cointype.CoinType(1))
+
+	// Expected: VAR should get its base (37,500) + all leftover space from redistribution
+	// Since both VAR and SKA have minimal needs, most space should go to VAR
+	expectedVARMin := uint32(37500) // At least its base
+	if varAlloc.FinalAllocation < expectedVARMin {
+		t.Errorf("VAR should get at least its base allocation %d, got %d",
+			expectedVARMin, varAlloc.FinalAllocation)
+	}
+
+	// Log the actual allocations for verification
+	t.Logf("Final allocations: VAR=%d (%.1f%%), SKA-1=%d (%.1f%%)",
+		varAlloc.FinalAllocation, float64(varAlloc.FinalAllocation)/375000*100,
+		skaAlloc.FinalAllocation, float64(skaAlloc.FinalAllocation)/375000*100)
+}
+
+// TestVARGetsLeftoverWhenSKAHasMinimalDemand tests that VAR can claim unused SKA space.
+// This is critical for mainnet where large VAR transaction sets need to fit when SKA is idle.
+func TestVARGetsLeftoverWhenSKAHasMinimalDemand(t *testing.T) {
+	params := chaincfg.MainNetParams()
+	allocator := NewBlockSpaceAllocator(375000, params)
+
+	// Scenario: Large VAR demand (100KB), tiny SKA demand (254 bytes)
+	// VAR should get its base (37.5KB) + most of SKA's unused space
+	pending := map[cointype.CoinType]uint32{
+		cointype.CoinTypeVAR: 100000, // 100KB VAR pending (needs overflow)
+		cointype.CoinType(1): 254,    // 254 bytes SKA-1 (minimal)
+	}
+
+	result := allocator.AllocateBlockSpace(pending)
+
+	// Total allocations must not exceed maxBlockSize
+	totalAllocated := uint32(0)
+	for _, alloc := range result.Allocations {
+		totalAllocated += alloc.FinalAllocation
+	}
+
+	if totalAllocated > 375000 {
+		t.Errorf("Total allocations (%d) exceed maxBlockSize (375000)", totalAllocated)
+	}
+
+	// VAR should get enough space for its 100KB demand
+	varAlloc := result.GetAllocationForCoinType(cointype.CoinTypeVAR)
+	if varAlloc.FinalAllocation < 100000 {
+		t.Errorf("VAR should get at least 100KB for its demand, got %d", varAlloc.FinalAllocation)
+	}
+
+	// VAR should actually use its full 100KB demand
+	if varAlloc.UsedBytes != 100000 {
+		t.Errorf("VAR should use its full 100KB demand, got %d", varAlloc.UsedBytes)
+	}
+
+	// SKA should only get what it needs (254 bytes) or slightly more from its base
+	skaAlloc := result.GetAllocationForCoinType(cointype.CoinType(1))
+	if skaAlloc.UsedBytes != 254 {
+		t.Errorf("SKA-1 should use exactly 254 bytes, got %d", skaAlloc.UsedBytes)
+	}
+
+	t.Logf("VAR: final=%d, used=%d (demand=100000)", varAlloc.FinalAllocation, varAlloc.UsedBytes)
+	t.Logf("SKA-1: final=%d, used=%d (demand=254)", skaAlloc.FinalAllocation, skaAlloc.UsedBytes)
+	t.Logf("Total allocated: %d / 375000 (%.1f%%)",
+		totalAllocated, float64(totalAllocated)/375000*100)
+}

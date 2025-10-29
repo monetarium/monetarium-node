@@ -160,9 +160,24 @@ func (bsa *BlockSpaceAllocator) AllocateBlockSpace(pendingTxBytes map[cointype.C
 			}
 		}
 
-		// Distribute unused with 10%/90% split
-		varShare := uint32(float64(totalUnused) * 0.10)
-		skaShare := totalUnused - varShare
+		// Distribute unused with smart 10%/90% split
+		// Optimization: If VAR has no need but SKA does, give everything to SKA
+		// This maximizes block utilization when there's no competition for space
+		var varShare, skaShare uint32
+
+		if varNeed == 0 && totalSKANeed > 0 {
+			// VAR doesn't need anything, SKA has demand → SKA gets 100%
+			varShare = 0
+			skaShare = totalUnused
+		} else if varNeed >= 0 && totalSKANeed == 0 {
+			// SKA doesn't need anything, VAR has demand → VAR gets 100%
+			varShare = totalUnused
+			skaShare = 0
+		} else {
+			// Both have needs → use 10%/90% split, but reclaim VAR's unused portion
+			varShare = uint32(float64(totalUnused) * 0.10)
+			skaShare = totalUnused - varShare
+		}
 
 		// Give to VAR (capped by need)
 		varGets := min(uint32(varNeed), varShare)
@@ -170,7 +185,12 @@ func (bsa *BlockSpaceAllocator) AllocateBlockSpace(pendingTxBytes map[cointype.C
 			allocations[cointype.CoinTypeVAR].FinalAllocation += varGets
 			allocations[cointype.CoinTypeVAR].UsedBytes += varGets
 		}
-		varLeftover := varShare - varGets
+
+		// If VAR didn't use all its share, give the excess to SKA
+		varShareUnused := varShare - varGets
+		if varShareUnused > 0 && totalSKANeed > 0 {
+			skaShare += varShareUnused
+		}
 
 		// Give to SKA types proportionally by need
 		skaUsedFromShare := uint32(0)
@@ -190,13 +210,42 @@ func (bsa *BlockSpaceAllocator) AllocateBlockSpace(pendingTxBytes map[cointype.C
 				}
 			}
 		}
-		skaLeftover := skaShare - skaUsedFromShare
 
-		// Step 4: All remaining unused goes to VAR
-		totalLeftover := varLeftover + skaLeftover
+		// Step 3.5: Shrink SKA allocations to what they're actually using
+		// If an SKA type didn't get any overflow (because it had no need), reduce its
+		// FinalAllocation to just what it used from its base. This frees up space for VAR.
+		for _, skaType := range activeSKATypes {
+			alloc := allocations[skaType]
+			// If SKA got nothing from redistribution (FinalAllocation == BaseAllocation)
+			// and it's not using its full base, shrink it to UsedBytes
+			if alloc.FinalAllocation == alloc.BaseAllocation && alloc.UsedBytes < alloc.BaseAllocation {
+				alloc.FinalAllocation = alloc.UsedBytes
+			}
+		}
+
+		// Step 4: Give ALL remaining unused space to VAR
+		// Calculate total space already allocated to all coin types
+		totalCurrentlyAllocated := uint32(0)
+		totalCurrentlyAllocated += allocations[cointype.CoinTypeVAR].FinalAllocation
+		for _, skaType := range activeSKATypes {
+			totalCurrentlyAllocated += allocations[skaType].FinalAllocation
+		}
+
+		// Calculate truly unused space (what's left in the block)
+		totalLeftover := uint32(0)
+		if bsa.maxBlockSize > totalCurrentlyAllocated {
+			totalLeftover = bsa.maxBlockSize - totalCurrentlyAllocated
+		}
+
+		// VAR gets all remaining unused space
 		if totalLeftover > 0 {
 			allocations[cointype.CoinTypeVAR].FinalAllocation += totalLeftover
 		}
+
+		// Update VAR's UsedBytes to reflect what it will actually use
+		// given its new FinalAllocation and pending demand
+		varAlloc := allocations[cointype.CoinTypeVAR]
+		varAlloc.UsedBytes = min(varAlloc.PendingBytes, varAlloc.FinalAllocation)
 	}
 
 	// Calculate totals
