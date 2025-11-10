@@ -1606,8 +1606,9 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 	var missingParents []wire.OutPoint
 	var updateFraudProof bool
 	isSKAEmission := wire.IsSKAEmissionTransaction(msgTx)
+	isSSFee := txType == stake.TxTypeSSFee
 	for i, txIn := range msgTx.TxIn {
-		if (i == 0 && isVote) || isTSpend || isSKAEmission {
+		if (i == 0 && isVote) || isTSpend || isSKAEmission || isSSFee {
 			continue
 		}
 
@@ -1659,8 +1660,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 		msgTx = tx.MsgTx()
 
 		for i, txIn := range msgTx.TxIn {
-			// Skip stakebase inputs and treasury spends.
-			if (i == 0 && isVote) || isTSpend {
+			// Skip stakebase inputs, treasury spends, SKA emissions, and SSFee.
+			if (i == 0 && isVote) || isTSpend || isSKAEmission || isSSFee {
 				continue
 			}
 

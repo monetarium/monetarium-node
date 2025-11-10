@@ -901,14 +901,21 @@ func createMinerSSFeeTx(coinType cointype.CoinType, totalFee int64,
 	})
 
 	// Create payment script for the miner address or anyone-can-spend if nil
+	// Use OP_SSGEN-tagged scripts like staker SSFee outputs for consistency
 	var scriptVersion uint16
 	var payScript []byte
 	if minerAddress != nil {
-		scriptVersion, payScript = minerAddress.PaymentScript()
+		var rawScript []byte
+		scriptVersion, rawScript = minerAddress.PaymentScript()
+		// Convert to OP_SSGEN-tagged script (stake-tagged)
+		// This ensures the output is properly recognized as a stake tree output
+		payScript = make([]byte, 0, len(rawScript)+1)
+		payScript = append(payScript, txscript.OP_SSGEN)
+		payScript = append(payScript, rawScript...)
 	} else {
-		// Fallback to anyone-can-spend (matches coinbase fallback behavior)
+		// Fallback to anyone-can-spend with OP_SSGEN tag
 		scriptVersion = 0
-		payScript = opTrueScript
+		payScript = []byte{txscript.OP_SSGEN, txscript.OP_TRUE}
 	}
 
 	// Create single output to miner

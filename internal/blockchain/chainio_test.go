@@ -17,6 +17,7 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/cointype"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/internal/staging/primitives"
 	"github.com/decred/dcrd/math/uint256"
@@ -353,13 +354,15 @@ func TestStxoSerialization(t *testing.T) {
 				"c"),
 			blockHeight: 12345,
 			blockIndex:  54321,
+			coinType:    cointype.CoinTypeVAR, // VAR = 0
 			packedFlags: encodeFlags(
 				withCoinbase,
 				noExpiry,
 				stake.TxTypeRegular,
 			),
 		},
-		serialized: hexToBytes("0100006edbc6c4d31bae9f1ccc38538a114bf42de65e86"),
+		// Added 00 after the script for coinType (VAR)
+		serialized: hexToBytes("0100006edbc6c4d31bae9f1ccc38538a114bf42de65e8600"),
 		txOutIndex: 3,
 	}, {
 		name: "Ticket submission",
@@ -376,14 +379,16 @@ func TestStxoSerialization(t *testing.T) {
 			},
 			blockHeight: 85314,
 			blockIndex:  6,
+			coinType:    cointype.CoinTypeVAR, // VAR = 0
 			packedFlags: encodeFlags(
 				noCoinbase,
 				withExpiry,
 				stake.TxTypeSStx,
 			),
 		},
+		// Added 00 after the script for coinType (VAR), before ticket minimal outputs
 		serialized: hexToBytes("06005aba76a914a13afb81d54c9f8bb0c5e082d56fd563ab" +
-			"9b359688ac03808efefade57001aba76a914a13afb81d54c9f8bb0c5e082d56fd563a" +
+			"9b359688ac0003808efefade57001aba76a914a13afb81d54c9f8bb0c5e082d56fd563a" +
 			"b9b359688ac0000206a1e9ac39159847e259c9162405b5f6c8135d2c7eaf1a3750400" +
 			"01000000005800001abd76a914000000000000000000000000000000000000000088ac"),
 		txOutIndex: 0,
@@ -472,7 +477,8 @@ func TestStxoDecodeErrors(t *testing.T) {
 		bytesRead:  2,
 	}, {
 		// [<flags 06> <script version 00> <compressed pk script 01 6e ...> EOF]
-		name: "no minimal output data after script for a ticket submission " +
+		// Missing coinType byte (now required after compressed txout)
+		name: "no coinType after script for a ticket submission " +
 			"output",
 		stxo:       spentTxOut{},
 		txOutIndex: 0,
@@ -481,45 +487,45 @@ func TestStxoDecodeErrors(t *testing.T) {
 		bytesRead:  23,
 	}, {
 		// [<flags 06> <script version 00> <compressed pk script 01 6e ...>
-		//  <ticket min outs {num outputs 01}> EOF]
+		//  <coinType 00> <ticket min outs {num outputs 01}> EOF]
 		name: "truncated minimal output data after script for a ticket " +
 			"submission output (num outputs only)",
 		stxo:       spentTxOut{},
-		serialized: hexToBytes("0600016edbc6c4d31bae9f1ccc38538a114bf42de65e8601"),
+		serialized: hexToBytes("0600016edbc6c4d31bae9f1ccc38538a114bf42de65e860001"),
 		errType:    errDeserialize(""),
-		bytesRead:  24,
+		bytesRead:  25,
 	}, {
 		// [<flags 06> <script version 00> <compressed pk script 01 6e ...>
-		//  <ticket min outs {num outputs 01} {amount 0f}> EOF]
+		//  <coinType 00> <ticket min outs {num outputs 01} {amount 0f}> EOF]
 		name: "truncated minimal output data after script for a ticket " +
 			"submission output (num outputs and amount only)",
 		stxo: spentTxOut{},
-		serialized: hexToBytes("0600016edbc6c4d31bae9f1ccc38538a114bf42de65e86010" +
+		serialized: hexToBytes("0600016edbc6c4d31bae9f1ccc38538a114bf42de65e8600010" +
 			"f"),
-		errType:   errDeserialize(""),
-		bytesRead: 25,
-	}, {
-		// [<flags 06> <script version 00> <compressed pk script 01 6e ...>
-		//  <ticket min outs {num outputs 01} {amount 0f} {script version 00}> EOF]
-		name: "truncated minimal output data after script for a ticket " +
-			"submission output (num outputs, amount, and script version only)",
-		stxo: spentTxOut{},
-		serialized: hexToBytes("0600016edbc6c4d31bae9f1ccc38538a114bf42de65e86010" +
-			"f00"),
 		errType:   errDeserialize(""),
 		bytesRead: 26,
 	}, {
 		// [<flags 06> <script version 00> <compressed pk script 01 6e ...>
-		//  <ticket min outs {num outputs 01} {amount 0f} {script version 00}
+		//  <coinType 00> <ticket min outs {num outputs 01} {amount 0f} {script version 00}> EOF]
+		name: "truncated minimal output data after script for a ticket " +
+			"submission output (num outputs, amount, and script version only)",
+		stxo: spentTxOut{},
+		serialized: hexToBytes("0600016edbc6c4d31bae9f1ccc38538a114bf42de65e8600010" +
+			"f00"),
+		errType:   errDeserialize(""),
+		bytesRead: 27,
+	}, {
+		// [<flags 06> <script version 00> <compressed pk script 01 6e ...>
+		//  <coinType 00> <ticket min outs {num outputs 01} {amount 0f} {script version 00}
 		//  {script size 1a} {25 bytes of script instead of 26}> EOF]
 		name: "truncated minimal output data after script for a ticket " +
 			"submission output (script size specified as 0x1a, but only 0x19 bytes " +
 			"provided)",
 		stxo: spentTxOut{},
-		serialized: hexToBytes("0600016edbc6c4d31bae9f1ccc38538a114bf42de65e86010" +
+		serialized: hexToBytes("0600016edbc6c4d31bae9f1ccc38538a114bf42de65e8600010" +
 			"f001aba76a9140cdf9941c0c221243cb8672cd1ad2c4c0933850588"),
 		errType:   errDeserialize(""),
-		bytesRead: 27,
+		bytesRead: 28,
 	}}
 
 	for _, test := range tests {
@@ -580,6 +586,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 				"d188ac"),
 			blockHeight: 100000,
 			blockIndex:  0,
+			coinType:    cointype.CoinTypeVAR,
 			packedFlags: encodeFlags(
 				withCoinbase,
 				noExpiry,
@@ -598,6 +605,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 			},
 			blockHeight: 85314,
 			blockIndex:  6,
+			coinType:    cointype.CoinTypeVAR,
 			packedFlags: encodeFlags(
 				noCoinbase,
 				withExpiry,
@@ -684,11 +692,12 @@ func TestSpendJournalSerialization(t *testing.T) {
 			LockTime: 0,
 			Expiry:   0,
 		}},
+		// Serialization includes coinType byte (0x00 for VAR) after each compressed output
 		serialized: hexToBytes("06005aba76a914a13afb81d54c9f8bb0c5e082d56fd563ab9" +
-			"b359688ac03808efefade57001aba76a914a13afb81d54c9f8bb0c5e082d56fd563ab9" +
+			"b359688ac0003808efefade57001aba76a914a13afb81d54c9f8bb0c5e082d56fd563ab9" +
 			"b359688ac0000206a1e9ac39159847e259c9162405b5f6c8135d2c7eaf1a3750400010" +
 			"00000005800001abd76a914000000000000000000000000000000000000000088ac010" +
-			"000b3c2069c496bc13228c154b03993809f278233d1"),
+			"000b3c2069c496bc13228c154b03993809f278233d100"),
 	}}
 
 	for _, test := range tests {
