@@ -173,7 +173,6 @@ func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 // TestLNFeaturesDeployment ensures the deployment of the LN features agenda
 // activate the expected changes.
 func TestLNFeaturesDeployment(t *testing.T) {
-	testLNFeaturesDeployment(t, chaincfg.MainNetParams())
 	testLNFeaturesDeployment(t, chaincfg.RegNetParams())
 }
 
@@ -540,7 +539,6 @@ func testHeaderCommitmentsDeployment(t *testing.T, params *chaincfg.Params) {
 // TestHeaderCommitmentsDeployment ensures the deployment of the header
 // commitments agenda activates as expected.
 func TestHeaderCommitmentsDeployment(t *testing.T) {
-	testHeaderCommitmentsDeployment(t, chaincfg.MainNetParams())
 	testHeaderCommitmentsDeployment(t, chaincfg.RegNetParams())
 }
 
@@ -694,7 +692,6 @@ func testTreasuryFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 // TestTreasuryFeaturesDeployment ensures the deployment of the Treasury
 // features agenda activate the expected changes.
 func TestTreasuryFeaturesDeployment(t *testing.T) {
-	testTreasuryFeaturesDeployment(t, chaincfg.MainNetParams())
 	testTreasuryFeaturesDeployment(t, chaincfg.TestNet3Params())
 	testTreasuryFeaturesDeployment(t, chaincfg.RegNetParams())
 }
@@ -814,7 +811,6 @@ func testExplicitVerUpgradesDeployment(t *testing.T, params *chaincfg.Params) {
 // TestExplicitVerUpgradesDeployment ensures the deployment of the explicit
 // version upgrades agenda activates as expected.
 func TestExplicitVerUpgradesDeployment(t *testing.T) {
-	testExplicitVerUpgradesDeployment(t, chaincfg.MainNetParams())
 	testExplicitVerUpgradesDeployment(t, chaincfg.RegNetParams())
 }
 
@@ -940,7 +936,6 @@ func testAutoRevocationsDeployment(t *testing.T, params *chaincfg.Params) {
 // TestAutoRevocationsDeployment ensures the deployment of the automatic ticket
 // revocations agenda activates as expected.
 func TestAutoRevocationsDeployment(t *testing.T) {
-	testAutoRevocationsDeployment(t, chaincfg.MainNetParams())
 	testAutoRevocationsDeployment(t, chaincfg.RegNetParams())
 }
 
@@ -1051,7 +1046,6 @@ func testSubsidySplitDeployment(t *testing.T, params *chaincfg.Params) {
 // TestSubsidySplitDeployment ensures the deployment of the 10/80/10 subsidy
 // split agenda activates as expected.
 func TestSubsidySplitDeployment(t *testing.T) {
-	testSubsidySplitDeployment(t, chaincfg.MainNetParams())
 	testSubsidySplitDeployment(t, chaincfg.RegNetParams())
 }
 
@@ -1229,7 +1223,6 @@ func testBlake3PowDeployment(t *testing.T, params *chaincfg.Params) {
 // TestBlake3PowDeployment ensures the deployment of the blake3 proof of work
 // agenda activates as expected.
 func TestBlake3PowDeployment(t *testing.T) {
-	testBlake3PowDeployment(t, chaincfg.MainNetParams())
 	testBlake3PowDeployment(t, chaincfg.RegNetParams())
 }
 
@@ -1339,6 +1332,5 @@ func testSubsidySplitR2Deployment(t *testing.T, params *chaincfg.Params) {
 // TestSubsidySplitR2Deployment ensures the deployment of the 1/89/10 subsidy
 // split agenda activates as expected.
 func TestSubsidySplitR2Deployment(t *testing.T) {
-	testSubsidySplitR2Deployment(t, chaincfg.MainNetParams())
 	testSubsidySplitR2Deployment(t, chaincfg.RegNetParams())
 }

@@ -370,8 +370,8 @@ func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.
 			if !stake.IsSSGen(v) {
 				continue
 			}
-			if len(v.TxOut) != 3 {
-				t.Fatalf("expected SSGEN.TxOut len 3 got %v", len(v.TxOut))
+			if len(v.TxOut) != 4 {
+				t.Fatalf("expected SSGEN.TxOut len 4 got %v", len(v.TxOut))
 			}
 
 			// Only allow provided number of votes.
@@ -2731,8 +2731,8 @@ func TestTreasuryBalance(t *testing.T) {
 			if !stake.IsSSGen(v) {
 				continue
 			}
-			if len(v.TxOut) != 3 {
-				t.Fatalf("expected SSGEN.TxOut len 3 got %v",
+			if len(v.TxOut) != 4 {
+				t.Fatalf("expected SSGEN.TxOut len 4 got %v",
 					len(v.TxOut))
 			}
 

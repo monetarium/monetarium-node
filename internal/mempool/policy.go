@@ -374,6 +374,12 @@ func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
 			continue
 		}
 
+		// Votes have a stakebase input (input 0) with a special signature
+		// script defined in chain params. Skip standardness checks for it.
+		if txType == stake.TxTypeSSGen && i == 0 {
+			continue
+		}
+
 		// Each transaction input signature script must not exceed the
 		// maximum size allowed for a standard transaction.  See
 		// the comment on maxStandardSigScriptSize for more details.

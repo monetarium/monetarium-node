@@ -124,6 +124,10 @@ const (
 	// pushes in an SSGen tx.
 	ErrSSGenBadGenOuts = ErrorKind("ErrSSGenBadGenOuts")
 
+	// ErrSSGenMissingConsolidation indicates that a vote transaction is
+	// missing the required consolidation address output.
+	ErrSSGenMissingConsolidation = ErrorKind("ErrSSGenMissingConsolidation")
+
 	// ErrSSRtxWrongNumInputs indicates that a given SSRtx contains an
 	// invalid number of inputs.
 	ErrSSRtxWrongNumInputs = ErrorKind("ErrSSRtxWrongNumInputs")

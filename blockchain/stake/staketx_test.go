@@ -703,59 +703,63 @@ func TestSSGenErrors(t *testing.T) {
 	// Treasury enabled
 
 	// Verify optional OP_RETURN with no discriminator.
+	// After consolidation requirement, this now fails with missing consolidation error.
 	var ssgenNoDiscriminator = dcrutil.NewTx(ssgenMsgTxNoDiscriminator)
 	ssgenNoDiscriminator.SetVersion(wire.TxVersionTreasury)
 	ssgenNoDiscriminator.SetTree(wire.TxTreeStake)
 	ssgenNoDiscriminator.SetIndex(0)
 
 	err = CheckSSGen(ssgenNoDiscriminator.MsgTx())
-	if !errors.Is(err, ErrSSGenInvalidDiscriminatorLength) {
+	if !errors.Is(err, ErrSSGenMissingConsolidation) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			ErrSSGenInvalidDiscriminatorLength, err)
+			ErrSSGenMissingConsolidation, err)
 	}
 	if IsSSGen(ssgenNoDiscriminator.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
 	// Verify optional OP_RETURN with an invalid discriminator length.
+	// After consolidation requirement, this now fails with missing consolidation error.
 	var ssgenInvalidDiscriminator = dcrutil.NewTx(ssgenMsgTxInvalidDiscriminator)
 	ssgenInvalidDiscriminator.SetVersion(wire.TxVersionTreasury)
 	ssgenInvalidDiscriminator.SetTree(wire.TxTreeStake)
 	ssgenInvalidDiscriminator.SetIndex(0)
 
 	err = CheckSSGen(ssgenInvalidDiscriminator.MsgTx())
-	if !errors.Is(err, ErrSSGenInvalidDiscriminatorLength) {
+	if !errors.Is(err, ErrSSGenMissingConsolidation) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			ErrSSGenInvalidDiscriminatorLength, err)
+			ErrSSGenMissingConsolidation, err)
 	}
 	if IsSSGen(ssgenInvalidDiscriminator.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
 	// Verify optional OP_RETURN with an unknown discriminator.
+	// After consolidation requirement, this now fails with missing consolidation error.
 	var ssgenInvalidDiscriminator2 = dcrutil.NewTx(ssgenMsgTxUnknownDiscriminator)
 	ssgenInvalidDiscriminator2.SetVersion(wire.TxVersionTreasury)
 	ssgenInvalidDiscriminator2.SetTree(wire.TxTreeStake)
 	ssgenInvalidDiscriminator2.SetIndex(0)
 
 	err = CheckSSGen(ssgenInvalidDiscriminator2.MsgTx())
-	if !errors.Is(err, ErrSSGenUnknownDiscriminator) {
+	if !errors.Is(err, ErrSSGenMissingConsolidation) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			ErrSSGenUnknownDiscriminator, err)
+			ErrSSGenMissingConsolidation, err)
 	}
 	if IsSSGen(ssgenInvalidDiscriminator2.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
 	// Verify optional OP_RETURN with an invalid OP_PUSHDATA1.
+	// After consolidation requirement, this now fails with missing consolidation error.
 	var ssgenInvalidDiscriminator3 = dcrutil.NewTx(ssgenMsgTxUnknownDiscriminator2)
 	ssgenInvalidDiscriminator3.SetTree(wire.TxTreeStake)
 	ssgenInvalidDiscriminator3.SetIndex(0)
 
 	err = CheckSSGen(ssgenInvalidDiscriminator3.MsgTx())
-	if !errors.Is(err, ErrSSGenBadGenOuts) {
+	if !errors.Is(err, ErrSSGenMissingConsolidation) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			ErrSSGenBadGenOuts, err)
+			ErrSSGenMissingConsolidation, err)
 	}
 	if IsSSGen(ssgenInvalidDiscriminator3.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
@@ -2202,6 +2206,7 @@ var ssgenMsgTx = &wire.MsgTx{
 		&ssgenTxOut1,
 		&ssgenTxOut2,
 		&ssgenTxOut3,
+		buildConsolidationOutput(),
 	},
 	LockTime: 0,
 	Expiry:   0,
@@ -2220,6 +2225,7 @@ var ssgenMsgTxExtraInput = &wire.MsgTx{
 		&ssgenTxOut0,
 		&ssgenTxOut1,
 		&ssgenTxOut2,
+		buildConsolidationOutput(),
 	},
 	LockTime: 0,
 	Expiry:   0,
@@ -2252,6 +2258,7 @@ var ssgenMsgTxExtraOutputs = &wire.MsgTx{
 		&ssgenTxOut2, &ssgenTxOut2, &ssgenTxOut2, &ssgenTxOut2, &ssgenTxOut2,
 		&ssgenTxOut2, &ssgenTxOut2, &ssgenTxOut2, &ssgenTxOut2, &ssgenTxOut2,
 		&ssgenTxOut2, &ssgenTxOut2, &ssgenTxOut2, &ssgenTxOut2, &ssgenTxOut2,
+		buildConsolidationOutput(),
 	},
 	LockTime: 0,
 	Expiry:   0,
@@ -2270,6 +2277,7 @@ var ssgenMsgTxStakeBaseWrong = &wire.MsgTx{
 		&ssgenTxOut0,
 		&ssgenTxOut1,
 		&ssgenTxOut2,
+		buildConsolidationOutput(),
 	},
 	LockTime: 0,
 	Expiry:   0,
@@ -2289,6 +2297,7 @@ var ssgenMsgTxBadVerOut = &wire.MsgTx{
 		&ssgenTxOut1,
 		&ssgenTxOut2,
 		&ssgenTxOut3BadVer,
+		buildConsolidationOutput(),
 	},
 	LockTime: 0,
 	Expiry:   0,
@@ -2307,6 +2316,7 @@ var ssgenMsgTxWrongZeroethOut = &wire.MsgTx{
 		&ssgenTxOut2,
 		&ssgenTxOut1,
 		&ssgenTxOut0,
+		buildConsolidationOutput(),
 	},
 	LockTime: 0,
 	Expiry:   0,
@@ -2325,13 +2335,14 @@ var ssgenMsgTxWrongFirstOut = &wire.MsgTx{
 		&ssgenTxOut0,
 		&ssgenTxOut2,
 		&ssgenTxOut1,
+		buildConsolidationOutput(),
 	},
 	LockTime: 0,
 	Expiry:   0,
 }
 
 // ssgenMsgTxNoDiscriminator is a valid SSGen MsgTx with inputs/outputs and an
-// invalid OP_RETURN that has no discriminator.
+// invalid OP_RETURN that has no discriminator (no consolidation - testing error case).
 var ssgenMsgTxNoDiscriminator = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -2351,7 +2362,7 @@ var ssgenMsgTxNoDiscriminator = &wire.MsgTx{
 }
 
 // ssgenMsgTxInvalidDiscriminator is a valid SSGen MsgTx with inputs/outputs
-// and an invalid OP_RETURN that has an invalid discriminator.
+// and an invalid OP_RETURN that has an invalid discriminator (no consolidation - testing error case).
 var ssgenMsgTxInvalidDiscriminator = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -2371,7 +2382,7 @@ var ssgenMsgTxInvalidDiscriminator = &wire.MsgTx{
 }
 
 // ssgenMsgTxUnknownDiscriminator is a valid SSGen MsgTx with inputs/outputs
-// and an invalid OP_RETURN that has an unknown discriminator.
+// and an invalid OP_RETURN that has an unknown discriminator (no consolidation - testing error case).
 var ssgenMsgTxUnknownDiscriminator = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -2391,7 +2402,7 @@ var ssgenMsgTxUnknownDiscriminator = &wire.MsgTx{
 }
 
 // ssgenMsgTxUnknownDiscriminator2 is a valid SSGen MsgTx with inputs/outputs
-// and an invalid OP_RETURN that is missing a byte at the end.
+// and an invalid OP_RETURN that is missing a byte at the end (no consolidation - testing error case).
 var ssgenMsgTxUnknownDiscriminator2 = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -2424,6 +2435,7 @@ var ssgenMsgTxInvalidTV = &wire.MsgTx{
 		&ssgenTxOut1,
 		&ssgenTxOut2,
 		&ssgenTxOut3,
+		buildConsolidationOutput(),
 		&ssgenTxOutInvalidTV,
 	},
 	LockTime: 0,
@@ -2444,6 +2456,7 @@ var ssgenMsgTxInvalidTV2 = &wire.MsgTx{
 		&ssgenTxOut1,
 		&ssgenTxOut2,
 		&ssgenTxOut3,
+		buildConsolidationOutput(),
 		&ssgenTxOutInvalidTV2,
 	},
 	LockTime: 0,
@@ -2464,6 +2477,7 @@ var ssgenMsgTxInvalidTV3 = &wire.MsgTx{
 		&ssgenTxOut1,
 		&ssgenTxOut2,
 		&ssgenTxOut3,
+		buildConsolidationOutput(),
 		&ssgenTxOutInvalidTV3,
 	},
 	LockTime: 0,
@@ -2484,6 +2498,7 @@ var ssgenMsgTxInvalidTV4 = &wire.MsgTx{
 		&ssgenTxOut1,
 		&ssgenTxOut2,
 		&ssgenTxOut3,
+		buildConsolidationOutput(),
 		&ssgenTxOutInvalidTV4,
 	},
 	LockTime: 0,
@@ -2504,6 +2519,7 @@ var ssgenMsgTxInvalidTV5 = &wire.MsgTx{
 		&ssgenTxOut1,
 		&ssgenTxOut2,
 		&ssgenTxOut3,
+		buildConsolidationOutput(),
 		&ssgenTxOutInvalidTV5,
 	},
 	LockTime: 0,
@@ -2524,6 +2540,7 @@ var ssgenMsgTxInvalidTVote = &wire.MsgTx{
 		&ssgenTxOut1,
 		&ssgenTxOut2,
 		&ssgenTxOut3,
+		buildConsolidationOutput(),
 		&ssgenTxOutInvalidTVote,
 	},
 	LockTime: 0,
@@ -2544,6 +2561,7 @@ var ssgenMsgTxInvalidTVote2 = &wire.MsgTx{
 		&ssgenTxOut1,
 		&ssgenTxOut2,
 		&ssgenTxOut3,
+		buildConsolidationOutput(),
 		&ssgenTxOutInvalidTVote2,
 	},
 	LockTime: 0,
@@ -2564,6 +2582,7 @@ var ssgenMsgTxInvalidTVote3 = &wire.MsgTx{
 		&ssgenTxOut1,
 		&ssgenTxOut2,
 		&ssgenTxOut3,
+		buildConsolidationOutput(),
 		&ssgenTxOutInvalidTVote3,
 	},
 	LockTime: 0,
@@ -2584,6 +2603,7 @@ var ssgenMsgTxValid = &wire.MsgTx{
 		&ssgenTxOut1,
 		&ssgenTxOut2,
 		&ssgenTxOut3,
+		buildConsolidationOutput(),
 		&ssgenTxOutValidTV,
 	},
 	LockTime: 0,

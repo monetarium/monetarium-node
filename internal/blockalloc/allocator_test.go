@@ -503,8 +503,8 @@ func TestExactBoundaryConditions(t *testing.T) {
 		allocator := NewBlockSpaceAllocator(375000, params)
 
 		pendingTxBytes := map[cointype.CoinType]uint32{
-			cointype.CoinTypeVAR: 37501,      // Base + 1 byte
-			cointype.CoinType(1): 100000,     // SKA-1 has demand
+			cointype.CoinTypeVAR: 37501,  // Base + 1 byte
+			cointype.CoinType(1): 100000, // SKA-1 has demand
 		}
 
 		result := allocator.AllocateBlockSpace(pendingTxBytes)

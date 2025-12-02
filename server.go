@@ -615,6 +615,7 @@ type server struct {
 	indexSubscriber *indexers.IndexSubscriber
 	txIndex         *indexers.TxIndex
 	existsAddrIndex *indexers.ExistsAddrIndex
+	ssfeeIndex      *indexers.SSFeeIndex
 
 	// These following fields are used to filter duplicate block lottery data
 	// anouncements.
@@ -3989,6 +3990,16 @@ func newServer(ctx context.Context, profiler *profileServer,
 			return nil, err
 		}
 	}
+
+	// SSFee index is always enabled to support UTXO consolidation.
+	// This index tracks SSFee outputs by (coinType, address) for efficient
+	// UTXO lookup during block template generation.
+	indxLog.Info("SSFee UTXO index is enabled")
+	s.ssfeeIndex, err = indexers.NewSSFeeIndex(s.indexSubscriber, db, queryer)
+	if err != nil {
+		return nil, err
+	}
+
 	err = s.indexSubscriber.CatchUp(ctx, s.db, queryer)
 	if err != nil {
 		return nil, err
@@ -4125,6 +4136,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 			SubsidyCache:               s.subsidyCache,
 			ChainParams:                s.chainParams,
 			FeeCalculator:              s.feeCalculator, // Use shared fee calculator
+			SSFeeIndex:                 s.ssfeeIndex,    // Enable SSFee UTXO augmentation
 			MiningTimeOffset:           cfg.MiningTimeOffset,
 			BestSnapshot:               s.chain.BestSnapshot,
 			BlockByHash:                s.chain.BlockByHash,

@@ -680,6 +680,14 @@ func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx) ([]spen
 			numStxos++
 			continue
 		}
+		// Only skip null-input SSFee (creates new UTXO from scratch).
+		// Augmented SSFee (real input) spends a previous SSFee output.
+		if stake.IsSSFee(tx) {
+			if len(tx.TxIn) > 0 && tx.TxIn[0].PreviousOutPoint.Index == wire.MaxPrevOutIndex {
+				continue // Null-input SSFee - no inputs to count
+			}
+			// Augmented SSFee - fall through to count its input
+		}
 		numStxos += len(tx.TxIn)
 	}
 
@@ -705,6 +713,15 @@ func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx) ([]spen
 	for txIdx := len(txns) - 1; txIdx > -1; txIdx-- {
 		tx := txns[txIdx]
 		isVote := stake.IsSSGen(tx)
+
+		// Only skip null-input SSFee (creates new UTXO from scratch).
+		// Augmented SSFee (real input) spends a previous SSFee output.
+		if stake.IsSSFee(tx) {
+			if len(tx.TxIn) > 0 && tx.TxIn[0].PreviousOutPoint.Index == wire.MaxPrevOutIndex {
+				continue // Null-input SSFee - no inputs to deserialize
+			}
+			// Augmented SSFee - fall through to deserialize its input
+		}
 
 		// Loop backwards through all of the transaction inputs and read
 		// the associated stxo.
@@ -780,15 +797,31 @@ func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block, isTreasury
 	blockTxns := make([]*wire.MsgTx, 0, len(msgBlock.STransactions)+
 		len(msgBlock.Transactions[1:]))
 	if len(msgBlock.STransactions) > 0 && isTreasuryEnabled {
-		// Skip treasury base and remove tspends.
+		// Skip treasury base and tspends.
+		// Only skip null-input SSFee; augmented SSFee spends real inputs.
 		for _, v := range msgBlock.STransactions[1:] {
 			if stake.IsTSpend(v) {
 				continue
 			}
+			if stake.IsSSFee(v) {
+				if len(v.TxIn) > 0 && v.TxIn[0].PreviousOutPoint.Index == wire.MaxPrevOutIndex {
+					continue // Null-input SSFee - no inputs
+				}
+				// Augmented SSFee - include it
+			}
 			blockTxns = append(blockTxns, v)
 		}
 	} else {
-		blockTxns = append(blockTxns, msgBlock.STransactions...)
+		// Only skip null-input SSFee; augmented SSFee spends real inputs.
+		for _, v := range msgBlock.STransactions {
+			if stake.IsSSFee(v) {
+				if len(v.TxIn) > 0 && v.TxIn[0].PreviousOutPoint.Index == wire.MaxPrevOutIndex {
+					continue // Null-input SSFee - no inputs
+				}
+				// Augmented SSFee - include it
+			}
+			blockTxns = append(blockTxns, v)
+		}
 	}
 	blockTxns = append(blockTxns, msgBlock.Transactions[1:]...)
 	if len(blockTxns) > 0 && len(serialized) == 0 {

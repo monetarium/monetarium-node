@@ -282,6 +282,12 @@ func newFakeCreateVoteTx(tspendVotes []treasuryVoteTuple) *wire.MsgTx {
 	tx.AddTxOut(wire.NewTxOut(int64(voteSubsidy+ticketPrice),
 		stakeGenScript[:]))
 
+	// Add required consolidation address output (SSFee Phase 3).
+	// Format: OP_RETURN + OP_DATA_22 + "SC" + hash160(20 bytes)
+	dummyHash160 := make([]byte, 20) // Use zero hash160 for tests
+	consolidationOutput, _ := stake.CreateSSFeeConsolidationOutput(dummyHash160)
+	tx.AddTxOut(consolidationOutput)
+
 	// Append tspend votes if set.
 	if tspendVotes != nil {
 		tx.Version = wire.TxVersionTreasury
@@ -735,8 +741,17 @@ func (g *chaingenHarness) AcceptBlockData(blockName string) {
 
 	msgBlock := g.BlockByName(blockName)
 	blockHeight := msgBlock.Header.Height
-	block := dcrutil.NewBlock(msgBlock)
+
+	// Use deep copy to prevent script pool corruption when blocks created by
+	// chaingen are later deserialized from database.  Chaingen creates
+	// transactions with regular allocations, but deserialization returns
+	// scripts to the pool, which can cause the original block's scripts
+	// (including coinbase SignatureScript) to be corrupted when those buffers
+	// get reused.  We need to deep copy ALL transactions, not just coinbase,
+	// because SSFee transactions in the stake tree also get deserialized.
+	block := dcrutil.NewBlockDeepCopy(msgBlock)
 	blockHash := block.Hash()
+
 	g.t.Logf("Testing block %q (hash %s, height %d)", blockName, blockHash,
 		blockHeight)
 
@@ -764,8 +779,20 @@ func (g *chaingenHarness) AcceptBlock(blockName string) {
 	g.t.Helper()
 
 	msgBlock := g.BlockByName(blockName)
+	if msgBlock == nil {
+		g.t.Fatalf("BlockByName returned nil for %s!", blockName)
+	}
 	blockHeight := msgBlock.Header.Height
-	block := dcrutil.NewBlock(msgBlock)
+
+	// Use deep copy to prevent script pool corruption when blocks created by
+	// chaingen are later deserialized from database.  Chaingen creates
+	// transactions with regular allocations, but deserialization returns
+	// scripts to the pool, which can cause the original block's scripts
+	// (including coinbase SignatureScript) to be corrupted when those buffers
+	// get reused.  We need to deep copy ALL transactions, not just coinbase,
+	// because SSFee transactions in the stake tree also get deserialized.
+	block := dcrutil.NewBlockDeepCopy(msgBlock)
+
 	g.t.Logf("Testing block %q (hash %s, height %d)", blockName, block.Hash(),
 		blockHeight)
 

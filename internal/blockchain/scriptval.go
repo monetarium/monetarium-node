@@ -254,12 +254,17 @@ func checkBlockScripts(block *dcrutil.Block, utxoView *UtxoViewpoint, txTree boo
 			continue
 		}
 
-		// Skip SSFee transactions which have null inputs and are validated
-		// separately through validateSSFeeTxns for proper fee distribution.
-		// SSFee transactions distribute non-VAR fees and don't require
-		// script validation since they have no real inputs to validate.
+		// Skip null-input SSFee transactions which are validated separately
+		// through validateSSFeeTxns for proper fee distribution.
+		// Augmented SSFee transactions (with real UTXO inputs) need normal
+		// script validation for their inputs.
 		if !txTree && stake.DetermineTxType(msgTx) == stake.TxTypeSSFee {
-			continue
+			// Check if this is a null-input SSFee (can skip) or augmented (need validation)
+			if len(msgTx.TxIn) > 0 && msgTx.TxIn[0].PreviousOutPoint.Index == wire.MaxPrevOutIndex {
+				// Null input SSFee - skip script validation
+				continue
+			}
+			// Augmented SSFee with real input - will be validated below
 		}
 
 		// Skip SKA emission transactions which have null inputs and are

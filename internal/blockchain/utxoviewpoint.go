@@ -269,13 +269,18 @@ func (view *UtxoViewpoint) connectStakeTransaction(tx *dcrutil.Tx,
 		return nil
 	}
 
-	// SSFee transactions don't have any inputs to spend (they have a null input like coinbase).
-	// They distribute fees to stakers and should only add their outputs to the UTXO set.
+	// For SSFee, only skip null-input SSFee (creates new UTXO from scratch).
+	// Augmented SSFee (real input) spends a previous SSFee output and must be processed.
 	isSSFee := stake.DetermineTxType(msgTx) == stake.TxTypeSSFee
 	if isSSFee {
-		// Add the transaction's outputs as available utxos.
-		view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled)
-		return nil
+		isNullInput := len(msgTx.TxIn) > 0 &&
+			msgTx.TxIn[0].PreviousOutPoint.Index == wire.MaxPrevOutIndex
+		if isNullInput {
+			// Null-input SSFee - just add outputs, no inputs to spend
+			view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled)
+			return nil
+		}
+		// Augmented SSFee - fall through to spend its input normally
 	}
 
 	// Spend the referenced utxos by marking them spent in the view and, if a
@@ -553,12 +558,16 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 		}
 
 		// Loop backwards through all of the transaction inputs (except for the
-		// coinbase, treasurybase, and treasury spends which have no inputs) and
-		// unspend the referenced txos.  This is necessary to match the order of
-		// the spent txout entries.
-		if isCoinBase || isTreasuryBase || isTreasurySpend {
+		// coinbase, treasurybase, treasury spends, and null-input SSFee which have no inputs)
+		// and unspend the referenced txos.  This is necessary to match the order
+		// of the spent txout entries.
+		isSSFee := txType == stake.TxTypeSSFee
+		isNullInputSSFee := isSSFee && len(msgTx.TxIn) > 0 &&
+			msgTx.TxIn[0].PreviousOutPoint.Index == wire.MaxPrevOutIndex
+		if isCoinBase || isTreasuryBase || isTreasurySpend || isNullInputSSFee {
 			continue
 		}
+		// Augmented SSFee (real input) continues to unspend its inputs
 		for txInIdx := len(msgTx.TxIn) - 1; txInIdx > -1; txInIdx-- {
 			// Ignore stakebase since it has no input.
 			if isVote && txInIdx == 0 {

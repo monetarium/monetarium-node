@@ -688,11 +688,20 @@ func TestSpendJournalSerialization(t *testing.T) {
 				Version: 0,
 				PkScript: hexToBytes("bb76a9149ac39159847e259c9162405b5f6c8135d2c7eaf" +
 					"188ac"),
+			}, {
+				// Consolidation address output (required for SSFee)
+				// Format: OP_RETURN + OP_DATA_22 + "SC" + hash160(20 bytes)
+				Value:    0,
+				Version:  0,
+				PkScript: hexToBytes("6a16" + "5343" + "9ac39159847e259c9162405b5f6c8135d2c7eaf1"),
 			}},
 			LockTime: 0,
 			Expiry:   0,
 		}},
 		// Serialization includes coinType byte (0x00 for VAR) after each compressed output
+		// Format (reverse order: stxo[1] then stxo[0]):
+		//   stxo[1]: flags + scriptVersion + pkScript + coinType(00) + ticketMinOuts
+		//   stxo[0]: flags + scriptVersion + pkScript + coinType(00)
 		serialized: hexToBytes("06005aba76a914a13afb81d54c9f8bb0c5e082d56fd563ab9" +
 			"b359688ac0003808efefade57001aba76a914a13afb81d54c9f8bb0c5e082d56fd563ab9" +
 			"b359688ac0000206a1e9ac39159847e259c9162405b5f6c8135d2c7eaf1a3750400010" +

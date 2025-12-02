@@ -128,17 +128,10 @@ func IsCoinBaseTx(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
 
 	// Avoid detecting SSFee transactions as coinbase.
 	// SSFee transactions have an OP_RETURN output with "SF" or "MF" marker bytes.
-	// Format: OP_RETURN + OP_DATA_6 + "SF"/"MF" + height(4 bytes)
 	if tx.Version >= 3 && len(tx.TxOut) >= 2 && len(tx.TxIn[0].SignatureScript) == 0 {
 		// Check for SSFee marker in any OP_RETURN output
 		for _, out := range tx.TxOut {
-			script := out.PkScript
-			// SSFee OP_RETURN: OP_RETURN(0x6a) + OP_DATA_6(0x06) + "SF"(0x53 0x46) or "MF"(0x4D 0x46) + height(4 bytes)
-			if len(script) >= 8 &&
-				script[0] == opReturn && // 0x6a
-				script[1] == 0x06 && // OP_DATA_6
-				((script[2] == 0x53 && script[3] == 0x46) || // "SF" - Stake Fee
-					(script[2] == 0x4D && script[3] == 0x46)) { // "MF" - Miner Fee
+			if IsSSFeeMarkerScript(out.PkScript) {
 				return false // This is SSFee, not coinbase
 			}
 		}

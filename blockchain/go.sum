@@ -26,8 +26,6 @@ github.com/decred/dcrd/dcrutil/v4 v4.0.2 h1:eIl3E6gGln54qE8nk5o5lLtjh2/9C2Rz63Op
 github.com/decred/dcrd/dcrutil/v4 v4.0.2/go.mod h1:iS3JB1ac3R3FgfpTF1kBD+SPNet8TmiW3Br+/Jc5MC8=
 github.com/decred/dcrd/txscript/v4 v4.1.1 h1:R4M2+jMujgQA91899SkL0cW66d6DC76Gx+1W1oEHjc0=
 github.com/decred/dcrd/txscript/v4 v4.1.1/go.mod h1:7ybmJoI+b6dxvQ+0aXdZpkyrj0PbnylJCzFxD1g8+/A=
-github.com/decred/dcrd/wire v1.7.0 h1:5JHiDjEQeS4XUl4PfnTZYLwAD/E/+LwBmPRec/fP76o=
-github.com/decred/dcrd/wire v1.7.0/go.mod h1:lAqrzV0SU4kyV6INLEJgDtUjJaTaVKrbF4LHtaYl+zU=
 github.com/decred/slog v1.2.0 h1:soHAxV52B54Di3WtKLfPum9OFfWqwtf/ygf9njdfnPM=
 github.com/decred/slog v1.2.0/go.mod h1:kVXlGnt6DHy2fV5OjSeuvCJ0OmlmTF6LFpEPMu/fOY0=
 github.com/golang/snappy v0.0.4 h1:yAGX7huGHXlcLOEtBnF4w7FQwA26wojNCwOYAEhLjQM=

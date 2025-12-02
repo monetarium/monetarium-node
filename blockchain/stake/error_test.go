@@ -44,6 +44,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrSSGenInvalidTxVersion, "ErrSSGenInvalidTxVersion"},
 		{ErrSSGenUnknownDiscriminator, "ErrSSGenUnknownDiscriminator"},
 		{ErrSSGenBadGenOuts, "ErrSSGenBadGenOuts"},
+		{ErrSSGenMissingConsolidation, "ErrSSGenMissingConsolidation"},
 		{ErrSSRtxWrongNumInputs, "ErrSSRtxWrongNumInputs"},
 		{ErrSSRtxTooManyOutputs, "ErrSSRtxTooManyOutputs"},
 		{ErrSSRtxNoOutputs, "ErrSSRtxNoOutputs"},

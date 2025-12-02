@@ -119,9 +119,10 @@ func TestCreateMinerSSFeeTx(t *testing.T) {
 			height:       1000,
 			expectError:  false,
 			validateTx: func(t *testing.T, tx *wire.MsgTx) {
-				// First output should use OP_TRUE script (anyone-can-spend)
-				if len(tx.TxOut[0].PkScript) != 1 || tx.TxOut[0].PkScript[0] != 0x51 {
-					t.Error("Expected OP_TRUE script for nil address")
+				// First output should use OP_SSGEN + OP_TRUE script (anyone-can-spend)
+				// OP_SSGEN (0xbb) + OP_TRUE (0x51)
+				if len(tx.TxOut[0].PkScript) != 2 || tx.TxOut[0].PkScript[0] != 0xbb || tx.TxOut[0].PkScript[1] != 0x51 {
+					t.Errorf("Expected OP_SSGEN + OP_TRUE script for nil address, got %x", tx.TxOut[0].PkScript)
 				}
 			},
 		},
@@ -129,8 +130,9 @@ func TestCreateMinerSSFeeTx(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			// Pass nil utxoView to test without UTXO augmentation
 			minerSSFeeTx, err := createMinerSSFeeTx(test.coinType, test.totalFee,
-				test.minerAddress, test.height)
+				test.minerAddress, test.height, nil)
 
 			if test.expectError {
 				if err == nil {
@@ -173,7 +175,8 @@ func TestMinerSSFeeOpReturn(t *testing.T) {
 	}
 
 	height := int64(12345)
-	minerSSFeeTx, err := createMinerSSFeeTx(cointype.CoinType(1), 100000, mockAddr, height)
+	// Pass nil utxoView to test without UTXO augmentation
+	minerSSFeeTx, err := createMinerSSFeeTx(cointype.CoinType(1), 100000, mockAddr, height, nil)
 	if err != nil {
 		t.Fatalf("Failed to create miner SSFee tx: %v", err)
 	}
@@ -237,7 +240,8 @@ func TestMinerSSFeeDistribution(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		minerSSFeeTx, err := createMinerSSFeeTx(tc.coinType, tc.feeAmount, minerAddr, 1000)
+		// Pass nil utxoView to test without UTXO augmentation
+		minerSSFeeTx, err := createMinerSSFeeTx(tc.coinType, tc.feeAmount, minerAddr, 1000, nil)
 		if err != nil {
 			t.Errorf("Failed to create miner SSFee for coin type %d: %v", tc.coinType, err)
 			continue

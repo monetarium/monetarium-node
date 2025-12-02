@@ -1271,6 +1271,15 @@ func (m *miningHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.Msg
 		vote.AddTxOut(wire.NewTxOut(voteRewardValues[i], script))
 	}
 
+	// Add consolidation address output (REQUIRED as of Phase 3)
+	// Use first commitment address hash160 as consolidation address for test consistency
+	consolidationHash160 := ticketHash160s[0]
+	consolidationOut, err := stake.CreateSSFeeConsolidationOutput(consolidationHash160)
+	if err != nil {
+		return nil, err
+	}
+	vote.AddTxOut(consolidationOut)
+
 	// Perform any transaction munging just before signing.
 	for _, f := range mungers {
 		f(vote)

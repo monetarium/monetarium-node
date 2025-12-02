@@ -20,6 +20,7 @@ import (
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/cointype"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
@@ -403,6 +404,7 @@ func (p *poolHarness) determineSubsidySplitVariant() standalone.SubsidySplitVari
 func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
 	return &wire.TxOut{
 		Value:    amount,
+		CoinType: cointype.CoinTypeVAR,
 		Version:  pkScriptVer,
 		PkScript: pkScript,
 	}
@@ -681,6 +683,15 @@ func (p *poolHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.MsgTx
 		vote.AddTxOut(newTxOut(voteRewardValues[i], scriptVer, script))
 	}
 
+	// Add consolidation address output (required for SSFee distribution)
+	// Use the payment script's hash160 for the consolidation address
+	hash160 := stdaddr.Hash160(p.payScript)
+	consolidationOut, err := stake.CreateSSFeeConsolidationOutput(hash160)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create consolidation output: %w", err)
+	}
+	vote.AddTxOut(consolidationOut)
+
 	// Perform any transaction munging just before signing.
 	for _, f := range mungers {
 		f(vote)
@@ -943,7 +954,7 @@ func testPoolMembership(tc *testContext, tx *dcrutil.Tx, inOrphanPool, inTxPool 
 func TestSimpleOrphanChain(t *testing.T) {
 	t.Parallel()
 
-	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -1006,7 +1017,7 @@ func TestSimpleOrphanChain(t *testing.T) {
 func TestTicketPurchaseOrphan(t *testing.T) {
 	t.Parallel()
 
-	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -1081,7 +1092,7 @@ func TestTicketPurchaseOrphan(t *testing.T) {
 func TestVoteOrphan(t *testing.T) {
 	t.Parallel()
 
-	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -1111,7 +1122,7 @@ func TestVoteOrphan(t *testing.T) {
 	// Ensure the vote is rejected because it is an orphan.
 	_, err = harness.txPool.ProcessTransaction(vote, false, true, 0)
 	if !errors.Is(err, ErrOrphan) {
-		t.Fatalf("Process Transaction: did not get expected ErrOrphan")
+		t.Fatalf("Process Transaction: did not get expected ErrOrphan, got: %v", err)
 	}
 	testPoolMembership(tc, vote, false, false)
 
@@ -1152,7 +1163,7 @@ func TestVoteOrphan(t *testing.T) {
 func TestRevocationOrphan(t *testing.T) {
 	t.Parallel()
 
-	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -1224,7 +1235,7 @@ func TestRevocationOrphan(t *testing.T) {
 func TestOrphanReject(t *testing.T) {
 	t.Parallel()
 
-	harness, outputs, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, outputs, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -1270,7 +1281,7 @@ func TestOrphanReject(t *testing.T) {
 func TestOrphanEviction(t *testing.T) {
 	t.Parallel()
 
-	harness, outputs, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, outputs, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -1331,7 +1342,7 @@ func TestOrphanEviction(t *testing.T) {
 // TestExpirationPruning ensures that transactions that expire without being
 // mined are removed.
 func TestExpirationPruning(t *testing.T) {
-	harness, outputs, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, outputs, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -1415,7 +1426,7 @@ func TestBasicOrphanRemoval(t *testing.T) {
 	t.Parallel()
 
 	const maxOrphans = 4
-	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -1492,7 +1503,7 @@ func TestOrphanChainRemoval(t *testing.T) {
 	t.Parallel()
 
 	const maxOrphans = 10
-	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -1555,7 +1566,7 @@ func TestMultiInputOrphanDoubleSpend(t *testing.T) {
 	t.Parallel()
 
 	const maxOrphans = 4
-	harness, outputs, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, outputs, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -1815,7 +1826,7 @@ func TestSequenceLockAcceptance(t *testing.T) {
 		err:        nil,
 	}}
 
-	harness, _, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, _, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -1896,7 +1907,7 @@ func TestSequenceLockAcceptance(t *testing.T) {
 func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 	t.Parallel()
 
-	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -2023,7 +2034,7 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 func TestDuplicateVoteRejection(t *testing.T) {
 	t.Parallel()
 
-	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -2114,7 +2125,7 @@ func TestDuplicateVoteRejection(t *testing.T) {
 func TestDuplicateTxError(t *testing.T) {
 	t.Parallel()
 
-	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -2173,7 +2184,7 @@ func TestDuplicateTxError(t *testing.T) {
 func TestMempoolDoubleSpend(t *testing.T) {
 	t.Parallel()
 
-	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -2217,7 +2228,7 @@ func TestMempoolDoubleSpend(t *testing.T) {
 func TestFetchTransaction(t *testing.T) {
 	t.Parallel()
 
-	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -2270,7 +2281,7 @@ func TestFetchTransaction(t *testing.T) {
 func TestRemoveDoubleSpends(t *testing.T) {
 	t.Parallel()
 
-	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -2723,7 +2734,7 @@ func TestHandlesTAdds(t *testing.T) {
 func TestRejectTreasurybases(t *testing.T) {
 	t.Parallel()
 
-	harness, _, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, _, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -2794,7 +2805,7 @@ func TestRejectTreasurybases(t *testing.T) {
 // that moves from the stage pool into the main pool is set to the height it
 // was initially added to the mempool, rather than the height it was unstaged.
 func TestStagedTransactionHeight(t *testing.T) {
-	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -2869,7 +2880,7 @@ func TestExplicitVersionSemantics(t *testing.T) {
 	t.Parallel()
 
 	// Create a new harness that accepts non-standard transactions.
-	harness, outputs, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, outputs, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -2980,7 +2991,7 @@ func TestExplicitVersionSemantics(t *testing.T) {
 func TestRevocationsWithAutoRevocationsEnabled(t *testing.T) {
 	t.Parallel()
 
-	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -3127,7 +3138,7 @@ func TestFraudProofHandling(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+		harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 		if err != nil {
 			t.Fatalf("%q: unable to create test pool: %v", test.name, err)
 		}
@@ -3219,7 +3230,7 @@ func TestFraudProofHandling(t *testing.T) {
 func TestSubsidySplitSemantics(t *testing.T) {
 	t.Parallel()
 
-	harness, outputs, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, outputs, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -3286,7 +3297,7 @@ func TestSubsidySplitSemantics(t *testing.T) {
 func TestSubsidySplitR2Semantics(t *testing.T) {
 	t.Parallel()
 
-	harness, outputs, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, outputs, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create test pool: %v", err)
 	}
@@ -3351,7 +3362,7 @@ func TestSubsidySplitR2Semantics(t *testing.T) {
 // It uses the mining view side effects to verify that transactions were added
 // in the correct order.
 func TestMaybeAcceptTransactions(t *testing.T) {
-	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, spendableOuts, err := newPoolHarness(chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("unable to create mining harness: %v", err)
 	}

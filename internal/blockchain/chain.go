@@ -1038,11 +1038,18 @@ func countSpentStakeOutputs(block *dcrutil.Block) int {
 			continue
 		}
 
-		// Exclude treasurybase, treasury spends, and SSFee since they have
-		// no real inputs (null inputs only).
-		if stake.IsTreasuryBase(stx) || stake.IsTSpend(stx) ||
-			stake.DetermineTxType(stx) == stake.TxTypeSSFee {
+		// Exclude treasurybase and treasury spends since they have no real inputs.
+		if stake.IsTreasuryBase(stx) || stake.IsTSpend(stx) {
 			continue
+		}
+
+		// For SSFee, only skip null-input SSFee (creates new UTXO from scratch).
+		// Augmented SSFee (real input) spends a previous SSFee output and must be counted.
+		if stake.DetermineTxType(stx) == stake.TxTypeSSFee {
+			if len(stx.TxIn) > 0 && stx.TxIn[0].PreviousOutPoint.Index == wire.MaxPrevOutIndex {
+				continue // Null-input SSFee - no inputs to count
+			}
+			// Augmented SSFee - fall through to count its input
 		}
 
 		numSpent += len(stx.TxIn)
@@ -2379,6 +2386,27 @@ func (q *ChainQueryerAdapter) BestHeight() int64 {
 // provided block.
 func (q *ChainQueryerAdapter) IsTreasuryEnabled(hash *chainhash.Hash) (bool, error) {
 	return q.IsTreasuryAgendaActive(hash)
+}
+
+// FetchUtxoEntryAmount returns the amount of the specified unspent transaction
+// output and whether it is spent from the point of view of the main chain tip.
+// Returns (amount=0, spent=true) if the UTXO doesn't exist or is spent.
+// Returns (amount>0, spent=false) if the UTXO exists and is unspent.
+//
+// This is part of the indexers.ChainQueryer interface.
+func (q *ChainQueryerAdapter) FetchUtxoEntryAmount(outpoint wire.OutPoint) (int64, bool, error) {
+	entry, err := q.FetchUtxoEntry(outpoint)
+	if err != nil {
+		return 0, true, err
+	}
+
+	// If entry is nil or is spent, return spent=true
+	if entry == nil || entry.IsSpent() {
+		return 0, true, nil
+	}
+
+	// Return the amount and spent=false for unspent UTXOs
+	return entry.Amount(), false, nil
 }
 
 // isTestNet3 returns whether or not the chain instance is for version 3 of the

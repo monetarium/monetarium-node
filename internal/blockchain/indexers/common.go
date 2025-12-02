@@ -67,6 +67,12 @@ type ChainQueryer interface {
 	// IsTreasuryAgendaActive returns true if the treasury agenda is active at
 	// the provided block.
 	IsTreasuryAgendaActive(*chainhash.Hash) (bool, error)
+
+	// FetchUtxoEntryAmount returns the amount of the specified unspent transaction
+	// output and whether it is spent from the point of view of the main chain tip.
+	// Returns (amount=0, spent=true) if the UTXO doesn't exist or is spent.
+	// Returns (amount>0, spent=false) if the UTXO exists and is unspent.
+	FetchUtxoEntryAmount(outpoint wire.OutPoint) (amount int64, spent bool, err error)
 }
 
 // Indexer defines a generic interface for an indexer.

@@ -174,11 +174,15 @@ func TestNewBlockTemplate(t *testing.T) {
 
 	// Validate the number of stake transactions in the generated block template.
 	gotStx := len(blockTemplate.Block.STransactions)
-	// Expected: votes + treasurybase + VAR SSFee (if there are fees and voters)
+	// Expected: votes + treasurybase + batched VAR SSFee (if there are fees and voters)
+	// Note: With batched consolidation, all voters with same consolidation address
+	// share ONE SSFee per coin type instead of one SSFee per voter.
+	// Since all test votes use the same consolidation address (first commitment),
+	// they get batched into a single VAR SSFee transaction.
 	wantStx := numVotes + 1 // + 1 for treasurybase.
-	// If there are regular transactions with fees and voters, expect a VAR SSFee transaction
+	// If there are regular transactions with fees and voters, expect ONE batched VAR SSFee
 	if numTxs > numVotes && numVotes > 0 {
-		wantStx++ // + 1 for VAR SSFee distributing staker portion of fees
+		wantStx++ // + 1 for batched VAR SSFee distributing to all voters
 	}
 	if gotStx != wantStx {
 		t.Fatalf("unexpected number of stake transactions in template --  got %v, "+
@@ -386,11 +390,15 @@ func TestNewBlockTemplateAutoRevocations(t *testing.T) {
 
 	// Validate the number of stake transactions in the generated block template.
 	gotStx := len(blockTemplate.Block.STransactions)
-	// Expected: votes + revocations + treasurybase + VAR SSFee (if there are fees and voters)
+	// Expected: votes + revocations + treasurybase + batched VAR SSFee (if there are fees and voters)
+	// Note: With batched consolidation, all voters with same consolidation address
+	// share ONE SSFee per coin type instead of one SSFee per voter.
+	// Since all test votes use the same consolidation address (first commitment),
+	// they get batched into a single VAR SSFee transaction.
 	wantStx := numVotes + numRevocations + 1 // + 1 for treasurybase.
-	// If there are regular transactions with fees and voters, expect a VAR SSFee transaction
+	// If there are regular transactions with fees and voters, expect ONE batched VAR SSFee
 	if numTxs > numVotes && numVotes > 0 {
-		wantStx++ // + 1 for VAR SSFee distributing staker portion of fees
+		wantStx++ // + 1 for batched VAR SSFee distributing to all voters
 	}
 	if gotStx != wantStx {
 		t.Fatalf("unexpected number of stake transactions in template --  got %v, "+
