@@ -23,7 +23,7 @@ func TestSSFeeAugmentation_VAR_NullInput(t *testing.T) {
 	voters := []*dcrutil.Tx{voter}
 
 	// Create SSFee without SSFeeIndex (null-input mode)
-	ssFeeTxns, err := createSSFeeTxBatched(cointype.CoinTypeVAR, 1000, voters, 100, nil, nil)
+	ssFeeTxns, err := createSSFeeTxBatched(cointype.CoinTypeVAR, 1000, voters, 100, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to create VAR SSFee: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestSSFeeAugmentation_SKA_Staker_NullInput(t *testing.T) {
 			voter := createMockVoterWithConsolidationAddr(t, tc.coinType, tc.fee, makeTestHash160(0xBB))
 			voters := []*dcrutil.Tx{voter}
 
-			ssFeeTxns, err := createSSFeeTxBatched(tc.coinType, tc.fee, voters, 200, nil, nil)
+			ssFeeTxns, err := createSSFeeTxBatched(tc.coinType, tc.fee, voters, 200, nil, nil, nil)
 			if err != nil {
 				t.Fatalf("Failed to create SKA staker SSFee: %v", err)
 			}
@@ -235,13 +235,13 @@ func TestSSFeeAugmentation_MultipleRounds(t *testing.T) {
 	voters := []*dcrutil.Tx{voter}
 
 	// Round 1: Create initial SSFee (null input)
-	round1Txns, err := createSSFeeTxBatched(cointype.CoinType(1), 1000, voters, 100, nil, nil)
+	round1Txns, err := createSSFeeTxBatched(cointype.CoinType(1), 1000, voters, 100, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Round 1 failed: %v", err)
 	}
 
 	// Round 2: Create another SSFee (also null input without SSFeeIndex)
-	round2Txns, err := createSSFeeTxBatched(cointype.CoinType(1), 1000, voters, 101, nil, nil)
+	round2Txns, err := createSSFeeTxBatched(cointype.CoinType(1), 1000, voters, 101, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Round 2 failed: %v", err)
 	}

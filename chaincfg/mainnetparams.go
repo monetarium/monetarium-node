@@ -146,10 +146,10 @@ func MainNetParams() *Params {
 
 		// The miner confirmation window is defined as:
 		//   target proof of work timespan / target proof of work spacing
-		RuleChangeActivationQuorum:     4032, // 10 % of RuleChangeActivationInterval * TicketsPerBlock
-		RuleChangeActivationMultiplier: 3,    // 75%
+		RuleChangeActivationQuorum:     16, // 4032, // 10 % of RuleChangeActivationInterval * TicketsPerBlock
+		RuleChangeActivationMultiplier: 3,  // 75%
 		RuleChangeActivationDivisor:    4,
-		RuleChangeActivationInterval:   2016 * 4, // 4 weeks
+		RuleChangeActivationInterval:   32, // 2016 * 4, // 4 weeks
 		Deployments: map[uint32][]ConsensusDeployment{
 			4: {{
 				Vote: Vote{
@@ -488,6 +488,33 @@ func MainNetParams() *Params {
 				},
 				StartTime:  1682294400, // Apr 24th, 2023
 				ExpireTime: 1745452800, // Apr 24th, 2025
+			}, {
+				Vote: Vote{
+					Id:          "activateska2",
+					Description: "Activate SKA-2 coin type for transactions",
+					Mask:        0x0006,
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain from voting",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep SKA-2 inactive",
+						Bits:        0x0002,
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "activate SKA-2 for use",
+						Bits:        0x0004,
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  1764956763, // Dec 5th, 2025
+				ExpireTime: 1765039557, // Dec 6th, 2025
 			}},
 		},
 
@@ -610,20 +637,20 @@ func MainNetParams() *Params {
 				Name:           "Skarb-2",
 				Symbol:         "SKA-2",
 				MaxSupply:      5e6 * 1e8, // 5 million SKA-2 (proof of concept)
-				EmissionHeight: 150000,    // Emit at block 150k
+				EmissionHeight: 64,        // Emit at block 150k
 				EmissionWindow: 4320,      // 30-day emission window (~144 blocks/day * 30)
-				Active:         false,     // Not yet active, for proof of concept
+				Active:         true,      // Not yet active, for proof of concept
 				Description:    "Secondary SKA coin type for proof of concept testing",
 				// Governance-approved emission distribution (TO BE REPLACED WITH REAL ADDRESSES)
 				EmissionAddresses: []string{
-					"MsExampleTreasuryAddress1234567890", // Full amount to treasury
+					"MsMz7mvUPBu5GDFexM2W8KiFxEeToFAC4Wv", // Full amount to treasury
 				},
 				EmissionAmounts: []int64{
 					5e6 * 1e8, // 5,000,000 SKA-2 to treasury
 				},
 				// SECURITY NOTE: This is a placeholder key for development ONLY
 				// Production deployment MUST generate secure keys with proper key ceremony
-				EmissionKey: mustParseHexPubKey("03389ffce9cd9ae88dcc0631e88a821ffdbe9bfe26381749838fca9302ccaa9ddd"),
+				EmissionKey: mustParseHexPubKey("0316e57ce5fdb617dc192576d9c860f57e7e7a95592aa32e25941731a2eb2c57d6"),
 			},
 		},
 

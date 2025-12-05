@@ -923,7 +923,8 @@ func createSSFeeTx(coinType cointype.CoinType, totalFee int64, voters []*dcrutil
 func createSSFeeTxBatched(coinType cointype.CoinType, totalFee int64,
 	voters []*dcrutil.Tx, nextBlockHeight int64,
 	ssfeeIndex *indexers.SSFeeIndex,
-	blockUtxos *blockchain.UtxoViewpoint) ([]*dcrutil.Tx, error) {
+	blockUtxos *blockchain.UtxoViewpoint,
+	fetchUtxoEntry func(wire.OutPoint) (*blockchain.UtxoEntry, error)) ([]*dcrutil.Tx, error) {
 
 	if len(voters) == 0 {
 		return nil, nil
@@ -1009,31 +1010,47 @@ func createSSFeeTxBatched(coinType cointype.CoinType, totalFee int64,
 				log.Debugf("Failed to query SSFeeIndex for UTXO lookup: %v", err)
 			} else if outpoint != nil && value > 0 {
 				// CRITICAL: Verify UTXO is still available (not spent in mempool/current block)
+				var entry *blockchain.UtxoEntry
+				var isSpent bool
+
+				// First check blockUtxos (for UTXOs already used in current template)
 				if blockUtxos != nil {
-					entry := blockUtxos.LookupEntry(*outpoint)
-					if entry == nil || entry.IsSpent() {
-						// UTXO already spent in mempool or current block template
-						log.Debugf("SSFee UTXO %v found by index but already spent in mempool/block - creating new UTXO instead",
-							outpoint)
-						// Don't use this UTXO - fall back to null input
+					entry = blockUtxos.LookupEntry(*outpoint)
+				}
+
+				if entry != nil {
+					// Entry found in block template view - check if spent
+					isSpent = entry.IsSpent()
+				} else if fetchUtxoEntry != nil {
+					// Entry not in block template - fetch from chain UTXO set
+					chainEntry, err := fetchUtxoEntry(*outpoint)
+					if err != nil {
+						log.Debugf("Failed to fetch UTXO %v from chain: %v", outpoint, err)
+						isSpent = true // Treat error as spent
+					} else if chainEntry == nil || chainEntry.IsSpent() {
+						isSpent = true
 					} else {
-						// UTXO is available - safe to use for augmentation
-						existingOutpoint = outpoint
-						existingValue = value
-						existingBlockHeight = blockHeight
-						existingBlockIndex = blockIndex
-						log.Debugf("Found augmentable UTXO %v (value=%d, height=%d, index=%d) for consolidation address %x",
-							outpoint, value, blockHeight, blockIndex, group.hash160)
+						entry = chainEntry
+						isSpent = false
 					}
 				} else {
-					// No blockUtxos provided (shouldn't happen in production) - use cautiously
+					// No way to verify - assume available (legacy behavior)
+					isSpent = false
+				}
+
+				if isSpent {
+					log.Infof("SSFee UTXO %v is spent - creating new UTXO instead", outpoint)
+				} else {
+					// UTXO is available - use for augmentation
 					existingOutpoint = outpoint
 					existingValue = value
 					existingBlockHeight = blockHeight
 					existingBlockIndex = blockIndex
+					log.Infof("Found augmentable UTXO %v (value=%d, height=%d, index=%d) for consolidation address %x",
+						outpoint, value, blockHeight, blockIndex, group.hash160)
 				}
 			} else {
-				log.Debugf("No existing UTXO found in SSFeeIndex for consolidation address %x (will create new UTXO)",
+				log.Infof("No existing UTXO found in SSFeeIndex for consolidation address %x (will create new UTXO)",
 					group.hash160)
 			}
 		}
@@ -2978,7 +2995,7 @@ nextPriorityQueueItem:
 				// Use SSFeeIndex for UTXO augmentation if available
 				// Note: Both VAR and non-VAR staker fees use SSFee (only VAR miner fees go to coinbase)
 				voterSSFeeTxns, err := createSSFeeTxBatched(coinType, stakerFee, votes, nextBlockHeight,
-					g.cfg.SSFeeIndex, blockUtxos)
+					g.cfg.SSFeeIndex, blockUtxos, g.cfg.FetchUtxoEntry)
 				if err != nil {
 					// Critical error: staker fees cannot be distributed
 					// This is a serious issue as fees would be lost if we continue
