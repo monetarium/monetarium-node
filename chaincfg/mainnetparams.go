@@ -146,10 +146,10 @@ func MainNetParams() *Params {
 
 		// The miner confirmation window is defined as:
 		//   target proof of work timespan / target proof of work spacing
-		RuleChangeActivationQuorum:     16, // 4032, // 10 % of RuleChangeActivationInterval * TicketsPerBlock
+		RuleChangeActivationQuorum:     16, // PRODUCTION: 4032, // 10 % of RuleChangeActivationInterval * TicketsPerBlock
 		RuleChangeActivationMultiplier: 3,  // 75%
 		RuleChangeActivationDivisor:    4,
-		RuleChangeActivationInterval:   32, // 2016 * 4, // 4 weeks
+		RuleChangeActivationInterval:   32, // PRODUCTION: 2016 * 4, // 4 weeks
 		Deployments: map[uint32][]ConsensusDeployment{
 			4: {{
 				Vote: Vote{
@@ -514,7 +514,7 @@ func MainNetParams() *Params {
 					}},
 				},
 				StartTime:  1764956763, // Dec 5th, 2025
-				ExpireTime: 1765039557, // Dec 6th, 2025
+				ExpireTime: 1765101074, // Dec 7th, 2025
 			}},
 		},
 
@@ -563,10 +563,10 @@ func MainNetParams() *Params {
 		StakeDiffAlpha:          1, // Minimal
 		StakeDiffWindowSize:     144,
 		StakeDiffWindows:        20,
-		StakeVersionInterval:    144 * 2 * 7, // ~1 week
-		MaxFreshStakePerBlock:   20,          // 4*TicketsPerBlock
-		StakeEnabledHeight:      32,          // PRODUCTION: CoinbaseMaturity + TicketMaturity = 512 (temporary: 16 + 16 = 32)
-		StakeValidationHeight:   64,          // PRODUCTION: Normal mainnet value (temporary: 64)
+		StakeVersionInterval:    32, // PRODUCTION: 144 * 2 * 7, // ~1 week
+		MaxFreshStakePerBlock:   20, // 4*TicketsPerBlock
+		StakeEnabledHeight:      32, // PRODUCTION: CoinbaseMaturity + TicketMaturity = 512 (temporary: 16 + 16 = 32)
+		StakeValidationHeight:   64, // PRODUCTION: Normal mainnet value (temporary: 64)
 		StakeBaseSigScript:      []byte{0x00, 0x00},
 		StakeMajorityMultiplier: 3,
 		StakeMajorityDivisor:    4,
