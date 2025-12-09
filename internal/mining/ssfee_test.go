@@ -152,7 +152,7 @@ func TestCreateSSFeeTxBatched(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ssFeeTxns, err := createSSFeeTxBatched(test.coinType, test.totalFee,
-				test.voters, test.height, nil, nil, nil)
+				test.voters, test.height, nil, nil, nil, nil)
 
 			if test.expectError {
 				if err == nil {
@@ -247,7 +247,7 @@ func TestSSFeeMultipleCoinTypes(t *testing.T) {
 
 	allSSFeeTxns := make([][]*dcrutil.Tx, 0)
 	for i, coinType := range coinTypes {
-		ssFeeTxns, err := createSSFeeTxBatched(coinType, fees[i], voters, 100, nil, nil, nil)
+		ssFeeTxns, err := createSSFeeTxBatched(coinType, fees[i], voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Failed to create SSFee for coin type %d: %v", coinType, err)
 		}
@@ -307,7 +307,7 @@ func TestSSFeeEdgeCases(t *testing.T) {
 		// Missing consolidation address output
 		voters := []*dcrutil.Tx{dcrutil.NewTx(voteTx)}
 
-		_, err := createSSFeeTxBatched(1, 1000, voters, 100, nil, nil, nil)
+		_, err := createSSFeeTxBatched(1, 1000, voters, 100, nil, nil, nil, nil)
 		if err == nil {
 			t.Errorf("Expected error for missing consolidation address")
 		}
@@ -327,7 +327,7 @@ func TestSSFeeEdgeCases(t *testing.T) {
 		}
 
 		// 100 atoms / 3 voters = 33 each + 1 remainder
-		ssFeeTxns, err := createSSFeeTxBatched(1, 100, voters, 100, nil, nil, nil)
+		ssFeeTxns, err := createSSFeeTxBatched(1, 100, voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -355,7 +355,7 @@ func TestSSFeeEdgeCases(t *testing.T) {
 			voters[i] = createMockVoteWithConsolidation(1000, hash)
 		}
 
-		ssFeeTxns, err := createSSFeeTxBatched(1, 5000, voters, 100, nil, nil, nil)
+		ssFeeTxns, err := createSSFeeTxBatched(1, 5000, voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -387,7 +387,7 @@ func TestSSFeeEdgeCases(t *testing.T) {
 		// 3000 total fee / 3 votes = 1000 per vote
 		// Group 1 (sameHash, 2 votes): 2000
 		// Group 2 (diffHash, 1 vote): 1000
-		ssFeeTxns, err := createSSFeeTxBatched(1, 3000, voters, 100, nil, nil, nil)
+		ssFeeTxns, err := createSSFeeTxBatched(1, 3000, voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -448,7 +448,7 @@ func TestCreateSSFeeTxBatchedUTXOAugmentation(t *testing.T) {
 	}
 
 	t.Run("no ssfeeIndex - creates new UTXOs", func(t *testing.T) {
-		ssFeeTxns, err := createSSFeeTxBatched(1, 3000, voters, 100, nil, nil, nil)
+		ssFeeTxns, err := createSSFeeTxBatched(1, 3000, voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -475,14 +475,14 @@ func TestCreateSSFeeTxBatchedUTXOAugmentation(t *testing.T) {
 
 	t.Run("multiple rounds accumulate fees", func(t *testing.T) {
 		// Round 1: Create initial SSFee transactions
-		round1Txns, err := createSSFeeTxBatched(1, 3000, voters, 100, nil, nil, nil)
+		round1Txns, err := createSSFeeTxBatched(1, 3000, voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Round 1 error: %v", err)
 		}
 
 		// Round 2: Create more SSFee transactions (simulating next block)
 		// In real scenario with SSFeeIndex, round2 would augment round1 outputs
-		round2Txns, err := createSSFeeTxBatched(1, 3000, voters, 101, nil, nil, nil)
+		round2Txns, err := createSSFeeTxBatched(1, 3000, voters, 101, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Round 2 error: %v", err)
 		}
@@ -501,13 +501,13 @@ func TestCreateSSFeeTxBatchedUTXOAugmentation(t *testing.T) {
 
 	t.Run("different coin types don't interfere", func(t *testing.T) {
 		// Create SSFee for SKA-1
-		ska1Txns, err := createSSFeeTxBatched(1, 3000, voters, 100, nil, nil, nil)
+		ska1Txns, err := createSSFeeTxBatched(1, 3000, voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("SKA-1 error: %v", err)
 		}
 
 		// Create SSFee for SKA-2
-		ska2Txns, err := createSSFeeTxBatched(2, 6000, voters, 100, nil, nil, nil)
+		ska2Txns, err := createSSFeeTxBatched(2, 6000, voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("SKA-2 error: %v", err)
 		}
@@ -535,7 +535,7 @@ func TestCreateSSFeeTxBatchedUTXOAugmentation(t *testing.T) {
 	})
 
 	t.Run("each transaction has unique OP_RETURN", func(t *testing.T) {
-		ssFeeTxns, err := createSSFeeTxBatched(1, 3000, voters, 100, nil, nil, nil)
+		ssFeeTxns, err := createSSFeeTxBatched(1, 3000, voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}

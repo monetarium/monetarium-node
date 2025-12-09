@@ -130,9 +130,9 @@ func TestCreateMinerSSFeeTx(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Pass nil SSFeeIndex, blockUtxos, and fetchUtxoEntry to test null-input SSFee creation (no augmentation)
+			// Pass nil SSFeeIndex, blockUtxos, fetchUtxoEntry, and generator to test null-input SSFee creation (no augmentation)
 			minerSSFeeTx, err := createMinerSSFeeTx(test.coinType, test.totalFee,
-				test.minerAddress, test.height, nil, nil, nil)
+				test.minerAddress, test.height, nil, nil, nil, nil)
 
 			if test.expectError {
 				if err == nil {
@@ -175,8 +175,8 @@ func TestMinerSSFeeOpReturn(t *testing.T) {
 	}
 
 	height := int64(12345)
-	// Pass nil SSFeeIndex, blockUtxos, and fetchUtxoEntry to test null-input SSFee creation (no augmentation)
-	minerSSFeeTx, err := createMinerSSFeeTx(cointype.CoinType(1), 100000, mockAddr, height, nil, nil, nil)
+	// Pass nil SSFeeIndex, blockUtxos, fetchUtxoEntry, and generator to test null-input SSFee creation (no augmentation)
+	minerSSFeeTx, err := createMinerSSFeeTx(cointype.CoinType(1), 100000, mockAddr, height, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to create miner SSFee tx: %v", err)
 	}
@@ -241,8 +241,8 @@ func TestMinerSSFeeDistribution(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		// Pass nil SSFeeIndex, blockUtxos, and fetchUtxoEntry to test null-input SSFee creation (no augmentation)
-		minerSSFeeTx, err := createMinerSSFeeTx(tc.coinType, tc.feeAmount, minerAddr, 1000, nil, nil, nil)
+		// Pass nil SSFeeIndex, blockUtxos, fetchUtxoEntry, and generator to test null-input SSFee creation (no augmentation)
+		minerSSFeeTx, err := createMinerSSFeeTx(tc.coinType, tc.feeAmount, minerAddr, 1000, nil, nil, nil, nil)
 		if err != nil {
 			t.Errorf("Failed to create miner SSFee for coin type %d: %v", tc.coinType, err)
 			continue

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v5"
@@ -759,7 +760,8 @@ func createSSFeeTxBatched(coinType cointype.CoinType, totalFee int64,
 	voters []*dcrutil.Tx, nextBlockHeight int64,
 	ssfeeIndex *indexers.SSFeeIndex,
 	blockUtxos *blockchain.UtxoViewpoint,
-	fetchUtxoEntry func(wire.OutPoint) (*blockchain.UtxoEntry, error)) ([]*dcrutil.Tx, error) {
+	fetchUtxoEntry func(wire.OutPoint) (*blockchain.UtxoEntry, error),
+	generator *BlkTmplGenerator) ([]*dcrutil.Tx, error) {
 
 	if len(voters) == 0 {
 		return nil, nil
@@ -844,6 +846,15 @@ func createSSFeeTxBatched(coinType cointype.CoinType, totalFee int64,
 				// Log but don't fail - fall back to null input
 				log.Debugf("Failed to query SSFeeIndex for UTXO lookup: %v", err)
 			} else if outpoint != nil && value > 0 {
+				// Check if UTXO is already in-flight (used in a pending template)
+				if generator != nil && generator.isSSFeeUTXOInFlight(*outpoint, nextBlockHeight) {
+					log.Debugf("SSFee UTXO %v is in-flight for height %d - skipping", outpoint, nextBlockHeight)
+					outpoint = nil
+					value = 0
+				}
+			}
+
+			if outpoint != nil && value > 0 {
 				// CRITICAL: Verify UTXO is still available (not spent in mempool/current block)
 				var entry *blockchain.UtxoEntry
 				var isSpent bool
@@ -874,18 +885,18 @@ func createSSFeeTxBatched(coinType cointype.CoinType, totalFee int64,
 				}
 
 				if isSpent {
-					log.Infof("SSFee UTXO %v is spent - creating new UTXO instead", outpoint)
+					log.Debugf("SSFee UTXO %v is spent - creating new UTXO instead", outpoint)
 				} else {
 					// UTXO is available - use for augmentation
 					existingOutpoint = outpoint
 					existingValue = value
 					existingBlockHeight = blockHeight
 					existingBlockIndex = blockIndex
-					log.Infof("Found augmentable UTXO %v (value=%d, height=%d, index=%d) for consolidation address %x",
+					log.Debugf("Found augmentable UTXO %v (value=%d, height=%d, index=%d) for consolidation address %x",
 						outpoint, value, blockHeight, blockIndex, group.hash160)
 				}
-			} else {
-				log.Infof("No existing UTXO found in SSFeeIndex for consolidation address %x (will create new UTXO)",
+			} else if outpoint == nil {
+				log.Debugf("No existing UTXO found in SSFeeIndex for consolidation address %x (will create new UTXO)",
 					group.hash160)
 			}
 		}
@@ -946,6 +957,11 @@ func createSSFeeTxBatched(coinType cointype.CoinType, totalFee int64,
 		retTx := dcrutil.NewTx(tx)
 		retTx.SetTree(wire.TxTreeStake)
 
+		// Mark the UTXO as in-flight if we used one for augmentation
+		if existingOutpoint != nil && generator != nil {
+			generator.markSSFeeUTXOInFlight(*existingOutpoint, nextBlockHeight)
+		}
+
 		ssFeeTxns = append(ssFeeTxns, retTx)
 	}
 
@@ -970,7 +986,8 @@ func createMinerSSFeeTx(coinType cointype.CoinType, totalFee int64,
 	minerAddress stdaddr.Address, nextBlockHeight int64,
 	ssfeeIndex *indexers.SSFeeIndex,
 	blockUtxos *blockchain.UtxoViewpoint,
-	fetchUtxoEntry func(wire.OutPoint) (*blockchain.UtxoEntry, error)) (*dcrutil.Tx, error) {
+	fetchUtxoEntry func(wire.OutPoint) (*blockchain.UtxoEntry, error),
+	generator *BlkTmplGenerator) (*dcrutil.Tx, error) {
 
 	// SSFee cannot be used for VAR fees (those go through coinbase)
 	if coinType == cointype.CoinTypeVAR {
@@ -1024,6 +1041,15 @@ func createMinerSSFeeTx(coinType cointype.CoinType, totalFee int64,
 			// Log but don't fail - fall back to null input
 			log.Debugf("Failed to query SSFeeIndex for miner UTXO lookup: %v", err)
 		} else if outpoint != nil && value > 0 {
+			// Check if UTXO is already in-flight (used in a pending template)
+			if generator != nil && generator.isSSFeeUTXOInFlight(*outpoint, nextBlockHeight) {
+				log.Debugf("Miner SSFee UTXO %v is in-flight for height %d - skipping", outpoint, nextBlockHeight)
+				outpoint = nil
+				value = 0
+			}
+		}
+
+		if outpoint != nil && value > 0 {
 			// CRITICAL: Verify UTXO is still available (not spent in mempool/current block)
 			var entry *blockchain.UtxoEntry
 			var isSpent bool
@@ -1064,7 +1090,7 @@ func createMinerSSFeeTx(coinType cointype.CoinType, totalFee int64,
 				log.Debugf("Found augmentable miner SSFee UTXO %v (value=%d, height=%d, index=%d) for coin type %d",
 					outpoint, value, blockHeight, blockIndex, coinType)
 			}
-		} else {
+		} else if outpoint == nil {
 			log.Debugf("No existing miner SSFee UTXO found in SSFeeIndex for hash160 %x (will create new UTXO)",
 				minerHash160)
 		}
@@ -1119,6 +1145,11 @@ func createMinerSSFeeTx(coinType cointype.CoinType, totalFee int64,
 
 	retTx := dcrutil.NewTx(tx)
 	retTx.SetTree(wire.TxTreeStake)
+
+	// Mark the UTXO as in-flight if we used one for augmentation
+	if inputOutpoint != nil && generator != nil {
+		generator.markSSFeeUTXOInFlight(*inputOutpoint, nextBlockHeight)
+	}
 
 	return retTx, nil
 }
@@ -1508,12 +1539,49 @@ func (g *BlkTmplGenerator) addAutoRevocationsToQueue(winningTickets map[chainhas
 // template is generated.
 type BlkTmplGenerator struct {
 	cfg *Config
+
+	// inFlightSSFeeUTXOs tracks UTXOs currently used in pending block templates.
+	// These are cleared when a new block is connected (template mined or abandoned).
+	// Key: OutPoint being spent, Value: block height the template was created for
+	inFlightSSFeeUTXOs map[wire.OutPoint]int64
+	inFlightMtx        sync.Mutex
 }
 
 // NewBlkTmplGenerator returns a new block template generator for the given
 // policy using transactions from the provided transaction source.
 func NewBlkTmplGenerator(cfg *Config) *BlkTmplGenerator {
-	return &BlkTmplGenerator{cfg: cfg}
+	return &BlkTmplGenerator{
+		cfg:                cfg,
+		inFlightSSFeeUTXOs: make(map[wire.OutPoint]int64),
+	}
+}
+
+// ClearInFlightSSFeeUTXOs clears all in-flight SSFee UTXOs for heights <= the
+// given block height. Called when a block is connected to clear obsolete entries.
+func (g *BlkTmplGenerator) ClearInFlightSSFeeUTXOs(blockHeight int64) {
+	g.inFlightMtx.Lock()
+	for outpoint, height := range g.inFlightSSFeeUTXOs {
+		if height <= blockHeight {
+			delete(g.inFlightSSFeeUTXOs, outpoint)
+		}
+	}
+	g.inFlightMtx.Unlock()
+}
+
+// isSSFeeUTXOInFlight returns true if the UTXO is already being used in a pending
+// block template for the current or recent height.
+func (g *BlkTmplGenerator) isSSFeeUTXOInFlight(outpoint wire.OutPoint, currentHeight int64) bool {
+	g.inFlightMtx.Lock()
+	defer g.inFlightMtx.Unlock()
+	height, exists := g.inFlightSSFeeUTXOs[outpoint]
+	return exists && height >= currentHeight-1
+}
+
+// markSSFeeUTXOInFlight marks a UTXO as being used in a pending block template.
+func (g *BlkTmplGenerator) markSSFeeUTXOInFlight(outpoint wire.OutPoint, blockHeight int64) {
+	g.inFlightMtx.Lock()
+	g.inFlightSSFeeUTXOs[outpoint] = blockHeight
+	g.inFlightMtx.Unlock()
 }
 
 // calcFeePerKb returns an adjusted fee per kilobyte taking the provided
@@ -2835,7 +2903,7 @@ nextPriorityQueueItem:
 				// Use SSFeeIndex for UTXO augmentation if available
 				// Note: Both VAR and non-VAR staker fees use SSFee (only VAR miner fees go to coinbase)
 				voterSSFeeTxns, err := createSSFeeTxBatched(coinType, stakerFee, votes, nextBlockHeight,
-					g.cfg.SSFeeIndex, blockUtxos, g.cfg.FetchUtxoEntry)
+					g.cfg.SSFeeIndex, blockUtxos, g.cfg.FetchUtxoEntry, g)
 				if err != nil {
 					// Critical error: staker fees cannot be distributed
 					// This is a serious issue as fees would be lost if we continue
@@ -2879,7 +2947,7 @@ nextPriorityQueueItem:
 
 			// Create miner SSFee transaction for this coin type
 			// Uses SSFeeIndex to find existing miner SSFee UTXOs for consolidation
-			minerSSFeeTx, err := createMinerSSFeeTx(coinType, minerFee, payToAddress, nextBlockHeight, g.cfg.SSFeeIndex, blockUtxos, g.cfg.FetchUtxoEntry)
+			minerSSFeeTx, err := createMinerSSFeeTx(coinType, minerFee, payToAddress, nextBlockHeight, g.cfg.SSFeeIndex, blockUtxos, g.cfg.FetchUtxoEntry, g)
 			if err != nil {
 				// Critical error: miner fees cannot be distributed
 				// This is a serious issue as fees would be lost if we continue

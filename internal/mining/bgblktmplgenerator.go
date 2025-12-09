@@ -803,6 +803,9 @@ func (g *BgBlkTmplGenerator) handleBlockConnected(ctx context.Context, state *re
 	state.awaitingMinVotesHash = nil
 	state.clearSideChainTracking()
 
+	// Clear in-flight SSFee UTXOs for this block height since the block is now mined
+	g.tg.ClearInFlightSSFeeUTXOs(int64(block.MsgBlock().Header.Height))
+
 	// Nothing more to do if the connected block is not the current chain tip.
 	// This can happen in rare cases such as if more than one new block shows up
 	// while generating a template.  Due to the requirement for votes later in
