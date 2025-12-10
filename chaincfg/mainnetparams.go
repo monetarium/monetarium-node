@@ -603,7 +603,8 @@ func MainNetParams() *Params {
 		seeders: []string{},
 
 		// SKA (Skarb) dual-coin system parameters for mainnet
-		SKAMinRelayTxFee: 10, // 10 atoms - market-defined fees, ensures 1 atom/staker minimum
+		// 50 atoms/KB ensures ~10 atoms fee for typical 200-byte tx → 1 atom per staker (5 stakers)
+		SKAMinRelayTxFee: 50,
 
 		// SKA coin type configurations for multiple coin support
 		SKACoins: map[cointype.CoinType]*SKACoinConfig{
