@@ -17,16 +17,16 @@ import (
 )
 
 const (
-	// svcName is the name of dcrd service.
-	svcName = "dcrdsvc"
+	// svcName is the name of the Monetarium node service.
+	svcName = "monetariumsvc"
 
 	// svcDisplayName is the service name that will be shown in the windows
 	// services list.  Not the svcName is the "real" name which is used
 	// to control the service.  This is only for display purposes.
-	svcDisplayName = "Dcrd Service"
+	svcDisplayName = "Monetarium Node Service"
 
 	// svcDesc is the description of the service.
-	svcDesc = "Downloads and stays synchronized with the Decred block " +
+	svcDesc = "Downloads and stays synchronized with the Monetarium block " +
 		"chain and provides chain services to applications."
 )
 
