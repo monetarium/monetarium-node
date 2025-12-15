@@ -78,11 +78,8 @@ func TestNet3Params() *Params {
 		Name:        "testnet3",
 		Net:         wire.TestNet3,
 		DefaultPort: "19108",
-		DNSSeeds: []DNSSeed{
-			{"testnet-seed.decred.mindcry.org", true},
-			{"testnet-seed.decred.netpurgatory.com", true},
-			{"testnet-seed.decred.org", true},
-		},
+		// DNSSeeds disabled - Monetarium testnet uses manual peer connections
+		DNSSeeds: []DNSSeed{},
 
 		// Chain parameters.
 		//
@@ -541,11 +538,7 @@ func TestNet3Params() *Params {
 		TreasuryVoteRequiredMultiplier: 3, // 60% yes votes required
 		TreasuryVoteRequiredDivisor:    5,
 
-		seeders: []string{
-			"testnet-seed-1.decred.org",
-			"testnet-seed-2.decred.org",
-			"testnet-seed.dcrdata.org",
-			"testnet-seed.jholdstock.uk",
-		},
+		// HTTP seeders disabled - Monetarium testnet uses manual peer connections
+		seeders: []string{},
 	}
 }

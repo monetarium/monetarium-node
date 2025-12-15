@@ -176,7 +176,8 @@ func (idx *SSFeeIndex) Init(ctx context.Context, chainParams *chaincfg.Params) e
 		return err
 	}
 
-	return nil
+	// Recover the ssfee index to the main chain if needed.
+	return recoverIndex(ctx, idx)
 }
 
 // IndexSubscription returns the subscription for the index.
