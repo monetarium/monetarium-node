@@ -3,7 +3,7 @@ module github.com/monetarium/node/certgen
 go 1.18
 
 require (
-	github.com/monetarium/node/crypto/rand v1.0.0
+	github.com/monetarium/node/crypto/rand v0.0.0
 	golang.org/x/net v0.28.0
 )
 

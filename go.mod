@@ -15,33 +15,33 @@ require (
 	github.com/jrick/bitset v1.0.0
 	github.com/jrick/logrotate v1.0.0
 	github.com/monetarium/node/addrmgr v0.0.0
-	github.com/monetarium/node/bech32 v1.1.4
+	github.com/monetarium/node/bech32 v0.0.0
 	github.com/monetarium/node/blockchain v0.0.0
 	github.com/monetarium/node/blockchain/stake v0.0.0
 	github.com/monetarium/node/blockchain/standalone v0.0.0
-	github.com/monetarium/node/certgen v1.1.3
+	github.com/monetarium/node/certgen v0.0.0
 	github.com/monetarium/node/chaincfg v0.0.0
-	github.com/monetarium/node/chaincfg/chainhash v1.0.4
-	github.com/monetarium/node/cointype v1.0.0
+	github.com/monetarium/node/chaincfg/chainhash v0.0.0
+	github.com/monetarium/node/cointype v0.0.0
 	github.com/monetarium/node/connmgr v0.0.0
-	github.com/monetarium/node/container/apbf v1.0.1
-	github.com/monetarium/node/container/lru v1.0.0
-	github.com/monetarium/node/crypto/blake256 v1.1.0
-	github.com/monetarium/node/crypto/rand v1.0.1
-	github.com/monetarium/node/crypto/ripemd160 v1.0.2
+	github.com/monetarium/node/container/apbf v0.0.0
+	github.com/monetarium/node/container/lru v0.0.0
+	github.com/monetarium/node/crypto/blake256 v0.0.0
+	github.com/monetarium/node/crypto/rand v0.0.0
+	github.com/monetarium/node/crypto/ripemd160 v0.0.0
 	github.com/monetarium/node/database v0.0.0
-	github.com/monetarium/node/dcrec v1.0.1
+	github.com/monetarium/node/dcrec v0.0.0
 	github.com/monetarium/node/dcrec/secp256k1 v0.0.0
 	github.com/monetarium/node/dcrjson v0.0.0
 	github.com/monetarium/node/dcrutil v0.0.0
 	github.com/monetarium/node/gcs v0.0.0
-	github.com/monetarium/node/math/uint256 v1.0.2
-	github.com/monetarium/node/mixing v0.3.0
+	github.com/monetarium/node/math/uint256 v0.0.0
+	github.com/monetarium/node/mixing v0.0.0
 	github.com/monetarium/node/peer v0.0.0
 	github.com/monetarium/node/rpc/jsonrpc/types v0.0.0
 	github.com/monetarium/node/rpcclient v0.0.0
 	github.com/monetarium/node/txscript v0.0.0
-	github.com/monetarium/node/wire v1.7.0
+	github.com/monetarium/node/wire v0.0.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	golang.org/x/net v0.28.0
 	golang.org/x/sys v0.30.0
