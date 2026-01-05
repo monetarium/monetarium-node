@@ -99,8 +99,10 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 		t.Fatalf("expected tip hash to be %s, got %s", bk5.Hash(), tipHash)
 	}
 
-	// Fetch the first address paid to by bk5's coinbase.
-	out := bk5.MsgBlock().Transactions[0].TxOut[0]
+	// Fetch the first spendable address paid to by bk5's coinbase.
+	// Output 0 is dev subsidy (nil PkScript in Monetarium), output 1 is OP_RETURN,
+	// output 2 is the first PoW subsidy output with a valid p2sh address.
+	out := bk5.MsgBlock().Transactions[0].TxOut[2]
 	_, addrs := stdscript.ExtractAddrs(out.Version, out.PkScript,
 		idx.chain.ChainParams())
 

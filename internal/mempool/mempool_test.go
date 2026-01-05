@@ -878,10 +878,17 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	// coinbase will mature in the next block.  This ensures the txpool
 	// accepts transactions which spend immature coinbases that will become
 	// mature in the next block.
+	//
+	// Note: Use height 2+ to ensure there's a subsidy (height 0 and 1 have
+	// 0 subsidy since there's no premine in Monetarium).
 	numOutputs := uint32(1)
 	outputs := make([]spendableOutput, 0, numOutputs)
 	curHeight := harness.chain.BestHeight()
-	coinbase, err := harness.CreateCoinbaseTx(curHeight+1, numOutputs)
+	coinbaseHeight := curHeight + 1
+	if coinbaseHeight < 2 {
+		coinbaseHeight = 2
+	}
+	coinbase, err := harness.CreateCoinbaseTx(coinbaseHeight, numOutputs)
 	if err != nil {
 		return nil, nil, err
 	}

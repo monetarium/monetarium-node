@@ -293,6 +293,21 @@ func TestDust(t *testing.T) {
 			0, // no relay fee
 			true,
 		},
+		{
+			// SKA burn script with large value should NOT be dust.
+			// Burn scripts are intentionally unspendable but valid.
+			"SKA burn script with large value is not dust",
+			wire.TxOut{Value: 800000050000000, Version: 0, PkScript: stdscript.NewSKABurnScriptV0(1), CoinType: cointype.CoinType(1)},
+			1e4,
+			false,
+		},
+		{
+			// SKA burn script with small value should NOT be dust.
+			"SKA burn script with small value is not dust",
+			wire.TxOut{Value: 1, Version: 0, PkScript: stdscript.NewSKABurnScriptV0(255), CoinType: cointype.CoinType(255)},
+			1e4,
+			false,
+		},
 	}
 	for _, test := range tests {
 		res := isDust(&test.txOut, test.relayFee)

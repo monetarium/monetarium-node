@@ -50,9 +50,9 @@ func TestChainParamsSKAConfiguration(t *testing.T) {
 				minRelayFee        int64
 			}{
 				ska1EmissionAmount: 10e6 * 1e8, // 10 million SKA-1 total
-				ska1EmissionHeight: 1024,       // Block 1024 emission (when staking is activated)
+				ska1EmissionHeight: 4096,       // Aligned with StakeValidationHeight
 				ska1Active:         true,       // Active on mainnet
-				minRelayFee:        1e4,        // 0.0001 SKA
+				minRelayFee:        50,         // 50 atoms/KB for minimal fees
 			},
 		},
 	}

@@ -183,8 +183,8 @@ func TestMainNetParamsSKAConfigs(t *testing.T) {
 	if ska1Config.MaxSupply != int64(10e6*1e8) {
 		t.Errorf("SKA-1: Expected MaxSupply %d, got %d", int64(10e6*1e8), ska1Config.MaxSupply)
 	}
-	if ska1Config.EmissionHeight != 1024 {
-		t.Errorf("SKA-1: Expected EmissionHeight 1024, got %d", ska1Config.EmissionHeight)
+	if ska1Config.EmissionHeight != 4096 {
+		t.Errorf("SKA-1: Expected EmissionHeight 4096, got %d", ska1Config.EmissionHeight)
 	}
 	if !ska1Config.Active {
 		t.Error("SKA-1: Expected to be active")

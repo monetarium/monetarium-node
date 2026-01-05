@@ -526,6 +526,7 @@ func (g *Generator) addCoinbaseTxOutputs(tx *wire.MsgTx, blockHeight uint32, dev
 	// First output is the developer subsidy.
 	tx.AddTxOut(&wire.TxOut{
 		Value:    int64(devSubsidy),
+		CoinType: cointype.CoinTypeVAR,
 		Version:  g.params.OrganizationPkScriptVersion,
 		PkScript: g.params.OrganizationPkScript,
 	})
@@ -3141,19 +3142,39 @@ func (g *Generator) CreateBlockOne(blockName string, additionalAmount dcrutil.Am
 		SignatureScript: coinbaseSigScript,
 	})
 
-	// Add each required output and tally the total payouts for the coinbase
-	// in order to set the input value appropriately.
-	var totalSubsidy dcrutil.Amount
-	for _, payout := range g.params.BlockOneLedger {
-		coinbaseTx.AddTxOut(&wire.TxOut{
-			Value:    payout.Amount + int64(additionalAmount),
-			Version:  payout.ScriptVersion,
-			PkScript: payout.Script,
-		})
+	// Handle block one coinbase based on whether there's a premine.
+	if len(g.params.BlockOneLedger) == 0 {
+		// No premine - create coinbase with 0 subsidy.
+		// Block one with no BlockOneLedger has 0 subsidy per consensus rules.
+		// We still need at least one output for CheckTransactionSanity,
+		// so add an OP_RETURN output with 0 value.
+		const blockHeight = 1
+		coinbaseTx.AddTxOut(wire.NewTxOut(0, standardCoinbaseOpReturnScript(blockHeight)))
 
-		totalSubsidy += dcrutil.Amount(payout.Amount)
+		// Add the additional amount for testing invalid blocks.
+		// This makes the coinbase invalid by having non-zero value output
+		// which exceeds the expected 0 subsidy (ErrBadCoinbaseValue).
+		// Note: ValueIn stays 0 to pass the input check; the output check
+		// will fail because totalAtomOutRegular > expAtomOut (0).
+		if additionalAmount != 0 {
+			coinbaseTx.AddTxOut(newTxOut(int64(additionalAmount), g.p2shOpTrueScriptVer, g.p2shOpTrueScript))
+		}
+	} else {
+		// Add each required output and tally the total payouts for the coinbase
+		// in order to set the input value appropriately.
+		var totalSubsidy dcrutil.Amount
+		for _, payout := range g.params.BlockOneLedger {
+			coinbaseTx.AddTxOut(&wire.TxOut{
+				Value:    payout.Amount + int64(additionalAmount),
+				CoinType: cointype.CoinTypeVAR,
+				Version:  payout.ScriptVersion,
+				PkScript: payout.Script,
+			})
+
+			totalSubsidy += dcrutil.Amount(payout.Amount)
+		}
+		coinbaseTx.TxIn[0].ValueIn = int64(totalSubsidy)
 	}
-	coinbaseTx.TxIn[0].ValueIn = int64(totalSubsidy)
 
 	// Generate the block with the specially created regular transactions.
 	munger := func(b *wire.MsgBlock) {

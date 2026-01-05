@@ -11,6 +11,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/cointype"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -506,11 +507,10 @@ func TestNet3Params() *Params {
 		StakeMajorityMultiplier: 3,
 		StakeMajorityDivisor:    4,
 
-		// Decred organization related parameters.
-		// Organization address is TcrypGAcGCRVXrES7hWqVZb5oLJKCZEtoL1.
-		OrganizationPkScript:        hexDecode("a914d585cd7426d25b4ea5faf1e6987aacfeda3db94287"),
+		// Monetarium has no treasury (BlockTaxProportion = 0)
+		OrganizationPkScript:        nil,
 		OrganizationPkScriptVersion: 0,
-		BlockOneLedger:              tokenPayouts_TestNet3Params(),
+		BlockOneLedger:              nil, // Monetarium has no premine
 
 		// Sanctioned Politeia keys.
 		PiKeys: [][]byte{
@@ -540,5 +540,63 @@ func TestNet3Params() *Params {
 
 		// HTTP seeders disabled - Monetarium testnet uses manual peer connections
 		seeders: []string{},
+
+		// SKA (Skarb) dual-coin system parameters for testnet
+		// 50 atoms/KB ensures ~10 atoms fee for typical 200-byte tx
+		SKAMinRelayTxFee: 50,
+
+		// SKA coin type configurations (fast testing values)
+		SKACoins: map[cointype.CoinType]*SKACoinConfig{
+			1: {
+				CoinType:       1,
+				Name:           "Skarb-1",
+				Symbol:         "SKA-1",
+				MaxSupply:      10e6 * 1e8, // 10 million SKA-1
+				EmissionHeight: 64,         // Fast emission for testing
+				EmissionWindow: 100,        // 100 block window for testing
+				Active:         true,
+				Description:    "Primary asset-backed SKA coin type for testnet",
+				EmissionAddresses: []string{
+					"TsPlaceholderAddressForTestnetSKA1Emission", // REPLACE with real testnet address
+				},
+				EmissionAmounts: []int64{
+					10e6 * 1e8,
+				},
+				// SECURITY NOTE: This is a placeholder key for development ONLY
+				EmissionKey: mustParseHexPubKeyTestnet("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"),
+			},
+			2: {
+				CoinType:       2,
+				Name:           "Skarb-2",
+				Symbol:         "SKA-2",
+				MaxSupply:      5e6 * 1e8, // 5 million SKA-2
+				EmissionHeight: 64,        // Fast emission for testing
+				EmissionWindow: 100,       // 100 block window for testing
+				Active:         true,      // Active on testnet for testing
+				Description:    "Secondary SKA coin type for testnet testing",
+				EmissionAddresses: []string{
+					"TsPlaceholderAddressForTestnetSKA2Emission", // REPLACE with real testnet address
+				},
+				EmissionAmounts: []int64{
+					5e6 * 1e8,
+				},
+				// SECURITY NOTE: This is a placeholder key for development ONLY
+				EmissionKey: mustParseHexPubKeyTestnet("0316e57ce5fdb617dc192576d9c860f57e7e7a95592aa32e25941731a2eb2c57d6"),
+			},
+		},
+
+		// Initial SKA types to activate at network genesis
+		InitialSKATypes: []cointype.CoinType{1},
 	}
+}
+
+// mustParseHexPubKeyTestnet parses a hex-encoded public key for testnet.
+// SECURITY WARNING: These are placeholder keys - production must use secure key generation.
+func mustParseHexPubKeyTestnet(hexStr string) *secp256k1.PublicKey {
+	keyBytes := mustParseHex(hexStr)
+	pubKey, err := secp256k1.ParsePubKey(keyBytes)
+	if err != nil {
+		panic("failed to parse public key: " + err.Error())
+	}
+	return pubKey
 }

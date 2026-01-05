@@ -256,6 +256,12 @@ func checkPkScriptStandard(version uint16, pkScript []byte,
 // particular, if the cost to the network to spend coins is more than 1/3 of the
 // minimum transaction relay fee, it is considered dust.
 func isDust(txOut *wire.TxOut, minRelayTxFee dcrutil.Amount) bool {
+	// SKA burn scripts are intentionally unspendable but should not be
+	// considered dust - they are valid burn transactions.
+	if stdscript.IsSKABurnScriptV0(txOut.PkScript) {
+		return false
+	}
+
 	// Unspendable outputs are considered dust.
 	if txscript.IsUnspendable(txOut.Value, txOut.PkScript) {
 		return true

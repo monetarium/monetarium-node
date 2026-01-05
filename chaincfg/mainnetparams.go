@@ -141,10 +141,10 @@ func MainNetParams() *Params {
 
 		// The miner confirmation window is defined as:
 		//   target proof of work timespan / target proof of work spacing
-		RuleChangeActivationQuorum:     16, // PRODUCTION: 4032, // 10 % of RuleChangeActivationInterval * TicketsPerBlock
-		RuleChangeActivationMultiplier: 3,  // 75%
+		RuleChangeActivationQuorum:     4032, // 10% of RuleChangeActivationInterval * TicketsPerBlock
+		RuleChangeActivationMultiplier: 3,    // 75%
 		RuleChangeActivationDivisor:    4,
-		RuleChangeActivationInterval:   32, // PRODUCTION: 2016 * 4, // 4 weeks
+		RuleChangeActivationInterval:   8064, // 2016 * 4 = 4 weeks
 		Deployments: map[uint32][]ConsensusDeployment{
 			4: {{
 				Vote: Vote{
@@ -483,33 +483,6 @@ func MainNetParams() *Params {
 				},
 				StartTime:  1682294400, // Apr 24th, 2023
 				ExpireTime: 1745452800, // Apr 24th, 2025
-			}, {
-				Vote: Vote{
-					Id:          "activateska2",
-					Description: "Activate SKA-2 coin type for transactions",
-					Mask:        0x0018,
-					Choices: []Choice{{
-						Id:          "abstain",
-						Description: "abstain from voting",
-						Bits:        0x0000,
-						IsAbstain:   true,
-						IsNo:        false,
-					}, {
-						Id:          "no",
-						Description: "keep SKA-2 inactive",
-						Bits:        0x0008,
-						IsAbstain:   false,
-						IsNo:        true,
-					}, {
-						Id:          "yes",
-						Description: "activate SKA-2 for use",
-						Bits:        0x0010,
-						IsAbstain:   false,
-						IsNo:        false,
-					}},
-				},
-				StartTime:  1764956763, // Dec 5th, 2025
-				ExpireTime: 1765101074, // Dec 7th, 2025
 			}},
 		},
 
@@ -520,9 +493,9 @@ func MainNetParams() *Params {
 		// Reject previous block versions once a majority of the network has
 		// upgraded.
 		// 95% (950 / 1000)
-		BlockEnforceNumRequired: 24, // PRODUCTION: 750 (75% of 1000) (temporary: 75% of 32)
-		BlockRejectNumRequired:  30, // PRODUCTION: 950 (95% of 1000) (temporary: 95% of 32)
-		BlockUpgradeNumToCheck:  32, // PRODUCTION: 1000 (temporary: 32)
+		BlockEnforceNumRequired: 750, // 75% of 1000
+		BlockRejectNumRequired:  950, // 95% of 1000
+		BlockUpgradeNumToCheck:  1000,
 
 		// AcceptNonStdTxs is a mempool param to either accept and relay non
 		// standard txs to the network or reject them
@@ -550,25 +523,24 @@ func MainNetParams() *Params {
 		MinimumStakeDiff:        2 * 1e8, // 2 Coin
 		TicketPoolSize:          8192,
 		TicketsPerBlock:         5,
-		TicketMaturity:          16,    // PRODUCTION: Normal mainnet value (temporary: 16)
+		TicketMaturity:          256,
 		TicketExpiry:            40960, // 5*TicketPoolSize
-		CoinbaseMaturity:        16,    // PRODUCTION: Normal mainnet value (temporary: 16)
+		CoinbaseMaturity:        256,
 		SStxChangeMaturity:      1,
 		TicketPoolSizeWeight:    4,
 		StakeDiffAlpha:          1, // Minimal
 		StakeDiffWindowSize:     144,
 		StakeDiffWindows:        20,
-		StakeVersionInterval:    32, // PRODUCTION: 144 * 2 * 7, // ~1 week
-		MaxFreshStakePerBlock:   20, // 4*TicketsPerBlock
-		StakeEnabledHeight:      32, // PRODUCTION: CoinbaseMaturity + TicketMaturity = 512 (temporary: 16 + 16 = 32)
-		StakeValidationHeight:   64, // PRODUCTION: Normal mainnet value (temporary: 64)
+		StakeVersionInterval:    2016, // 144 * 2 * 7 = ~1 week
+		MaxFreshStakePerBlock:   20,   // 4*TicketsPerBlock
+		StakeEnabledHeight:      512,  // CoinbaseMaturity + TicketMaturity
+		StakeValidationHeight:   4096,
 		StakeBaseSigScript:      []byte{0x00, 0x00},
 		StakeMajorityMultiplier: 3,
 		StakeMajorityDivisor:    4,
 
-		// Decred organization related parameters
-		// Organization address is Dcur2mcGjmENx4DhNqDctW5wJCVyT3Qeqkx
-		OrganizationPkScript:        hexDecode("a914f5916158e3e2c4551c1796708db8367207ed13bb87"),
+		// Monetarium has no treasury (BlockTaxProportion = 0)
+		OrganizationPkScript:        nil,
 		OrganizationPkScriptVersion: 0,
 		BlockOneLedger:              nil,
 
@@ -613,7 +585,7 @@ func MainNetParams() *Params {
 				Name:           "Skarb-1",
 				Symbol:         "SKA-1",
 				MaxSupply:      10e6 * 1e8, // 10 million SKA-1
-				EmissionHeight: 64,         // PRODUCTION: Emit at block 1024, aligned with StakeValidationHeight (temporary: 64)
+				EmissionHeight: 4096,       // Aligned with StakeValidationHeight
 				EmissionWindow: 4320,       // 30-day emission window (~144 blocks/day * 30)
 				Active:         true,
 				Description:    "Primary asset-backed SKA coin type for mainnet",
@@ -633,9 +605,9 @@ func MainNetParams() *Params {
 				Name:           "Skarb-2",
 				Symbol:         "SKA-2",
 				MaxSupply:      5e6 * 1e8, // 5 million SKA-2 (proof of concept)
-				EmissionHeight: 64,        // Emit at block 150k
+				EmissionHeight: 150000,    // Future emission height
 				EmissionWindow: 4320,      // 30-day emission window (~144 blocks/day * 30)
-				Active:         true,      // Not yet active, for proof of concept
+				Active:         false,     // Inactive until governance vote
 				Description:    "Secondary SKA coin type for proof of concept testing",
 				// Governance-approved emission distribution (TO BE REPLACED WITH REAL ADDRESSES)
 				EmissionAddresses: []string{

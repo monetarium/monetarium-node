@@ -3518,18 +3518,27 @@ func handleGetEmissionStatus(_ context.Context, s *Server, icmd interface{}) (in
 	// Check if already emitted by examining blockchain state
 	alreadyEmitted := s.cfg.Chain.HasSKAEmissionOccurred(coinType)
 
+	// Calculate circulating supply (max - burned), 0 if not yet emitted
+	var circulatingSupply float64
+	if alreadyEmitted {
+		burnedAmount := s.cfg.Chain.GetSKABurnedAmount(coinType)
+		circulatingAtoms := config.MaxSupply - burnedAmount
+		circulatingSupply = dcrutil.Amount(circulatingAtoms).ToCoinType(coinType)
+	}
+
 	return types.GetEmissionStatusResult{
-		CoinType:       c.CoinType,
-		EmissionHeight: windowStart,
-		EmissionWindow: int64(config.EmissionWindow),
-		CurrentHeight:  currentHeight,
-		WindowActive:   windowActive,
-		WindowStart:    windowStart,
-		WindowEnd:      windowEnd,
-		CurrentNonce:   currentNonce,
-		NextNonce:      currentNonce + 1,
-		AlreadyEmitted: alreadyEmitted,
-		MaxSupply:      config.MaxSupply,
+		CoinType:          c.CoinType,
+		EmissionHeight:    windowStart,
+		EmissionWindow:    int64(config.EmissionWindow),
+		CurrentHeight:     currentHeight,
+		WindowActive:      windowActive,
+		WindowStart:       windowStart,
+		WindowEnd:         windowEnd,
+		CurrentNonce:      currentNonce,
+		NextNonce:         currentNonce + 1,
+		AlreadyEmitted:    alreadyEmitted,
+		MaxSupply:         config.MaxSupply,
+		CirculatingSupply: circulatingSupply,
 	}, nil
 }
 

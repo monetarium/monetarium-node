@@ -564,10 +564,10 @@ func RegNetParams() *Params {
 		//   Rk8KEdGMGJiF27CZ8rw2gDPD7MkVGSPjHinXjtTZhoH8ZQ6UhJvhV
 		//   Rk8JV484ePPX6vWZCfBX2Scme5XriXhzwmyaKSYQT64HTbkkfyzL3
 		//
-		// Organization address is RcQR65gasxuzf7mUeBXeAux6Z37joPuUwUN
-		OrganizationPkScript:        hexDecode("a9146913bcc838bd0087fb3f6b3c868423d5e300078d87"),
+		// Monetarium has no treasury (BlockTaxProportion = 0)
+		OrganizationPkScript:        nil,
 		OrganizationPkScriptVersion: 0,
-		BlockOneLedger:              tokenPayouts_RegNetParams(),
+		BlockOneLedger:              nil, // Monetarium has no premine
 
 		// Commands to generate regnet Pi keys:
 		// $ treasurykey.go -regnet

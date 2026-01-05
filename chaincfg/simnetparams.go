@@ -606,8 +606,8 @@ func SimNetParams() *Params {
 		//   SkQn8ervNvAUEX5Ua3Lwjc6BAuTXRznDoDzsyxgjYqX58znY7w9e4
 		//   SkQkfkHZeBbMW8129tZ3KspEh1XBFC1btbkgzs6cjSyPbrgxzsKqk
 		//
-		// Organization address is ScuQxvveKGfpG1ypt6u27F99Anf7EW3cqhq
-		OrganizationPkScript:        hexDecode("a914cbb08d6ca783b533b2c7d24a51fbca92d937bf9987"),
+		// Monetarium has no treasury (BlockTaxProportion = 0)
+		OrganizationPkScript:        nil,
 		OrganizationPkScriptVersion: 0,
 		BlockOneLedger:              nil,
 
