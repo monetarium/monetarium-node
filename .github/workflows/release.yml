@@ -31,6 +31,9 @@ jobs:
         with:
           go-version: '1.23'
 
+      - name: Setup Go workspace
+        run: ./contrib/devtools/dcr_setup_go_workspace.sh
+
       - name: Build
         env:
           CGO_ENABLED: 0
