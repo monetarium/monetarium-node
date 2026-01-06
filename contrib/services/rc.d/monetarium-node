@@ -1,0 +1,23 @@
+#!/bin/ksh
+
+# OpenBSD rc.d service file for monetarium-node.
+# Assumes a _monetarium user is created with home directory /home/_monetarium for block
+# data, and application configuration in /etc/monetarium-node.conf.
+# All logs and crash traces are written to the daemon.info syslog facility,
+# with monetarium-node's built-in file logging and log rotation disabled by default.
+# Save to /etc/rc.d/monetarium-node and enable with 'pkg_scripts=monetarium-node' in
+# /etc/rc.conf.local.
+
+daemon="/usr/local/bin/monetarium-node"
+daemon_flags="-C/etc/monetarium-node.conf -A/home/_monetarium --nofilelogging"
+daemon_user=_monetarium
+daemon_logger=daemon.info
+
+. /etc/rc.d/rc.subr
+
+daemon="env LOGFLAGS=nodatetime ${daemon}"
+
+rc_bg=YES
+rc_reload=NO
+
+rc_cmd $1

@@ -41,7 +41,7 @@ require (
 	github.com/monetarium/monetarium-node/rpcclient v1.0.6
 	github.com/monetarium/monetarium-node/txscript v1.0.6
 	github.com/monetarium/monetarium-node/wire v1.0.6
-	github.com/monetarium/test/dcrdtest v1.0.1
+	github.com/monetarium/monetarium-test/dcrdtest v1.0.6
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	golang.org/x/net v0.28.0
 	golang.org/x/sys v0.30.0

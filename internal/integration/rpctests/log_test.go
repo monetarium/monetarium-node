@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/decred/slog"
-	"github.com/monetarium/test/dcrdtest"
+	"github.com/monetarium/monetarium-test/dcrdtest"
 )
 
 type testLog struct {

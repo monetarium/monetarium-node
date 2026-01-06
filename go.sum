@@ -102,8 +102,8 @@ github.com/monetarium/monetarium-node/txscript v1.0.4 h1:72esUdDu1nSQo8/Zr97B4sv
 github.com/monetarium/monetarium-node/txscript v1.0.4/go.mod h1:ELHjrure5+igSLc1neGA4DD1IngIBZFY6UwVp/ga6n4=
 github.com/monetarium/monetarium-node/wire v1.0.4 h1:JOCGLHKIV4GUwv1ELjedvfIGd185JTz+OHpTsl4AecY=
 github.com/monetarium/monetarium-node/wire v1.0.4/go.mod h1:GJDNIstcLeTrSlPZBg+CpQIobfd+tN67apQ0G5DXJQY=
-github.com/monetarium/test/dcrdtest v1.0.1 h1:v0g7/N2EpV2YV2HzfTYhQKeD6/RnXUKG4K05sw2ZGnk=
-github.com/monetarium/test/dcrdtest v1.0.1/go.mod h1:mmFcIpd6Ju0sBGDZOZJsUQDuTcW7B9WY91Ca3eLtj9s=
+github.com/monetarium/monetarium-test/dcrdtest v1.0.1 h1:v0g7/N2EpV2YV2HzfTYhQKeD6/RnXUKG4K05sw2ZGnk=
+github.com/monetarium/monetarium-test/dcrdtest v1.0.1/go.mod h1:mmFcIpd6Ju0sBGDZOZJsUQDuTcW7B9WY91Ca3eLtj9s=
 github.com/nxadm/tail v1.4.4 h1:DQuhQpB1tVlglWS2hLQ5OV6B5r8aGxSrPc5Qo6uTN78=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
 github.com/onsi/ginkgo v1.6.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=

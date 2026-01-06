@@ -30,7 +30,7 @@ import (
 	"github.com/monetarium/monetarium-node/txscript/sign"
 	"github.com/monetarium/monetarium-node/txscript/stdaddr"
 	"github.com/monetarium/monetarium-node/wire"
-	"github.com/monetarium/test/dcrdtest"
+	"github.com/monetarium/monetarium-test/dcrdtest"
 )
 
 // timeoutCtx returns a context with the given timeout and automatically calls
