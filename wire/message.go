@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // MessageHeaderSize is the number of bytes in a Decred message header.

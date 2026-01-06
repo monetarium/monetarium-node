@@ -11,11 +11,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/cointype"
-	"github.com/monetarium/node/rpc/jsonrpc/types"
-	"github.com/monetarium/node/txscript/stdscript"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/cointype"
+	"github.com/monetarium/monetarium-node/rpc/jsonrpc/types"
+	"github.com/monetarium/monetarium-node/txscript/stdscript"
+	"github.com/monetarium/monetarium-node/wire"
 	"github.com/monetarium/test/dcrdtest"
 )
 

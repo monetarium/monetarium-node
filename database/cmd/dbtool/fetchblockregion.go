@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/database"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/database"
 )
 
 // blockRegionCmd defines the configuration options for the fetchblockregion

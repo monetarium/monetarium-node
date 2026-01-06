@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/monetarium/node/crypto/blake256"
-	"github.com/monetarium/node/dcrec/secp256k1"
+	"github.com/monetarium/monetarium-node/crypto/blake256"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
 )
 
 // TestSignatureParsing ensures that signatures are properly parsed including

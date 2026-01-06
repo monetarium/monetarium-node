@@ -7,7 +7,7 @@ package stdaddr
 import (
 	"testing"
 
-	"github.com/monetarium/node/chaincfg"
+	"github.com/monetarium/monetarium-node/chaincfg"
 )
 
 // BenchmarkDecode benchmarks the performance of decoding various types of

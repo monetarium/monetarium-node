@@ -11,12 +11,12 @@ import (
 	"math"
 
 	"github.com/decred/base58"
-	"github.com/monetarium/node/crypto/blake256"
-	"github.com/monetarium/node/crypto/ripemd160"
-	"github.com/monetarium/node/dcrec"
-	"github.com/monetarium/node/dcrec/edwards"
-	"github.com/monetarium/node/dcrec/secp256k1"
-	"github.com/monetarium/node/txscript"
+	"github.com/monetarium/monetarium-node/crypto/blake256"
+	"github.com/monetarium/monetarium-node/crypto/ripemd160"
+	"github.com/monetarium/monetarium-node/dcrec"
+	"github.com/monetarium/monetarium-node/dcrec/edwards"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
+	"github.com/monetarium/monetarium-node/txscript"
 )
 
 const (

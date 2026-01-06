@@ -7,7 +7,7 @@ package blockchain
 import (
 	"testing"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // TestCalcCommitmentRootV1 ensures the expected version 1 commitment root is

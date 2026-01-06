@@ -7,7 +7,7 @@ package rpcserver
 import (
 	"testing"
 
-	"github.com/monetarium/node/chaincfg"
+	"github.com/monetarium/monetarium-node/chaincfg"
 )
 
 // TestSKAConfigParameterValidation tests validation of SKA configuration parameters.

@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/monetarium/node/dcrjson"
+	"github.com/monetarium/monetarium-node/dcrjson"
 )
 
 // TestChainSvrCmds tests all of the chain server commands marshal and unmarshal

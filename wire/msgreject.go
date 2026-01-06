@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // RejectCode represents a numeric value by which a remote peer indicates

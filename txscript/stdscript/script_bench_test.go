@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/monetarium/node/txscript"
+	"github.com/monetarium/monetarium-node/txscript"
 )
 
 // These variables are used to help ensure the benchmarks do not elide code.

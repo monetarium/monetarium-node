@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/monetarium/node/blockchain/chaingen"
-	"github.com/monetarium/node/chaincfg"
+	"github.com/monetarium/monetarium-node/blockchain/chaingen"
+	"github.com/monetarium/monetarium-node/chaincfg"
 )
 
 const (

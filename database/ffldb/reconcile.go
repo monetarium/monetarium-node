@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"hash/crc32"
 
-	"github.com/monetarium/node/database"
+	"github.com/monetarium/monetarium-node/database"
 )
 
 // The serialized write cursor location format is:

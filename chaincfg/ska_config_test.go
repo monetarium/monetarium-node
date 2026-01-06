@@ -7,7 +7,7 @@ package chaincfg
 import (
 	"testing"
 
-	"github.com/monetarium/node/cointype"
+	"github.com/monetarium/monetarium-node/cointype"
 )
 
 // TestSKACoinConfig tests the SKACoinConfig structure and its methods.

@@ -8,8 +8,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/monetarium/node/blockchain/standalone"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/blockchain/standalone"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // SSFee marker detection and validation utilities.

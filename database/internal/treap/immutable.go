@@ -8,7 +8,7 @@ package treap
 import (
 	"bytes"
 
-	"github.com/monetarium/node/crypto/rand"
+	"github.com/monetarium/monetarium-node/crypto/rand"
 )
 
 // cloneTreapNode returns a shallow copy of the passed node.

@@ -5,11 +5,11 @@
 package mining
 
 import (
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/cointype"
-	"github.com/monetarium/node/dcrutil"
-	"github.com/monetarium/node/internal/blockalloc"
-	"github.com/monetarium/node/internal/fees"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/cointype"
+	"github.com/monetarium/monetarium-node/dcrutil"
+	"github.com/monetarium/monetarium-node/internal/blockalloc"
+	"github.com/monetarium/monetarium-node/internal/fees"
 )
 
 // BlockSpaceAllocator extends the core blockalloc.BlockSpaceAllocator with

@@ -9,10 +9,10 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/dcrec/secp256k1"
-	"github.com/monetarium/node/dcrec/secp256k1/ecdsa"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1/ecdsa"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // testDataPath is the path where txscript test fixtures reside.

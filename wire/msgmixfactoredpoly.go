@@ -9,7 +9,7 @@ import (
 	"hash"
 	"io"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // MsgMixFactoredPoly encodes the solution of the factored slot reservation

@@ -7,8 +7,8 @@ package mixing
 import (
 	"hash"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // Message is a mixing message.  In addition to implementing wire encoding,

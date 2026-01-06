@@ -27,8 +27,8 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/decred/go-socks/socks"
-	"github.com/monetarium/node/dcrjson"
-	chainjson "github.com/monetarium/node/rpc/jsonrpc/types"
+	"github.com/monetarium/monetarium-node/dcrjson"
+	chainjson "github.com/monetarium/monetarium-node/rpc/jsonrpc/types"
 )
 
 var (

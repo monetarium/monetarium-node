@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // mockVote is a convenience func to return a mock vote that is used as a base

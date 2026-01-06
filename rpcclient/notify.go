@@ -13,11 +13,11 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/dcrutil"
-	chainjson "github.com/monetarium/node/rpc/jsonrpc/types"
-	"github.com/monetarium/node/txscript/stdaddr"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/dcrutil"
+	chainjson "github.com/monetarium/monetarium-node/rpc/jsonrpc/types"
+	"github.com/monetarium/monetarium-node/txscript/stdaddr"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 var (

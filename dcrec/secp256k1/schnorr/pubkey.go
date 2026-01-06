@@ -8,7 +8,7 @@ package schnorr
 import (
 	"fmt"
 
-	"github.com/monetarium/node/dcrec/secp256k1"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
 )
 
 // These constants define the lengths of serialized public keys.

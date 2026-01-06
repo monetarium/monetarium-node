@@ -11,9 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/monetarium/node/database"
-	"github.com/monetarium/node/dcrutil"
-	"github.com/monetarium/node/internal/blockchain/progresslog"
+	"github.com/monetarium/monetarium-node/database"
+	"github.com/monetarium/monetarium-node/dcrutil"
+	"github.com/monetarium/monetarium-node/internal/blockchain/progresslog"
 )
 
 // IndexNtfnType represents an index notification type.

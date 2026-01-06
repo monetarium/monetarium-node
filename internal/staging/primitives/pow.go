@@ -7,8 +7,8 @@ package primitives
 import (
 	"fmt"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/math/uint256"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/math/uint256"
 )
 
 // DiffBitsToUint256 converts the compact representation used to encode

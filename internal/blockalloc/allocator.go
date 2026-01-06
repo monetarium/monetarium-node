@@ -6,8 +6,8 @@ package blockalloc
 
 import (
 	"github.com/decred/slog"
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/cointype"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/cointype"
 )
 
 var log = slog.Disabled

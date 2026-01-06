@@ -7,8 +7,8 @@ package stake
 import (
 	"testing"
 
-	"github.com/monetarium/node/txscript"
-	"github.com/monetarium/node/txscript/stdaddr"
+	"github.com/monetarium/monetarium-node/txscript"
+	"github.com/monetarium/monetarium-node/txscript/stdaddr"
 )
 
 var (

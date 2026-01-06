@@ -11,10 +11,10 @@ import (
 	"sync"
 
 	"github.com/dchest/siphash"
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/dcrec/secp256k1"
-	"github.com/monetarium/node/dcrec/secp256k1/ecdsa"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1/ecdsa"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // ProactiveEvictionDepth is the depth of the block at which the signatures for

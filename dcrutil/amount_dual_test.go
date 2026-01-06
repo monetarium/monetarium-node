@@ -8,7 +8,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/monetarium/node/cointype"
+	"github.com/monetarium/monetarium-node/cointype"
 )
 
 // TestNewAmountForCoinType tests the NewAmountForCoinType function.

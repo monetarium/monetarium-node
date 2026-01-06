@@ -9,8 +9,8 @@ import (
 	"bytes"
 	"sort"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // sortableInputSlice implements sort.Interface to allow a slice of transaction

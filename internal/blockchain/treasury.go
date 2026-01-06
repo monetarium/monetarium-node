@@ -10,14 +10,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/monetarium/node/blockchain/stake"
-	"github.com/monetarium/node/blockchain/standalone"
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/database"
-	"github.com/monetarium/node/dcrec/secp256k1/schnorr"
-	"github.com/monetarium/node/dcrutil"
-	"github.com/monetarium/node/txscript"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/blockchain/stake"
+	"github.com/monetarium/monetarium-node/blockchain/standalone"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/database"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1/schnorr"
+	"github.com/monetarium/monetarium-node/dcrutil"
+	"github.com/monetarium/monetarium-node/txscript"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // errDbTreasury signifies that a problem was encountered when fetching or

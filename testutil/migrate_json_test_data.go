@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/monetarium/node/cointype"
-	"github.com/monetarium/node/txscript"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/cointype"
+	"github.com/monetarium/monetarium-node/txscript"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 const (

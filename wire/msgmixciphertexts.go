@@ -9,7 +9,7 @@ import (
 	"hash"
 	"io"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // MsgMixCiphertexts is used by mixing peers to share SNTRUP4591761

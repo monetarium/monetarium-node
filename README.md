@@ -1,9 +1,9 @@
 monetarium
 ====
 
-[![Build Status](https://github.com/monetarium/node/workflows/Build%20and%20Test/badge.svg)](https://github.com/monetarium/node/actions)
+[![Build Status](https://github.com/monetarium/monetarium-node/workflows/Build%20and%20Test/badge.svg)](https://github.com/monetarium/monetarium-node/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/monetarium/node)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/monetarium/monetarium-node)
 
 ## Monetarium Overview
 
@@ -120,7 +120,7 @@ Also, make sure your firewall is configured to allow inbound connections to port
 <details><summary><b>Windows Example</b></summary>
 
   ```PowerShell
-  PS> git clone https://github.com/monetarium/node $env:USERPROFILE\src\monetarium
+  PS> git clone https://github.com/monetarium/monetarium-node $env:USERPROFILE\src\monetarium
   PS> cd $env:USERPROFILE\src\monetarium
   PS> go install . .\cmd\...
   PS> monetarium -V
@@ -134,7 +134,7 @@ Also, make sure your firewall is configured to allow inbound connections to port
   in dependencies.
 
   ```sh
-  $ git clone https://github.com/monetarium/node $HOME/src/monetarium
+  $ git clone https://github.com/monetarium/monetarium-node $HOME/src/monetarium
   $ (cd $HOME/src/monetarium && go install . ./...)
   $ monetarium -V
   ```
@@ -175,5 +175,5 @@ All tests and linters may be run using the script `run_tests.sh`.
 
 ## Issue Tracker
 
-The [integrated github issue tracker](https://github.com/monetarium/node/issues)
+The [integrated github issue tracker](https://github.com/monetarium/monetarium-node/issues)
 is used for this project.

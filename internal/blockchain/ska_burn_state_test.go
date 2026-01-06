@@ -7,9 +7,9 @@ package blockchain
 import (
 	"testing"
 
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/cointype"
-	"github.com/monetarium/node/database"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/cointype"
+	"github.com/monetarium/monetarium-node/database"
 )
 
 // TestSKABurnStateConnectDisconnect tests basic connect and disconnect of burns.

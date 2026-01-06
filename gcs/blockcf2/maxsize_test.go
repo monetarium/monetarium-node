@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/dchest/siphash"
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/gcs"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/gcs"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // TestMaxSize verifies the max size of blockcf2 filters for various

@@ -10,8 +10,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/database"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/database"
 )
 
 // fetchBlockCmd defines the configuration options for the fetchblock command.

@@ -7,7 +7,7 @@ package mixclient
 import (
 	"errors"
 
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 var errExceedsStandardSize = errors.New("tx size would exceed standardness rules")

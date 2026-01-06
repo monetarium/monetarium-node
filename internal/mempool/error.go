@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/monetarium/node/internal/blockchain"
+	"github.com/monetarium/monetarium-node/internal/blockchain"
 )
 
 // ErrorKind identifies a kind of error.  It has full support for errors.Is and

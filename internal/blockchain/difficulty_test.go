@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // TestEstimateSupply ensures the supply estimation function used in the stake

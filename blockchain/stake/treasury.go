@@ -7,10 +7,10 @@ package stake
 import (
 	"fmt"
 
-	"github.com/monetarium/node/dcrec/secp256k1"
-	"github.com/monetarium/node/dcrec/secp256k1/schnorr"
-	"github.com/monetarium/node/txscript"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1/schnorr"
+	"github.com/monetarium/monetarium-node/txscript"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 const (

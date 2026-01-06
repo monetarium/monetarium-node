@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/monetarium/node/txscript"
+	"github.com/monetarium/monetarium-node/txscript"
 )
 
 var (

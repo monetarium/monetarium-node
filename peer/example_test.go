@@ -10,8 +10,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/monetarium/node/peer"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/peer"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // mockRemotePeer creates a basic inbound peer listening on the simnet port for

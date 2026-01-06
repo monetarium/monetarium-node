@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/monetarium/node/dcrutil"
+	"github.com/monetarium/monetarium-node/dcrutil"
 )
 
 func main() {

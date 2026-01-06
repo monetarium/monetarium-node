@@ -7,7 +7,7 @@ package primitives
 import (
 	"testing"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // TestCalcMerkleRoot ensures the expected merkle root is produced for known

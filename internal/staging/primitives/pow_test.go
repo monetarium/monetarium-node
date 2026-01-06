@@ -9,8 +9,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/math/uint256"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/math/uint256"
 )
 
 // hexToBytes converts the passed hex string into bytes and will panic if there

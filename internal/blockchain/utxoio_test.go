@@ -11,8 +11,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/monetarium/node/blockchain/stake"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/blockchain/stake"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // TestUtxoSerialization ensures serializing and deserializing unspent

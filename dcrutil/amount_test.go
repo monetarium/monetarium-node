@@ -11,7 +11,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/monetarium/node/cointype"
+	"github.com/monetarium/monetarium-node/cointype"
 )
 
 // Define test constants for backward compatibility

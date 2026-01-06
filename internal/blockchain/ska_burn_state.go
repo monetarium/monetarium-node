@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/cointype"
-	"github.com/monetarium/node/database"
-	"github.com/monetarium/node/dcrutil"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/cointype"
+	"github.com/monetarium/monetarium-node/database"
+	"github.com/monetarium/monetarium-node/dcrutil"
 )
 
 // SKA burn state management

@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/monetarium/node/connmgr"
-	"github.com/monetarium/node/peer"
+	"github.com/monetarium/monetarium-node/connmgr"
+	"github.com/monetarium/monetarium-node/peer"
 )
 
 // Config is the configuration struct for the ban manager.

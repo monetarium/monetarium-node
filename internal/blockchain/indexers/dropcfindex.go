@@ -8,7 +8,7 @@ package indexers
 import (
 	"context"
 
-	"github.com/monetarium/node/database"
+	"github.com/monetarium/monetarium-node/database"
 )
 
 const (

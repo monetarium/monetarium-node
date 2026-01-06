@@ -5,8 +5,8 @@
 package blockchain
 
 import (
-	"github.com/monetarium/node/blockchain/stake"
-	"github.com/monetarium/node/cointype"
+	"github.com/monetarium/monetarium-node/blockchain/stake"
+	"github.com/monetarium/monetarium-node/cointype"
 )
 
 const (

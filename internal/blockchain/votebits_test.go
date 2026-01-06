@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/monetarium/node/blockchain/stake"
-	"github.com/monetarium/node/chaincfg"
+	"github.com/monetarium/monetarium-node/blockchain/stake"
+	"github.com/monetarium/monetarium-node/chaincfg"
 )
 
 // TestVoting ensure the overall voting of an agenda works as expected including

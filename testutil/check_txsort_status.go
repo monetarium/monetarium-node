@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/monetarium/node/dcrutil/txsort"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/dcrutil/txsort"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 func main() {

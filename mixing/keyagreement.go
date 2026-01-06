@@ -11,11 +11,11 @@ import (
 	"io"
 
 	"github.com/companyzero/sntrup4591761"
-	"github.com/monetarium/node/crypto/blake256"
-	"github.com/monetarium/node/crypto/rand"
-	"github.com/monetarium/node/dcrec/secp256k1"
-	"github.com/monetarium/node/mixing/internal/chacha20prng"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/crypto/blake256"
+	"github.com/monetarium/monetarium-node/crypto/rand"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
+	"github.com/monetarium/monetarium-node/mixing/internal/chacha20prng"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // Aliases for sntrup4591761 types.

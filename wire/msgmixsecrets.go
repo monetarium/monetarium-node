@@ -9,7 +9,7 @@ import (
 	"hash"
 	"io"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // MsgMixSecrets reveals secrets of a failed mix run.  After secrets are

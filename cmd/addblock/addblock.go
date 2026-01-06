@@ -13,10 +13,10 @@ import (
 	"runtime"
 
 	"github.com/decred/slog"
-	"github.com/monetarium/node/database"
-	"github.com/monetarium/node/internal/blockchain"
-	"github.com/monetarium/node/internal/blockchain/indexers"
-	"github.com/monetarium/node/internal/limits"
+	"github.com/monetarium/monetarium-node/database"
+	"github.com/monetarium/monetarium-node/internal/blockchain"
+	"github.com/monetarium/monetarium-node/internal/blockchain/indexers"
+	"github.com/monetarium/monetarium-node/internal/limits"
 )
 
 const (

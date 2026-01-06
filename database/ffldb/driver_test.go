@@ -11,10 +11,10 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/database"
-	"github.com/monetarium/node/database/ffldb"
-	"github.com/monetarium/node/dcrutil"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/database"
+	"github.com/monetarium/monetarium-node/database/ffldb"
+	"github.com/monetarium/monetarium-node/dcrutil"
 )
 
 // dbType is the database type name for this driver.

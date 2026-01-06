@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // MaxISBlocksAtHeadPerMsg is the maximum number of block hashes allowed per

@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // TestGetSigOpCount tests that the GetSigOpCount function behaves as expected.

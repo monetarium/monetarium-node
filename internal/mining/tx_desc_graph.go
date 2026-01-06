@@ -5,8 +5,8 @@
 package mining
 
 import (
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/dcrutil"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/dcrutil"
 )
 
 // txDescGraph relates a set of transactions to their respective descendants and

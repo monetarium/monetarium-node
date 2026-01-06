@@ -9,7 +9,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/monetarium/node/bech32"
+	"github.com/monetarium/monetarium-node/bech32"
 )
 
 // This example demonstrates how to decode a bech32 encoded string.

@@ -16,8 +16,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // scriptTestName returns a descriptive test name for the given reference script

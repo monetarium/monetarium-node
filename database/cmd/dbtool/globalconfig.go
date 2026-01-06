@@ -11,10 +11,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/database"
-	_ "github.com/monetarium/node/database/ffldb"
-	"github.com/monetarium/node/dcrutil"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/database"
+	_ "github.com/monetarium/monetarium-node/database/ffldb"
+	"github.com/monetarium/monetarium-node/dcrutil"
 )
 
 var (

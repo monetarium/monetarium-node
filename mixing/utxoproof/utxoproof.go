@@ -7,9 +7,9 @@ package utxoproof
 import (
 	"encoding/binary"
 
-	"github.com/monetarium/node/crypto/blake256"
-	"github.com/monetarium/node/dcrec/secp256k1"
-	"github.com/monetarium/node/dcrec/secp256k1/schnorr"
+	"github.com/monetarium/monetarium-node/crypto/blake256"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1/schnorr"
 )
 
 // Tags and schemes describing the message being signed.

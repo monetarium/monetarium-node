@@ -15,9 +15,9 @@ import (
 	"sync"
 
 	"github.com/dchest/siphash"
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/crypto/blake256"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/crypto/blake256"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // modReduceV1 is the reduction method used in version 1 filters and simply

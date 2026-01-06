@@ -1,4 +1,4 @@
-module github.com/monetarium/node
+module github.com/monetarium/monetarium-node
 
 go 1.23.0
 
@@ -13,34 +13,34 @@ require (
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/jrick/bitset v1.0.0
 	github.com/jrick/logrotate v1.0.0
-	github.com/monetarium/node/addrmgr v1.0.4
-	github.com/monetarium/node/bech32 v1.0.4
-	github.com/monetarium/node/blockchain v1.0.4
-	github.com/monetarium/node/blockchain/stake v1.0.4
-	github.com/monetarium/node/blockchain/standalone v1.0.4
-	github.com/monetarium/node/certgen v1.0.4
-	github.com/monetarium/node/chaincfg v1.0.4
-	github.com/monetarium/node/chaincfg/chainhash v1.0.4
-	github.com/monetarium/node/cointype v1.0.4
-	github.com/monetarium/node/connmgr v1.0.4
-	github.com/monetarium/node/container/apbf v1.0.4
-	github.com/monetarium/node/container/lru v1.0.4
-	github.com/monetarium/node/crypto/blake256 v1.0.4
-	github.com/monetarium/node/crypto/rand v1.0.4
-	github.com/monetarium/node/crypto/ripemd160 v1.0.4
-	github.com/monetarium/node/database v1.0.4
-	github.com/monetarium/node/dcrec v1.0.4
-	github.com/monetarium/node/dcrec/secp256k1 v1.0.4
-	github.com/monetarium/node/dcrjson v1.0.4
-	github.com/monetarium/node/dcrutil v1.0.4
-	github.com/monetarium/node/gcs v1.0.4
-	github.com/monetarium/node/math/uint256 v1.0.4
-	github.com/monetarium/node/mixing v1.0.4
-	github.com/monetarium/node/peer v1.0.4
-	github.com/monetarium/node/rpc/jsonrpc/types v1.0.4
-	github.com/monetarium/node/rpcclient v1.0.4
-	github.com/monetarium/node/txscript v1.0.4
-	github.com/monetarium/node/wire v1.0.4
+	github.com/monetarium/monetarium-node/addrmgr v1.0.5
+	github.com/monetarium/monetarium-node/bech32 v1.0.5
+	github.com/monetarium/monetarium-node/blockchain v1.0.5
+	github.com/monetarium/monetarium-node/blockchain/stake v1.0.5
+	github.com/monetarium/monetarium-node/blockchain/standalone v1.0.5
+	github.com/monetarium/monetarium-node/certgen v1.0.5
+	github.com/monetarium/monetarium-node/chaincfg v1.0.5
+	github.com/monetarium/monetarium-node/chaincfg/chainhash v1.0.5
+	github.com/monetarium/monetarium-node/cointype v1.0.5
+	github.com/monetarium/monetarium-node/connmgr v1.0.5
+	github.com/monetarium/monetarium-node/container/apbf v1.0.5
+	github.com/monetarium/monetarium-node/container/lru v1.0.5
+	github.com/monetarium/monetarium-node/crypto/blake256 v1.0.5
+	github.com/monetarium/monetarium-node/crypto/rand v1.0.5
+	github.com/monetarium/monetarium-node/crypto/ripemd160 v1.0.5
+	github.com/monetarium/monetarium-node/database v1.0.5
+	github.com/monetarium/monetarium-node/dcrec v1.0.5
+	github.com/monetarium/monetarium-node/dcrec/secp256k1 v1.0.5
+	github.com/monetarium/monetarium-node/dcrjson v1.0.5
+	github.com/monetarium/monetarium-node/dcrutil v1.0.5
+	github.com/monetarium/monetarium-node/gcs v1.0.5
+	github.com/monetarium/monetarium-node/math/uint256 v1.0.5
+	github.com/monetarium/monetarium-node/mixing v1.0.5
+	github.com/monetarium/monetarium-node/peer v1.0.5
+	github.com/monetarium/monetarium-node/rpc/jsonrpc/types v1.0.5
+	github.com/monetarium/monetarium-node/rpcclient v1.0.5
+	github.com/monetarium/monetarium-node/txscript v1.0.5
+	github.com/monetarium/monetarium-node/wire v1.0.5
 	github.com/monetarium/test/dcrdtest v1.0.1
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	golang.org/x/net v0.28.0
@@ -57,8 +57,8 @@ require (
 	github.com/decred/dcrd/crypto/blake256 v1.0.1 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
-	github.com/monetarium/node/dcrec/edwards v1.0.4 // indirect
-	github.com/monetarium/node/hdkeychain v1.0.4 // indirect
+	github.com/monetarium/monetarium-node/dcrec/edwards v1.0.5 // indirect
+	github.com/monetarium/monetarium-node/hdkeychain v1.0.5 // indirect
 	golang.org/x/crypto v0.33.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/text v0.22.0 // indirect

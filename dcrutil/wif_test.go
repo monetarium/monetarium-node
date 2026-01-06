@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/monetarium/node/dcrec"
+	"github.com/monetarium/monetarium-node/dcrec"
 )
 
 // TestWIF ensures that WIF-related APIs work as intended including that they

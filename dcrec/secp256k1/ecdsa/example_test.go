@@ -9,9 +9,9 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/monetarium/node/crypto/blake256"
-	"github.com/monetarium/node/dcrec/secp256k1"
-	"github.com/monetarium/node/dcrec/secp256k1/ecdsa"
+	"github.com/monetarium/monetarium-node/crypto/blake256"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1/ecdsa"
 )
 
 // This example demonstrates signing a message with a secp256k1 private key that

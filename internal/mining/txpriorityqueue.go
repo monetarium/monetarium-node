@@ -8,8 +8,8 @@ package mining
 import (
 	"container/heap"
 
-	"github.com/monetarium/node/blockchain/stake"
-	"github.com/monetarium/node/cointype"
+	"github.com/monetarium/monetarium-node/blockchain/stake"
+	"github.com/monetarium/monetarium-node/cointype"
 )
 
 // txPrioItem houses a transaction along with extra information that allows the

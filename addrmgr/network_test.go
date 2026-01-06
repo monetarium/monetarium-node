@@ -9,7 +9,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // TestIPTypes ensures the various functions which determine the type of an IP

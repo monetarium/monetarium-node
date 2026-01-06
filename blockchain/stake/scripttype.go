@@ -5,7 +5,7 @@
 package stake
 
 import (
-	"github.com/monetarium/node/txscript"
+	"github.com/monetarium/monetarium-node/txscript"
 )
 
 // isScriptHashScript returns whether or not the passed script is a

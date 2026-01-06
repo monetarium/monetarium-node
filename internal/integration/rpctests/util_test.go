@@ -7,7 +7,7 @@
 
 package rpctests
 
-import "github.com/monetarium/node/wire"
+import "github.com/monetarium/monetarium-node/wire"
 
 // newTxOut returns a new transaction output with the given parameters.
 func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {

@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/monetarium/node/blockchain/stake"
+	"github.com/monetarium/monetarium-node/blockchain/stake"
 )
 
 // TestEncodeUtxoFlags validates that the correct bit representation is returned

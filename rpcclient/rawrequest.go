@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/monetarium/node/dcrjson"
+	"github.com/monetarium/monetarium-node/dcrjson"
 )
 
 // FutureRawResult is a future promise to deliver the result of a RawRequest RPC

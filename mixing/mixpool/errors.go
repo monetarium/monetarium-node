@@ -7,8 +7,8 @@ package mixpool
 import (
 	"errors"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // RuleError represents a mixpool rule violation.

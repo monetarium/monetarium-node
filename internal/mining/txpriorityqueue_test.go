@@ -10,7 +10,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/monetarium/node/blockchain/stake"
+	"github.com/monetarium/monetarium-node/blockchain/stake"
 )
 
 // TestStakeTxFeePrioHeap tests the priority heap including the stake types for

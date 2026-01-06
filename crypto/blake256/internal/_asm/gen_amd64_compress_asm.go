@@ -1111,7 +1111,7 @@ func main() {
 	// for this statement and the compress package is unable to build before the
 	// code is generated without a tag.  So, just duplicate the struct
 	// definition in this package and reference it.
-	build.Package("github.com/monetarium/node/crypto/blake256/internal/_asm")
+	build.Package("github.com/monetarium/monetarium-node/crypto/blake256/internal/_asm")
 
 	build.ConstraintExpr("!purego")
 	globalData()

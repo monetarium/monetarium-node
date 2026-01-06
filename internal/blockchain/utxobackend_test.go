@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/wire"
 	"github.com/syndtr/goleveldb/leveldb"
 	ldberrors "github.com/syndtr/goleveldb/leveldb/errors"
 )

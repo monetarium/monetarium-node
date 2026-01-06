@@ -5,8 +5,8 @@
 package stdscript
 
 import (
-	"github.com/monetarium/node/dcrec/secp256k1"
-	"github.com/monetarium/node/txscript/stdaddr"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
+	"github.com/monetarium/monetarium-node/txscript/stdaddr"
 )
 
 // addrToSlice is a convenience function that returns a slice containing the

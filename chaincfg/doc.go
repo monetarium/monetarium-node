@@ -24,8 +24,8 @@
 //		"fmt"
 //		"log"
 //
-//		"github.com/monetarium/node/chaincfg"
-//		"github.com/monetarium/node/txscript/stdaddr"
+//		"github.com/monetarium/monetarium-node/chaincfg"
+//		"github.com/monetarium/monetarium-node/txscript/stdaddr"
 //	)
 //
 //	func main() {

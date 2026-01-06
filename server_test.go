@@ -10,8 +10,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/monetarium/node/addrmgr"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/addrmgr"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // TestHostToNetAddress ensures that hostToNetAddress behaves as expected

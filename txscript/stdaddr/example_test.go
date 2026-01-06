@@ -7,8 +7,8 @@ package stdaddr_test
 import (
 	"fmt"
 
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/txscript/stdaddr"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/txscript/stdaddr"
 )
 
 // This example demonstrates decoding addresses, generating their payment

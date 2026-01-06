@@ -8,8 +8,8 @@ package dcrutil
 import (
 	"hash"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/crypto/ripemd160"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/crypto/ripemd160"
 )
 
 // Calculate the hash of hasher over buf.

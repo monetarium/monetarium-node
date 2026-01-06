@@ -6,7 +6,7 @@
 package main
 
 import (
-	"github.com/monetarium/node/chaincfg"
+	"github.com/monetarium/monetarium-node/chaincfg"
 )
 
 // params is used to group parameters for various networks such as the main

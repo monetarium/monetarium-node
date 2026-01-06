@@ -11,14 +11,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/dcrjson"
-	"github.com/monetarium/node/dcrutil"
-	"github.com/monetarium/node/gcs"
-	"github.com/monetarium/node/gcs/blockcf2"
-	chainjson "github.com/monetarium/node/rpc/jsonrpc/types"
-	"github.com/monetarium/node/txscript/stdaddr"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/dcrjson"
+	"github.com/monetarium/monetarium-node/dcrutil"
+	"github.com/monetarium/monetarium-node/gcs"
+	"github.com/monetarium/monetarium-node/gcs/blockcf2"
+	chainjson "github.com/monetarium/monetarium-node/rpc/jsonrpc/types"
+	"github.com/monetarium/monetarium-node/txscript/stdaddr"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // FutureGetBestBlockHashResult is a future promise to deliver the result of a

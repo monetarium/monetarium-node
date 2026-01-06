@@ -9,8 +9,8 @@ import (
 	"fmt"
 
 	"github.com/decred/slog"
-	"github.com/monetarium/node/database"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/database"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 var log = slog.Disabled

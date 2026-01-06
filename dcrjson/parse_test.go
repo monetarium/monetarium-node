@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 func decodeHash(reversedHash string) chainhash.Hash {

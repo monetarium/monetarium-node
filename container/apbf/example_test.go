@@ -7,7 +7,7 @@ package apbf_test
 import (
 	"fmt"
 
-	"github.com/monetarium/node/container/apbf"
+	"github.com/monetarium/monetarium-node/container/apbf"
 )
 
 // This example demonstrates creating a new APBF, adding items to it up to the

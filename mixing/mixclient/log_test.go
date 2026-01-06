@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/decred/slog"
-	"github.com/monetarium/node/mixing/mixpool"
+	"github.com/monetarium/monetarium-node/mixing/mixpool"
 )
 
 type testLog struct {

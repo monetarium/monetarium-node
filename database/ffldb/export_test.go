@@ -12,7 +12,7 @@ The functions are only exported while the tests are being run.
 
 package ffldb
 
-import "github.com/monetarium/node/database"
+import "github.com/monetarium/monetarium-node/database"
 
 // TstRunWithMaxBlockFileSize runs the passed function with the maximum allowed
 // file size for the database set to the provided value.  The value will be set

@@ -13,16 +13,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/monetarium/node/blockchain/stake"
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/cointype"
-	"github.com/monetarium/node/database"
-	"github.com/monetarium/node/dcrutil"
-	"github.com/monetarium/node/gcs"
-	"github.com/monetarium/node/gcs/blockcf2"
-	"github.com/monetarium/node/math/uint256"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/blockchain/stake"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/cointype"
+	"github.com/monetarium/monetarium-node/database"
+	"github.com/monetarium/monetarium-node/dcrutil"
+	"github.com/monetarium/monetarium-node/gcs"
+	"github.com/monetarium/monetarium-node/gcs/blockcf2"
+	"github.com/monetarium/monetarium-node/math/uint256"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 const (

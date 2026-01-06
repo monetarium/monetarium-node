@@ -7,7 +7,7 @@ package wire
 import (
 	"testing"
 
-	"github.com/monetarium/node/cointype"
+	"github.com/monetarium/monetarium-node/cointype"
 )
 
 // TestFeesByType tests the basic functionality of FeesByType.

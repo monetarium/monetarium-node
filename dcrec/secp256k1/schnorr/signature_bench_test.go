@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/monetarium/node/dcrec/secp256k1"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
 )
 
 // hexToModNScalar converts the passed hex string into a ModNScalar and will

@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/monetarium/node/txscript/stdaddr"
+	"github.com/monetarium/monetarium-node/txscript/stdaddr"
 )
 
 // addressTest describes tests for scripts that are used to ensure various

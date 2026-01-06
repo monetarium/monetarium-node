@@ -7,8 +7,8 @@ package blockchain
 import (
 	"testing"
 
-	"github.com/monetarium/node/cointype"
-	"github.com/monetarium/node/txscript"
+	"github.com/monetarium/monetarium-node/cointype"
+	"github.com/monetarium/monetarium-node/txscript"
 )
 
 // TestMakeDistributionKey tests the makeDistributionKey helper function.

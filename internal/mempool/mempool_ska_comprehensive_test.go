@@ -7,13 +7,13 @@ package mempool
 import (
 	"testing"
 
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/cointype"
-	"github.com/monetarium/node/dcrutil"
-	"github.com/monetarium/node/internal/blockchain"
-	"github.com/monetarium/node/internal/mining"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/cointype"
+	"github.com/monetarium/monetarium-node/dcrutil"
+	"github.com/monetarium/monetarium-node/internal/blockchain"
+	"github.com/monetarium/monetarium-node/internal/mining"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // TestSKAEmissionDuplicatePrevention tests comprehensive duplicate emission detection

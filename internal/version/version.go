@@ -49,7 +49,7 @@ var (
 	//
 	// It is defined as a variable so it can be overridden during the build
 	// process with:
-	// '-ldflags "-X github.com/monetarium/node/internal/version.Version=fullsemver"'
+	// '-ldflags "-X github.com/monetarium/monetarium-node/internal/version.Version=fullsemver"'
 	// if needed.
 	//
 	// It MUST be a full semantic version per the semantic versioning spec or

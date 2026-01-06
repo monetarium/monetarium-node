@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/monetarium/node/blockchain/chaingen"
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/txscript/stdscript"
+	"github.com/monetarium/monetarium-node/blockchain/chaingen"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/txscript/stdscript"
 )
 
 // TestExistsAddrIndexAsync ensures the exist address index

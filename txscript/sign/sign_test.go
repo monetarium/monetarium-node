@@ -12,15 +12,15 @@ import (
 	mrand "math/rand"
 	"testing"
 
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/dcrec"
-	"github.com/monetarium/node/dcrec/edwards"
-	"github.com/monetarium/node/dcrec/secp256k1"
-	"github.com/monetarium/node/txscript"
-	"github.com/monetarium/node/txscript/stdaddr"
-	"github.com/monetarium/node/txscript/stdscript"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/dcrec"
+	"github.com/monetarium/monetarium-node/dcrec/edwards"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
+	"github.com/monetarium/monetarium-node/txscript"
+	"github.com/monetarium/monetarium-node/txscript/stdaddr"
+	"github.com/monetarium/monetarium-node/txscript/stdscript"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // testingParams defines the chain params to use throughout these tests so it

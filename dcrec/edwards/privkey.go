@@ -13,7 +13,7 @@ import (
 	"math/big"
 
 	"github.com/agl/ed25519"
-	"github.com/monetarium/node/crypto/rand"
+	"github.com/monetarium/monetarium-node/crypto/rand"
 )
 
 // These constants define the lengths of serialized private keys.

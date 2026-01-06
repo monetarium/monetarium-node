@@ -18,16 +18,16 @@ import (
 
 	"decred.org/cspp/v2/solverrpc"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/crypto/blake256"
-	"github.com/monetarium/node/dcrec/secp256k1"
-	"github.com/monetarium/node/mixing"
-	"github.com/monetarium/node/mixing/internal/chacha20prng"
-	"github.com/monetarium/node/mixing/utxoproof"
-	"github.com/monetarium/node/txscript"
-	"github.com/monetarium/node/txscript/stdaddr"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/crypto/blake256"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
+	"github.com/monetarium/monetarium-node/mixing"
+	"github.com/monetarium/monetarium-node/mixing/internal/chacha20prng"
+	"github.com/monetarium/monetarium-node/mixing/utxoproof"
+	"github.com/monetarium/monetarium-node/txscript"
+	"github.com/monetarium/monetarium-node/txscript/stdaddr"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 var params = chaincfg.SimNetParams()

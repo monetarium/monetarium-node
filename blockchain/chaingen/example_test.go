@@ -7,8 +7,8 @@ package chaingen_test
 import (
 	"fmt"
 
-	"github.com/monetarium/node/blockchain/chaingen"
-	"github.com/monetarium/node/chaincfg"
+	"github.com/monetarium/monetarium-node/blockchain/chaingen"
+	"github.com/monetarium/monetarium-node/chaincfg"
 )
 
 // This example demonstrates creating a new generator instance and using it to

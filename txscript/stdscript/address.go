@@ -5,7 +5,7 @@
 // Package stdscript provides facilities for working with standard scripts.
 package stdscript
 
-import "github.com/monetarium/node/txscript/stdaddr"
+import "github.com/monetarium/monetarium-node/txscript/stdaddr"
 
 // ExtractAddrs analyzes the passed public key script and returns the associated
 // script type along with any addresses associated with it when possible.

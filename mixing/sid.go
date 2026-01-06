@@ -9,9 +9,9 @@ import (
 	"encoding/binary"
 	"sort"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/crypto/blake256"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/crypto/blake256"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // deriveSessionID creates the mix session identifier from an initial sorted

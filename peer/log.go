@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/decred/slog"
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/txscript"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/txscript"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // log is a logger that is initialized with no output filters.  This

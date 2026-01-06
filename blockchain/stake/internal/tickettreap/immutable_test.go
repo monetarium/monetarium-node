@@ -13,8 +13,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // assertPanic tests that code correctly panics, and will raise a testing error

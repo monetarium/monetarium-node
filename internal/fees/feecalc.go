@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/cointype"
-	"github.com/monetarium/node/dcrutil"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/cointype"
+	"github.com/monetarium/monetarium-node/dcrutil"
 )
 
 // CoinTypeFeeRate represents fee rate configuration for a specific coin type

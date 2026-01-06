@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/monetarium/node/blockchain/chaingen"
-	"github.com/monetarium/node/chaincfg"
+	"github.com/monetarium/monetarium-node/blockchain/chaingen"
+	"github.com/monetarium/monetarium-node/chaincfg"
 )
 
 // TestStakeVersion ensures that the stake version field in the block header is

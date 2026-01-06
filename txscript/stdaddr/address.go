@@ -9,7 +9,7 @@ package stdaddr
 import (
 	"fmt"
 
-	"github.com/monetarium/node/crypto/ripemd160"
+	"github.com/monetarium/monetarium-node/crypto/ripemd160"
 )
 
 // AddressParams defines an interface that is used to provide the parameters

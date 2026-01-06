@@ -23,7 +23,7 @@ import (
 	"unicode"
 
 	flags "github.com/jessevdk/go-flags"
-	"github.com/monetarium/node/crypto/rand"
+	"github.com/monetarium/monetarium-node/crypto/rand"
 	"golang.org/x/net/idna"
 )
 

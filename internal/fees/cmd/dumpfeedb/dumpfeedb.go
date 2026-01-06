@@ -13,8 +13,8 @@ import (
 	"path"
 
 	flags "github.com/jessevdk/go-flags"
-	"github.com/monetarium/node/dcrutil"
-	"github.com/monetarium/node/internal/fees"
+	"github.com/monetarium/monetarium-node/dcrutil"
+	"github.com/monetarium/monetarium-node/internal/fees"
 )
 
 type config struct {

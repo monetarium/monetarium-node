@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/math/uint256"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/math/uint256"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // TestBlockNodeHeader ensures that block nodes reconstruct the correct header

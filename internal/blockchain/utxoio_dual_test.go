@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/monetarium/node/cointype"
+	"github.com/monetarium/monetarium-node/cointype"
 )
 
 // TestUtxoSerializationDualCoin tests UTXO serialization/deserialization

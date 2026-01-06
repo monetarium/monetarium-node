@@ -9,7 +9,7 @@ import (
 	"hash"
 	"io"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // MsgMixConfirm contains a partially-signed mix transaction, with signatures

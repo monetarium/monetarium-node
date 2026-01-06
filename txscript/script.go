@@ -10,7 +10,7 @@ import (
 	"encoding/binary"
 	"strings"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // These are the constants specified for maximums in individual scripts.

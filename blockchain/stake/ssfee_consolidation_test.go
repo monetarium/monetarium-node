@@ -8,8 +8,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/monetarium/node/blockchain/standalone"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/blockchain/standalone"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // TestExtractSSFeeConsolidationAddr tests extraction of consolidation address

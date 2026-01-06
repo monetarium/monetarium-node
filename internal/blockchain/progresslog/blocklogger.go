@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/decred/slog"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // BlockProgressLogger provides periodic logging for other services in order

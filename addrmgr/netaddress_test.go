@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // TestIpString verifies that IpString will correctly return the string

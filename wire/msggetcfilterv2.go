@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // MsgGetCFilterV2 implements the Message interface and represents a decred

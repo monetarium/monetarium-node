@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/cointype"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/cointype"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // -----------------------------------------------------------------------------

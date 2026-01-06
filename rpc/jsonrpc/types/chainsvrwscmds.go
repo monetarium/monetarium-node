@@ -8,7 +8,7 @@
 
 package types
 
-import "github.com/monetarium/node/dcrjson"
+import "github.com/monetarium/monetarium-node/dcrjson"
 
 // AuthenticateCmd defines the authenticate JSON-RPC command.
 type AuthenticateCmd struct {

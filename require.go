@@ -13,6 +13,6 @@
 package main
 
 import (
-	_ "github.com/monetarium/node/bech32"
-	_ "github.com/monetarium/node/mixing/mixclient"
+	_ "github.com/monetarium/monetarium-node/bech32"
+	_ "github.com/monetarium/monetarium-node/mixing/mixclient"
 )

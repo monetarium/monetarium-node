@@ -11,11 +11,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/database"
-	_ "github.com/monetarium/node/database/ffldb"
-	"github.com/monetarium/node/dcrutil"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/database"
+	_ "github.com/monetarium/monetarium-node/database/ffldb"
+	"github.com/monetarium/monetarium-node/dcrutil"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // This example demonstrates creating a new database.
@@ -23,8 +23,8 @@ func ExampleCreate() {
 	// This example assumes the ffldb driver is imported.
 	//
 	// import (
-	// 	"github.com/monetarium/node/database"
-	// 	_ "github.com/monetarium/node/database/ffldb"
+	// 	"github.com/monetarium/monetarium-node/database"
+	// 	_ "github.com/monetarium/monetarium-node/database/ffldb"
 	// )
 
 	// Create a database and schedule it to be closed and removed on exit.
@@ -49,8 +49,8 @@ func Example_basicUsage() {
 	// This example assumes the ffldb driver is imported.
 	//
 	// import (
-	// 	"github.com/monetarium/node/database"
-	// 	_ "github.com/monetarium/node/database/ffldb"
+	// 	"github.com/monetarium/monetarium-node/database"
+	// 	_ "github.com/monetarium/monetarium-node/database/ffldb"
 	// )
 
 	// Create a database and schedule it to be closed and removed on exit.
@@ -115,8 +115,8 @@ func Example_blockStorageAndRetrieval() {
 	// This example assumes the ffldb driver is imported.
 	//
 	// import (
-	// 	"github.com/monetarium/node/database"
-	// 	_ "github.com/monetarium/node/database/ffldb"
+	// 	"github.com/monetarium/monetarium-node/database"
+	// 	_ "github.com/monetarium/monetarium-node/database/ffldb"
 	// )
 
 	// Create a database and schedule it to be closed and removed on exit.

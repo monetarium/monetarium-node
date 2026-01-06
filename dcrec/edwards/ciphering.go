@@ -14,7 +14,7 @@ import (
 	"crypto/sha512"
 	"errors"
 
-	"github.com/monetarium/node/crypto/rand"
+	"github.com/monetarium/monetarium-node/crypto/rand"
 )
 
 var (

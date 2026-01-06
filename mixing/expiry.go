@@ -7,7 +7,7 @@ package mixing
 import (
 	"time"
 
-	"github.com/monetarium/node/chaincfg"
+	"github.com/monetarium/monetarium-node/chaincfg"
 )
 
 // MaxExpiry returns the maximum allowed expiry for a new pair request message

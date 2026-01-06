@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/monetarium/node/crypto/blake256"
-	"github.com/monetarium/node/dcrec/secp256k1"
+	"github.com/monetarium/monetarium-node/crypto/blake256"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
 )
 
 // hexToBytes converts the passed hex string into bytes and will panic if there

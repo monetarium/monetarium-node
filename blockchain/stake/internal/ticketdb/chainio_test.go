@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/monetarium/node/blockchain/stake/internal/dbnamespace"
-	"github.com/monetarium/node/blockchain/stake/internal/tickettreap"
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/database"
-	_ "github.com/monetarium/node/database/ffldb"
+	"github.com/monetarium/monetarium-node/blockchain/stake/internal/dbnamespace"
+	"github.com/monetarium/monetarium-node/blockchain/stake/internal/tickettreap"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/database"
+	_ "github.com/monetarium/monetarium-node/database/ffldb"
 )
 
 const (

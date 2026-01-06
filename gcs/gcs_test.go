@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/dchest/siphash"
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // filterMatcher allows different versions of the filter types to be used for

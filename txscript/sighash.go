@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // SigHashType represents hash type bits at the end of a signature.

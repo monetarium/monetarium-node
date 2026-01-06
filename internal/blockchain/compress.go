@@ -8,9 +8,9 @@ package blockchain
 import (
 	"fmt"
 
-	"github.com/monetarium/node/blockchain/stake"
-	"github.com/monetarium/node/dcrec/secp256k1"
-	"github.com/monetarium/node/txscript"
+	"github.com/monetarium/monetarium-node/blockchain/stake"
+	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
+	"github.com/monetarium/monetarium-node/txscript"
 )
 
 // currentCompressionVersion is the current script compression version of the

@@ -16,7 +16,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/monetarium/node/chaincfg"
+	"github.com/monetarium/monetarium-node/chaincfg"
 )
 
 type payout struct {

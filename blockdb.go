@@ -11,10 +11,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/database"
-	"github.com/monetarium/node/internal/blockchain"
-	"github.com/monetarium/node/internal/progresslog"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/database"
+	"github.com/monetarium/monetarium-node/internal/blockchain"
+	"github.com/monetarium/monetarium-node/internal/progresslog"
 )
 
 const (

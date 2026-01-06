@@ -7,9 +7,9 @@ package blockalloc
 import (
 	"testing"
 
-	"github.com/monetarium/node/cointype"
-	"github.com/monetarium/node/dcrutil"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/cointype"
+	"github.com/monetarium/monetarium-node/dcrutil"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // createMockTransaction creates a mock transaction with the specified coin type outputs.

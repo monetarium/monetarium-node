@@ -10,8 +10,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/monetarium/node/blockchain/stake/internal/tickettreap"
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/blockchain/stake/internal/tickettreap"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 var (

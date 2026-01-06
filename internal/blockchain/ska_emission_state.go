@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/monetarium/node/cointype"
-	"github.com/monetarium/node/database"
+	"github.com/monetarium/monetarium-node/cointype"
+	"github.com/monetarium/monetarium-node/database"
 )
 
 // SKA emission state management

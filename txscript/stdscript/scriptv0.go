@@ -7,8 +7,8 @@ package stdscript
 import (
 	"fmt"
 
-	"github.com/monetarium/node/dcrec"
-	"github.com/monetarium/node/txscript"
+	"github.com/monetarium/monetarium-node/dcrec"
+	"github.com/monetarium/monetarium-node/txscript"
 )
 
 const (

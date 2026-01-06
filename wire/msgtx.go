@@ -11,8 +11,8 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/cointype"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/cointype"
 )
 
 // FeesByType represents transaction fees collected by coin type.

@@ -7,9 +7,9 @@ package standalone
 import (
 	"testing"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/cointype"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/cointype"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // TestCheckTransactionSanityDualCoin tests transaction sanity checking with

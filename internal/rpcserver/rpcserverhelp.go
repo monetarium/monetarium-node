@@ -11,8 +11,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/monetarium/node/dcrjson"
-	"github.com/monetarium/node/rpc/jsonrpc/types"
+	"github.com/monetarium/monetarium-node/dcrjson"
+	"github.com/monetarium/monetarium-node/rpc/jsonrpc/types"
 )
 
 // helpDescsEnUS defines the English descriptions used for the help strings.

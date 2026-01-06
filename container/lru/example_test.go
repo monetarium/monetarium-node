@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/monetarium/node/container/lru"
+	"github.com/monetarium/monetarium-node/container/lru"
 )
 
 // This example demonstrates creating a new map instance, inserting items into

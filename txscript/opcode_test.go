@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // testScriptFlags are the script flags which are used in the tests when

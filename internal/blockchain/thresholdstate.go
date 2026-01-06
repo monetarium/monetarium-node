@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"math/bits"
 
-	"github.com/monetarium/node/chaincfg"
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // ThresholdState define the various threshold states used when voting on

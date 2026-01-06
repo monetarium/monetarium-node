@@ -7,12 +7,12 @@ package stake
 import (
 	"fmt"
 
-	"github.com/monetarium/node/blockchain/stake/internal/dbnamespace"
-	"github.com/monetarium/node/blockchain/stake/internal/ticketdb"
-	"github.com/monetarium/node/blockchain/stake/internal/tickettreap"
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/database"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/blockchain/stake/internal/dbnamespace"
+	"github.com/monetarium/monetarium-node/blockchain/stake/internal/ticketdb"
+	"github.com/monetarium/monetarium-node/blockchain/stake/internal/tickettreap"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/database"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // UndoTicketDataSlice is a pass through for ticketdb's UndoTicketData, which is

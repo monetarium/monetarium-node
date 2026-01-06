@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // BenchmarkGenerateInclusionProof benchmarks generating inclusion proofs for

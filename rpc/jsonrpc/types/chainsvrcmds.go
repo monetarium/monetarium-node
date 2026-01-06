@@ -9,7 +9,7 @@
 package types
 
 import (
-	"github.com/monetarium/node/dcrjson"
+	"github.com/monetarium/monetarium-node/dcrjson"
 )
 
 // AddNodeSubCmd defines the type used in the addnode JSON-RPC command for the

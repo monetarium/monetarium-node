@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/monetarium/node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 )
 
 // MaxCFiltersV2PerBatch is the maximum number of committed filters that may

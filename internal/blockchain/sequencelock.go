@@ -7,10 +7,10 @@ package blockchain
 import (
 	"fmt"
 
-	"github.com/monetarium/node/blockchain/stake"
-	"github.com/monetarium/node/blockchain/standalone"
-	"github.com/monetarium/node/dcrutil"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/blockchain/stake"
+	"github.com/monetarium/monetarium-node/blockchain/standalone"
+	"github.com/monetarium/monetarium-node/dcrutil"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // SequenceLock represents the minimum timestamp and minimum block height after

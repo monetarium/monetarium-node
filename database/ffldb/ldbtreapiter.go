@@ -6,7 +6,7 @@
 package ffldb
 
 import (
-	"github.com/monetarium/node/database/internal/treap"
+	"github.com/monetarium/monetarium-node/database/internal/treap"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/util"
 )

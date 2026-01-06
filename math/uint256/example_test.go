@@ -7,7 +7,7 @@ package uint256_test
 import (
 	"fmt"
 
-	"github.com/monetarium/node/math/uint256"
+	"github.com/monetarium/monetarium-node/math/uint256"
 )
 
 // This example demonstrates calculating the result of dividing a max unsigned

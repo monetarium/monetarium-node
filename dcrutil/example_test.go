@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/monetarium/node/dcrutil"
+	"github.com/monetarium/monetarium-node/dcrutil"
 )
 
 func ExampleAmount() {

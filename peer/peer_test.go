@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/decred/go-socks/socks"
-	"github.com/monetarium/node/chaincfg/chainhash"
-	"github.com/monetarium/node/wire"
+	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // conn mocks a network connection by implementing the net.Conn interface.  It
