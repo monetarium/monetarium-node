@@ -20,15 +20,15 @@ func main() {
 		hexFile string
 		name    string
 	}{
-		"tx100004-4.hex":  {"tx100004-4.hex", "block 100004 tx[4] - already sorted"},
-		"tx101790-3.hex":  {"tx101790-3.hex", "block 101790 tx[3] - sorts inputs only, based on tree"},
-		"tx150007-23.hex": {"tx150007-23.hex", "block 150007 tx[23] - sorts inputs only, based on hash"},
-		"tx108930-1.hex":  {"tx108930-1.hex", "block 108930 tx[1] - sorts inputs only, based on index"},
-		"tx100082-5.hex":  {"tx100082-5.hex", "block 100082 tx[5] - sorts outputs only, based on amount"},
+		"tx100004-4.hex":   {"tx100004-4.hex", "block 100004 tx[4] - already sorted"},
+		"tx101790-3.hex":   {"tx101790-3.hex", "block 101790 tx[3] - sorts inputs only, based on tree"},
+		"tx150007-23.hex":  {"tx150007-23.hex", "block 150007 tx[23] - sorts inputs only, based on hash"},
+		"tx108930-1.hex":   {"tx108930-1.hex", "block 108930 tx[1] - sorts inputs only, based on index"},
+		"tx100082-5.hex":   {"tx100082-5.hex", "block 100082 tx[5] - sorts outputs only, based on amount"},
 		"tx150043-14m.hex": {"tx150043-14m.hex", "modified block 150043 tx[14] - sorts outputs only, based on script version"},
-		"tx150043-14.hex": {"tx150043-14.hex", "block 150043 tx[14] - sorts outputs only, based on output script"},
-		"tx150626-24.hex": {"tx150626-24.hex", "block 150626 tx[24] - sorts outputs only, based on amount and output script"},
-		"tx150002-7.hex":  {"tx150002-7.hex", "block 150002 tx[7] - sorts both inputs and outputs"},
+		"tx150043-14.hex":  {"tx150043-14.hex", "block 150043 tx[14] - sorts outputs only, based on output script"},
+		"tx150626-24.hex":  {"tx150626-24.hex", "block 150626 tx[24] - sorts outputs only, based on amount and output script"},
+		"tx150002-7.hex":   {"tx150002-7.hex", "block 150002 tx[7] - sorts both inputs and outputs"},
 	}
 
 	testDataPath := "dcrutil/txsort/testdata"
@@ -38,7 +38,7 @@ func main() {
 
 	for filename, testCase := range testCases {
 		filePath := filepath.Join(testDataPath, filename)
-		
+
 		// Read the hex data
 		hexData, err := os.ReadFile(filePath)
 		if err != nil {
@@ -66,7 +66,7 @@ func main() {
 		// Get the original transaction hash
 		originalHash := tx.TxHash()
 
-		// Check if already sorted  
+		// Check if already sorted
 		isSorted := txsort.IsSorted(&tx)
 
 		// Create a copy and sort it (this is what the test does)

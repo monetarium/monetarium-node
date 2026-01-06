@@ -44,7 +44,7 @@ func main() {
 		// Deserialize with legacy protocol version for old transaction data
 		var tx wire.MsgTx
 		reader := bytes.NewReader(txBytes)
-		
+
 		// Try with protocol version 11 first (legacy), then fallback to auto-detection
 		err = tx.BtcDecode(reader, 11)
 		if err != nil {
@@ -79,7 +79,7 @@ func main() {
 			continue
 		}
 
-		fmt.Printf("Updated %s successfully (old: %d bytes, new: %d bytes)\n", 
+		fmt.Printf("Updated %s successfully (old: %d bytes, new: %d bytes)\n",
 			file, len(txBytes), len(newTxBytes))
 		fmt.Printf("Old hash: %x\n", tx.TxHash())
 	}

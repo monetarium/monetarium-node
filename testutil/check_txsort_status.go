@@ -35,7 +35,7 @@ func main() {
 
 	for _, filename := range testCases {
 		filePath := filepath.Join(testDataPath, filename)
-		
+
 		// Read the hex data
 		hexData, err := os.ReadFile(filePath)
 		if err != nil {
@@ -73,7 +73,7 @@ func main() {
 
 		fmt.Printf("%s:\n", filename)
 		fmt.Printf("  Original hash: %s\n", originalHash.String())
-		fmt.Printf("  Sorted hash:   %s\n", sortedHash.String()) 
+		fmt.Printf("  Sorted hash:   %s\n", sortedHash.String())
 		fmt.Printf("  IsSorted:      %t\n", isSorted)
 		fmt.Printf("  Same after sort: %t\n", sameAfterSort)
 		fmt.Printf("  Recommendation: isSorted: %t, both hashes: %s\n", sameAfterSort, originalHash.String())
