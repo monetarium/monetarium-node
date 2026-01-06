@@ -1,4 +1,4 @@
-module github.com/monetarium/node/container/apbf
+module github.com/monetarium/monetarium-node/container/apbf
 
 go 1.17
 

@@ -1,3 +1,3 @@
-module github.com/monetarium/node/dcrec
+module github.com/monetarium/monetarium-node/dcrec
 
 go 1.17

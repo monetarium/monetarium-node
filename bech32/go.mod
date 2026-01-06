@@ -1,3 +1,3 @@
-module github.com/monetarium/node/bech32
+module github.com/monetarium/monetarium-node/bech32
 
 go 1.17

@@ -1,4 +1,4 @@
-module github.com/monetarium/node/crypto/rand
+module github.com/monetarium/monetarium-node/crypto/rand
 
 go 1.18
 

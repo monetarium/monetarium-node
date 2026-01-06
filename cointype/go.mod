@@ -1,3 +1,3 @@
-module github.com/monetarium/node/cointype
+module github.com/monetarium/monetarium-node/cointype
 
 go 1.23

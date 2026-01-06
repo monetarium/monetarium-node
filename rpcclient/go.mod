@@ -1,15 +1,15 @@
-module github.com/monetarium/node/rpcclient
+module github.com/monetarium/monetarium-node/rpcclient
 
 go 1.17
 
 require (
-	github.com/monetarium/node/chaincfg/chainhash v1.0.4
-	github.com/monetarium/node/dcrjson v1.0.4
-	github.com/monetarium/node/dcrutil v1.0.4
-	github.com/monetarium/node/gcs v1.0.4
-	github.com/monetarium/node/rpc/jsonrpc/types v1.0.4
-	github.com/monetarium/node/txscript v1.0.4
-	github.com/monetarium/node/wire v1.0.4
+	github.com/monetarium/monetarium-node/chaincfg/chainhash v1.0.6
+	github.com/monetarium/monetarium-node/dcrjson v1.0.6
+	github.com/monetarium/monetarium-node/dcrutil v1.0.6
+	github.com/monetarium/monetarium-node/gcs v1.0.6
+	github.com/monetarium/monetarium-node/rpc/jsonrpc/types v1.0.6
+	github.com/monetarium/monetarium-node/txscript v1.0.6
+	github.com/monetarium/monetarium-node/wire v1.0.6
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.2.0
 	github.com/gorilla/websocket v1.5.1
@@ -19,14 +19,14 @@ require (
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
 	github.com/dchest/siphash v1.2.3 // indirect
 	github.com/decred/base58 v1.0.5 // indirect
-	github.com/monetarium/node/blockchain/stake v1.0.4 // indirect
-	github.com/monetarium/node/chaincfg v1.0.4 // indirect
-	github.com/monetarium/node/crypto/blake256 v1.0.4 // indirect
-	github.com/monetarium/node/crypto/ripemd160 v1.0.4 // indirect
-	github.com/monetarium/node/database v1.0.4 // indirect
-	github.com/monetarium/node/dcrec v1.0.4 // indirect
-	github.com/monetarium/node/dcrec/edwards v1.0.4 // indirect
-	github.com/monetarium/node/dcrec/secp256k1 v1.0.4 // indirect
+	github.com/monetarium/monetarium-node/blockchain/stake v1.0.6 // indirect
+	github.com/monetarium/monetarium-node/chaincfg v1.0.6 // indirect
+	github.com/monetarium/monetarium-node/crypto/blake256 v1.0.6 // indirect
+	github.com/monetarium/monetarium-node/crypto/ripemd160 v1.0.6 // indirect
+	github.com/monetarium/monetarium-node/database v1.0.6 // indirect
+	github.com/monetarium/monetarium-node/dcrec v1.0.6 // indirect
+	github.com/monetarium/monetarium-node/dcrec/edwards v1.0.6 // indirect
+	github.com/monetarium/monetarium-node/dcrec/secp256k1 v1.0.6 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	golang.org/x/net v0.25.0 // indirect
 	lukechampine.com/blake3 v1.3.0 // indirect
