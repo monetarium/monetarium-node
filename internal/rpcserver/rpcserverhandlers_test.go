@@ -6902,11 +6902,11 @@ func TestHandleVerifyMessage(t *testing.T) {
 	msg := "test message"
 	p2shAddr := "Mc4pTMWGfioFDvK6Hh2FZDPPYHCCaXby3JV"
 	compressedPKHAddr := "MsiK1mo4C1mrty2p3ej9waVbbDPLFqhGWiA"
-	compressedCompactSig := "H18ier4CIfSBOk0FKPjO4mggno0ES1w2P+41GpJnnyiSRW" +
-		"dE2n02YwE29Sw0n2ALT3M1Q1+GQW7moKqsem1COF8="
+	compressedCompactSig := "H0LlHPgHRGithYLeSL9nZ+JlTys9h7263NGFX7KW2GlZZ9" +
+		"5I4l18uv3B9XCoQDvR4jqpUT6zBicYvRXcn0/CKAQ="
 	uncompressedPKHAddr := "MsYUfdNDfe3t8rXPcWdzBRD8bF8zJQQMV2p"
-	uncompressedCompactSig := "G18ier4CIfSBOk0FKPjO4mggno0ES1w2P+41GpJnnyiS" +
-		"RWdE2n02YwE29Sw0n2ALT3M1Q1+GQW7moKqsem1COF8="
+	uncompressedCompactSig := "G0LlHPgHRGithYLeSL9nZ+JlTys9h7263NGFX7KW2GlZ" +
+		"Z95I4l18uv3B9XCoQDvR4jqpUT6zBicYvRXcn0/CKAQ="
 	malformedCompactSig := "MEUCIQD8wKh2jPvO/PLK3Xz7D7GO0I3S4q6EvvGkdKPTUbJ" +
 		"vAwIgD8GjULRfRvoAEBORMCgY10jCsiYVURo//Vu2OL13cgc="
 	invalidCompactSig := "II57fsP8WEHAwfrSlx3u3wu4PHqTnP1fk/r0LM9dzm0lYr6GA" +

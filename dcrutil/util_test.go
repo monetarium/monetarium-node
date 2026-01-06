@@ -105,26 +105,26 @@ func TestVerifyMessage(t *testing.T) {
 		isValid bool
 	}{{
 		name:    "valid",
-		addr:    "TsdbYVDoh3JsyP6oEg2aHVoTjsFuHzUgGKv",
-		sig:     "IITPXfmkfLPULbX9Im3XIyHAKiXRw5N9j6P7qf0MdEP9YQinn51lWjS+8jbTceRxCWckKKssu3ZpQm1xCWKz9GA=",
+		addr:    "TsmfmUitQApgnNxQypdGd2x36djCCpDpERU",
+		sig:     "IGSi87UVYcVLgXTEel3W93+ygvWweHR5rXzSZan1OVegZuHEg9DI+k9AlttbrelA3D5DaHYLwg9cTOcxrPv2AhI=",
 		params:  testNetParams,
 		isValid: true,
 	}, {
 		name:    "wrong address",
 		addr:    "TsWeG3TJzucZgYyMfZFC2GhBvbeNfA48LTo",
-		sig:     "IITPXfmkfLPULbX9Im3XIyHAKiXRw5N9j6P7qf0MdEP9YQinn51lWjS+8jbTceRxCWckKKssu3ZpQm1xCWKz9GA=",
+		sig:     "IGSi87UVYcVLgXTEel3W93+ygvWweHR5rXzSZan1OVegZuHEg9DI+k9AlttbrelA3D5DaHYLwg9cTOcxrPv2AhI=",
 		params:  testNetParams,
 		isValid: false,
 	}, {
 		name:    "wrong signature",
-		addr:    "TsdbYVDoh3JsyP6oEg2aHVoTjsFuHzUgGKv",
+		addr:    "TsmfmUitQApgnNxQypdGd2x36djCCpDpERU",
 		sig:     "HxzZggzHMljSWpKHnw1Dow84KGWvTRBCG2JqBM5W4Q7iePW0dirZXCggSeXHVQ26D0MbDFffi3yw+x2Z5nQ94gg=",
 		params:  testNetParams,
 		isValid: false,
 	}, {
 		name:    "wrong params",
-		addr:    "TsdbYVDoh3JsyP6oEg2aHVoTjsFuHzUgGKv",
-		sig:     "IITPXfmkfLPULbX9Im3XIyHAKiXRw5N9j6P7qf0MdEP9YQinn51lWjS+8jbTceRxCWckKKssu3ZpQm1xCWKz9GA=",
+		addr:    "TsmfmUitQApgnNxQypdGd2x36djCCpDpERU",
+		sig:     "IGSi87UVYcVLgXTEel3W93+ygvWweHR5rXzSZan1OVegZuHEg9DI+k9AlttbrelA3D5DaHYLwg9cTOcxrPv2AhI=",
 		params:  mainNetParams,
 		isValid: false,
 	}}

@@ -18,8 +18,8 @@ ReadWritePaths=/home/monetarium/.monetarium/data
 # monetarium logdir
 ReadWritePaths=/home/monetarium/.monetarium/logs
 
-# launch monetarium
-ExecStart=/home/monetarium/monetarium/monetarium
+# launch monetarium node
+ExecStart=/home/monetarium/monetarium/node
 
 # restart monetarium
 TimeoutStopSec=10s
