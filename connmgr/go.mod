@@ -3,14 +3,14 @@ module github.com/monetarium/monetarium-node/connmgr
 go 1.18
 
 require (
-	github.com/monetarium/monetarium-node/crypto/rand v1.0.6
-	github.com/monetarium/monetarium-node/wire v1.0.6
+	github.com/monetarium/monetarium-node/crypto/rand v1.0.10
+	github.com/monetarium/monetarium-node/wire v1.0.10
 	github.com/decred/slog v1.2.0
 )
 
 require (
-	github.com/monetarium/monetarium-node/chaincfg/chainhash v1.0.6 // indirect
-	github.com/monetarium/monetarium-node/crypto/blake256 v1.0.6 // indirect
+	github.com/monetarium/monetarium-node/chaincfg/chainhash v1.0.10 // indirect
+	github.com/monetarium/monetarium-node/crypto/blake256 v1.0.10 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	golang.org/x/crypto v0.24.0 // indirect
 	golang.org/x/sys v0.21.0 // indirect

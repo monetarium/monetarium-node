@@ -7,11 +7,11 @@ toolchain go1.23.4
 require (
 	github.com/decred/slog v1.2.0
 	github.com/jessevdk/go-flags v1.5.0
-	github.com/monetarium/monetarium-node/chaincfg v1.0.6
-	github.com/monetarium/monetarium-node/chaincfg/chainhash v1.0.6
-	github.com/monetarium/monetarium-node/crypto/rand v1.0.6
-	github.com/monetarium/monetarium-node/dcrutil v1.0.6
-	github.com/monetarium/monetarium-node/wire v1.0.6
+	github.com/monetarium/monetarium-node/chaincfg v1.0.10
+	github.com/monetarium/monetarium-node/chaincfg/chainhash v1.0.10
+	github.com/monetarium/monetarium-node/crypto/rand v1.0.10
+	github.com/monetarium/monetarium-node/dcrutil v1.0.10
+	github.com/monetarium/monetarium-node/wire v1.0.10
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 )
 
@@ -21,13 +21,13 @@ require (
 	github.com/decred/base58 v1.0.5 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
-	github.com/monetarium/monetarium-node/cointype v1.0.6 // indirect
-	github.com/monetarium/monetarium-node/crypto/blake256 v1.0.6 // indirect
-	github.com/monetarium/monetarium-node/crypto/ripemd160 v1.0.6 // indirect
-	github.com/monetarium/monetarium-node/dcrec v1.0.6 // indirect
-	github.com/monetarium/monetarium-node/dcrec/edwards v1.0.6 // indirect
-	github.com/monetarium/monetarium-node/dcrec/secp256k1 v1.0.6 // indirect
-	github.com/monetarium/monetarium-node/txscript v1.0.6 // indirect
+	github.com/monetarium/monetarium-node/cointype v1.0.10 // indirect
+	github.com/monetarium/monetarium-node/crypto/blake256 v1.0.10 // indirect
+	github.com/monetarium/monetarium-node/crypto/ripemd160 v1.0.10 // indirect
+	github.com/monetarium/monetarium-node/dcrec v1.0.10 // indirect
+	github.com/monetarium/monetarium-node/dcrec/edwards v1.0.10 // indirect
+	github.com/monetarium/monetarium-node/dcrec/secp256k1 v1.0.10 // indirect
+	github.com/monetarium/monetarium-node/txscript v1.0.10 // indirect
 	golang.org/x/crypto v0.33.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	lukechampine.com/blake3 v1.3.0 // indirect
