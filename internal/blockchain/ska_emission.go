@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"math/big"
 
 	"github.com/monetarium/monetarium-node/chaincfg"
 	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
@@ -106,7 +107,7 @@ func CheckSKAEmissionAlreadyExists(coinType cointype.CoinType, chain ChainStateP
 // the signature must bind to the final transaction hash, which is only available
 // after the transaction is fully constructed.
 func CreateAuthorizedSKAEmissionTransaction(auth *chaincfg.SKAEmissionAuth,
-	emissionAddresses []string, amounts []int64,
+	emissionAddresses []string, amounts []*big.Int,
 	chainParams *chaincfg.Params) (*wire.MsgTx, error) {
 
 	// Validate authorization structure
@@ -153,18 +154,19 @@ func CreateAuthorizedSKAEmissionTransaction(auth *chaincfg.SKAEmissionAuth,
 		return nil, fmt.Errorf("no emission addresses specified")
 	}
 
-	var totalAmount int64
+	zero := new(big.Int)
+	totalAmount := new(big.Int)
 	for _, amount := range amounts {
-		if amount <= 0 {
-			return nil, fmt.Errorf("invalid emission amount: %d", amount)
+		if amount == nil || amount.Cmp(zero) <= 0 {
+			return nil, fmt.Errorf("invalid emission amount: %s", amount)
 		}
-		totalAmount += amount
+		totalAmount.Add(totalAmount, amount)
 	}
 
 	// Verify total matches authorization
-	if totalAmount != auth.Amount {
-		return nil, fmt.Errorf("total emission amount %d does not match authorization %d",
-			totalAmount, auth.Amount)
+	if totalAmount.Cmp(auth.Amount) != 0 {
+		return nil, fmt.Errorf("total emission amount %s does not match authorization %s",
+			totalAmount.String(), auth.Amount.String())
 	}
 
 	// Get the SKA coin config for this coin type
@@ -227,10 +229,12 @@ func CreateAuthorizedSKAEmissionTransaction(auth *chaincfg.SKAEmissionAuth,
 		// Add SKA output with specific coin type
 		// Force script version 0 to match validation requirements
 		// Validation only accepts version 0 (line 554) for consistency
+		// For SKA coins, we use SKAValue (big.Int) for the amount
 		tx.TxOut = append(tx.TxOut, &wire.TxOut{
-			Value:    amounts[i],
-			CoinType: auth.CoinType, // Use authorized coin type
-			Version:  0,             // Force version 0 to match validation
+			Value:    0,
+			SKAValue: amounts[i],
+			CoinType: auth.CoinType,
+			Version:  0,
 			PkScript: pkScript,
 		})
 	}
@@ -241,14 +245,17 @@ func CreateAuthorizedSKAEmissionTransaction(auth *chaincfg.SKAEmissionAuth,
 // createEmissionAuthScript creates the signature script containing authorization
 // data for the emission transaction. This embeds the authorization proof in
 // the transaction itself for validation.
+//
+// Script format v3 (for big.Int amounts):
+// [SKA_marker:4][auth_version:1][nonce:8][coin_type:1][amount_len:1][amount:N][height:8][pubkey:33][sig_len:1][signature:var]
 func createEmissionAuthScript(auth *chaincfg.SKAEmissionAuth) ([]byte, error) {
 	var script bytes.Buffer
 
 	// Standard SKA emission marker
 	script.Write([]byte{0x01, 0x53, 0x4b, 0x41}) // "SKA" marker
 
-	// Authorization data
-	script.WriteByte(0x02) // Auth version
+	// Authorization data - version 0x03 for big.Int amounts
+	script.WriteByte(0x03) // Auth version 3
 
 	// Nonce (8 bytes)
 	nonceBytes := make([]byte, 8)
@@ -258,9 +265,13 @@ func createEmissionAuthScript(auth *chaincfg.SKAEmissionAuth) ([]byte, error) {
 	// Coin type (1 byte)
 	script.WriteByte(uint8(auth.CoinType))
 
-	// Amount (8 bytes)
-	amountBytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(amountBytes, uint64(auth.Amount))
+	// Amount (variable length big.Int)
+	// Write length prefix (1 byte) followed by big-endian bytes
+	amountBytes := auth.Amount.Bytes() // Big-endian representation
+	if len(amountBytes) > 255 {
+		return nil, fmt.Errorf("amount too large: %d bytes (max 255)", len(amountBytes))
+	}
+	script.WriteByte(uint8(len(amountBytes)))
 	script.Write(amountBytes)
 
 	// Height (8 bytes)
@@ -354,7 +365,7 @@ func ValidateAuthorizedSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
 
 	// Determine expected coin type from first output
 	var emissionCoinType cointype.CoinType
-	var totalEmissionAmount int64
+	totalEmissionAmount := new(big.Int)
 
 	// Validate all outputs have consistent coin type and valid amounts
 	for i, txOut := range tx.TxOut {
@@ -374,15 +385,23 @@ func ValidateAuthorizedSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
 			}
 		}
 
-		if txOut.Value <= 0 {
-			return fmt.Errorf("SKA emission transaction output %d has invalid amount %d",
-				i, txOut.Value)
+		// SKA emissions use SKAValue (big.Int) for amounts
+		if txOut.SKAValue == nil || txOut.SKAValue.Sign() <= 0 {
+			return fmt.Errorf("SKA emission transaction output %d has invalid amount (nil or non-positive)",
+				i)
 		}
 
-		if txOut.Value > int64(txOut.CoinType.MaxAmount()) {
-			return fmt.Errorf("SKA emission transaction output %d exceeds maximum %d for coin type %d",
-				i, int64(txOut.CoinType.MaxAmount()), txOut.CoinType)
+		// For SKA coins, get max supply from per-coin config (big.Int)
+		skaConfig := chainParams.GetSKACoinConfig(txOut.CoinType)
+		if skaConfig != nil && skaConfig.MaxSupply != nil {
+			// Compare using big.Int
+			if txOut.SKAValue.Cmp(skaConfig.MaxSupply) > 0 {
+				return fmt.Errorf("SKA emission transaction output %d exceeds maximum %s for coin type %d",
+					i, skaConfig.MaxSupply.String(), txOut.CoinType)
+			}
 		}
+		// Note: If config or MaxSupply is nil, we skip this check and rely on
+		// the later total emission amount check against configured amounts
 
 		// Validate script version to prevent unspendable emissions
 		// Only allow known script versions (currently 0 for P2PKH/P2SH)
@@ -391,7 +410,7 @@ func ValidateAuthorizedSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
 				i, txOut.Version)
 		}
 
-		totalEmissionAmount += txOut.Value
+		totalEmissionAmount.Add(totalEmissionAmount, txOut.SKAValue)
 	}
 
 	// Verify authorization coin type matches transaction outputs
@@ -401,9 +420,9 @@ func ValidateAuthorizedSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
 	}
 
 	// Verify authorization amount matches transaction total
-	if auth.Amount != totalEmissionAmount {
-		return fmt.Errorf("authorization amount %d does not match transaction total %d",
-			auth.Amount, totalEmissionAmount)
+	if auth.Amount.Cmp(totalEmissionAmount) != 0 {
+		return fmt.Errorf("authorization amount %s does not match transaction total %s",
+			auth.Amount.String(), totalEmissionAmount.String())
 	}
 
 	// Enforce governance-configured emission limits
@@ -413,17 +432,19 @@ func ValidateAuthorizedSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
 		return fmt.Errorf("SKA coin type %d not configured in chain params", emissionCoinType)
 	}
 
-	// Calculate the expected total emission amount from config
-	var expectedEmissionAmount int64
+	// Calculate the expected total emission amount from config (uses big.Int)
+	expectedEmissionAmount := new(big.Int)
 	for _, amount := range skaConfig.EmissionAmounts {
-		expectedEmissionAmount += amount
+		if amount != nil {
+			expectedEmissionAmount.Add(expectedEmissionAmount, amount)
+		}
 	}
 
 	// Enforce exact emission amount as configured in governance
 	// This ensures consistency between authorized and basic validation paths
-	if expectedEmissionAmount > 0 && totalEmissionAmount != expectedEmissionAmount {
-		return fmt.Errorf("total emission %d does not match governance-configured amount %d for coin type %d",
-			totalEmissionAmount, expectedEmissionAmount, emissionCoinType)
+	if expectedEmissionAmount.Sign() > 0 && totalEmissionAmount.Cmp(expectedEmissionAmount) != 0 {
+		return fmt.Errorf("total emission %s does not match governance-configured amount %s for coin type %d",
+			totalEmissionAmount.String(), expectedEmissionAmount.String(), emissionCoinType)
 	}
 
 	// Validate auth.Height is within the emission window
@@ -544,13 +565,16 @@ func verifyEmissionSignature(tx *wire.MsgTx, auth *chaincfg.SKAEmissionAuth,
 }
 
 // extractEmissionAuthorization extracts the emission authorization from a signature script.
-// The script format is: [SKA_marker][auth_version][nonce][coin_type][amount][height][pubkey][sig_len][signature]
+// Supports both v2 (int64 amount) and v3 (big.Int amount) formats:
+// v2: [SKA_marker:4][auth_version:1][nonce:8][coin_type:1][amount:8][height:8][pubkey:33][sig_len:1][signature:var]
+// v3: [SKA_marker:4][auth_version:1][nonce:8][coin_type:1][amount_len:1][amount:N][height:8][pubkey:33][sig_len:1][signature:var]
 func extractEmissionAuthorization(sigScript []byte) (*chaincfg.SKAEmissionAuth, error) {
 
-	// Calculate minimum required length: 4(marker) + 1(version) + 8(nonce) + 1(cointype) + 8(amount) + 8(height) + 33(pubkey) + 1(siglen)
-	const minScriptLen = 4 + 1 + 8 + 1 + 8 + 8 + 33 + 1 // = 64 bytes
-	if len(sigScript) < minScriptLen {
-		return nil, fmt.Errorf("signature script too short: %d bytes, need at least %d bytes for format [SKA_marker:4][auth_version:1][nonce:8][coin_type:1][amount:8][height:8][pubkey:33][sig_len:1][signature:var]", len(sigScript), minScriptLen)
+	// Calculate minimum required length for v3: 4(marker) + 1(version) + 8(nonce) + 1(cointype) + 1(amtlen) + 0(amt) + 8(height) + 33(pubkey) + 1(siglen)
+	const minScriptLenV3 = 4 + 1 + 8 + 1 + 1 + 0 + 8 + 33 + 1 // = 57 bytes minimum
+
+	if len(sigScript) < minScriptLenV3 {
+		return nil, fmt.Errorf("signature script too short: %d bytes, need at least %d bytes", len(sigScript), minScriptLenV3)
 	}
 
 	// Check SKA marker
@@ -561,8 +585,9 @@ func extractEmissionAuthorization(sigScript []byte) (*chaincfg.SKAEmissionAuth, 
 	offset := 4
 
 	// Check authorization version
-	if sigScript[offset] != 0x02 {
-		return nil, fmt.Errorf("unsupported authorization version: %d", sigScript[offset])
+	authVersion := sigScript[offset]
+	if authVersion != 0x02 && authVersion != 0x03 {
+		return nil, fmt.Errorf("unsupported authorization version: %d (supported: 2, 3)", authVersion)
 	}
 	offset++
 
@@ -580,17 +605,34 @@ func extractEmissionAuthorization(sigScript []byte) (*chaincfg.SKAEmissionAuth, 
 	coinType := cointype.CoinType(sigScript[offset])
 	offset++
 
-	// Extract amount (8 bytes)
-	if len(sigScript) < offset+8 {
-		return nil, fmt.Errorf("insufficient data for amount at offset %d, have %d bytes, need %d", offset, len(sigScript), offset+8)
-	}
-	amount := int64(binary.LittleEndian.Uint64(sigScript[offset : offset+8]))
+	// Extract amount based on version
+	var amount *big.Int
+	if authVersion == 0x02 {
+		// V2: Fixed 8-byte int64 amount (little-endian)
+		if len(sigScript) < offset+8 {
+			return nil, fmt.Errorf("insufficient data for amount at offset %d, have %d bytes, need %d", offset, len(sigScript), offset+8)
+		}
+		// Check if this looks like a public key instead of an amount (starts with 0x02 or 0x03)
+		if sigScript[offset] == 0x02 || sigScript[offset] == 0x03 {
+			return nil, fmt.Errorf("script format error: expected amount at offset %d but found what appears to be a compressed public key", offset)
+		}
+		amountInt64 := int64(binary.LittleEndian.Uint64(sigScript[offset : offset+8]))
+		amount = big.NewInt(amountInt64)
+		offset += 8
+	} else {
+		// V3: Variable-length big.Int amount (length-prefixed, big-endian)
+		if len(sigScript) < offset+1 {
+			return nil, fmt.Errorf("insufficient data for amount length")
+		}
+		amountLen := int(sigScript[offset])
+		offset++
 
-	// Check if this looks like a public key instead of an amount (starts with 0x02 or 0x03)
-	if sigScript[offset] == 0x02 || sigScript[offset] == 0x03 {
-		return nil, fmt.Errorf("script format error: expected amount at offset %d but found what appears to be a compressed public key (starts with 0x%02x). The script format should be [SKA_marker:4][auth_version:1][nonce:8][coin_type:1][amount:8][height:8][pubkey:33][sig_len:1][signature:var] but this appears to be missing amount and height fields", offset, sigScript[offset])
+		if len(sigScript) < offset+amountLen {
+			return nil, fmt.Errorf("insufficient data for amount: need %d bytes, have %d", amountLen, len(sigScript)-offset)
+		}
+		amount = new(big.Int).SetBytes(sigScript[offset : offset+amountLen])
+		offset += amountLen
 	}
-	offset += 8
 
 	// Extract height (8 bytes)
 	if len(sigScript) < offset+8 {

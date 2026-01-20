@@ -148,7 +148,7 @@ func TestTx(t *testing.T) {
 // TestTxHash tests the ability to generate the hash of a transaction accurately.
 func TestTxHash(t *testing.T) {
 	// Hash of first transaction from block 113875.
-	hashStr := "37d1c626ee8fbf1de07374cff01f05b0541d4555a7cbc766f25a40f15f1796ce"
+	hashStr := "7d15fa595f02dc731f2454beaf8d1823c15949878d36d827382ece401dbde9de"
 	wantHash, err := chainhash.NewHashFromStr(hashStr)
 	if err != nil {
 		t.Errorf("NewHashFromStr: %v", err)
@@ -298,30 +298,34 @@ func TestTxWireErrors(t *testing.T) {
 		{multiTx, multiTxEncoded, pver, 42, io.ErrShortWrite, io.EOF}, // 5
 		// Force error in number of transaction outputs.
 		{multiTx, multiTxEncoded, pver, 46, io.ErrShortWrite, io.EOF}, // 6
-		// Force error in transaction output value.
+		// Force error in transaction output coin type (V13 format: CoinType first).
 		{multiTx, multiTxEncoded, pver, 47, io.ErrShortWrite, io.EOF}, // 7
+		// Force error in transaction output value.
+		{multiTx, multiTxEncoded, pver, 48, io.ErrShortWrite, io.EOF}, // 8
 		// Force error in transaction output script version.
-		{multiTx, multiTxEncoded, pver, 55, io.ErrShortWrite, io.EOF}, // 8
+		{multiTx, multiTxEncoded, pver, 56, io.ErrShortWrite, io.EOF}, // 9
 		// Force error in transaction output pk script length.
-		{multiTx, multiTxEncoded, pver, 57, io.ErrShortWrite, io.ErrUnexpectedEOF}, // 9
-		// Force error in transaction output pk script.
 		{multiTx, multiTxEncoded, pver, 58, io.ErrShortWrite, io.EOF}, // 10
+		// Force error in transaction output pk script.
+		{multiTx, multiTxEncoded, pver, 59, io.ErrShortWrite, io.EOF}, // 11
 		// Force error in transaction output lock time.
-		{multiTx, multiTxEncoded, pver, 203, io.ErrShortWrite, io.ErrUnexpectedEOF}, // 11
+		{multiTx, multiTxEncoded, pver, 203, io.ErrShortWrite, io.ErrUnexpectedEOF}, // 12
 		// Force error in transaction output expiry.
-		{multiTx, multiTxEncoded, pver, 207, io.ErrShortWrite, io.ErrUnexpectedEOF}, // 12
+		{multiTx, multiTxEncoded, pver, 207, io.ErrShortWrite, io.ErrUnexpectedEOF}, // 13
 		// Force error in transaction num sig varint.
-		{multiTx, multiTxEncoded, pver, 213, io.ErrShortWrite, io.EOF}, // 13
+		{multiTx, multiTxEncoded, pver, 213, io.ErrShortWrite, io.EOF}, // 14
 		// Force error in transaction sig 0 AmountIn.
-		{multiTx, multiTxEncoded, pver, 214, io.ErrShortWrite, io.EOF}, // 14
+		{multiTx, multiTxEncoded, pver, 214, io.ErrShortWrite, io.EOF}, // 15
+		// Force error in transaction sig 0 SKAValueInLen.
+		{multiTx, multiTxEncoded, pver, 222, io.ErrShortWrite, io.EOF}, // 16
 		// Force error in transaction sig 0 BlockHeight.
-		{multiTx, multiTxEncoded, pver, 222, io.ErrShortWrite, io.EOF}, // 15
+		{multiTx, multiTxEncoded, pver, 223, io.ErrShortWrite, io.EOF}, // 17
 		// Force error in transaction sig 0 BlockIndex.
-		{multiTx, multiTxEncoded, pver, 226, io.ErrShortWrite, io.EOF}, // 16
+		{multiTx, multiTxEncoded, pver, 227, io.ErrShortWrite, io.EOF}, // 18
 		// Force error in transaction sig 0 length.
-		{multiTx, multiTxEncoded, pver, 230, io.ErrShortWrite, io.EOF}, // 17
+		{multiTx, multiTxEncoded, pver, 231, io.ErrShortWrite, io.EOF}, // 19
 		// Force error in transaction sig 0 signature script.
-		{multiTx, multiTxEncoded, pver, 231, io.ErrShortWrite, io.EOF}, // 18
+		{multiTx, multiTxEncoded, pver, 232, io.ErrShortWrite, io.EOF}, // 20
 	}
 
 	t.Logf("Running %d tests", len(tests))
@@ -650,14 +654,16 @@ func TestTxSerializeErrors(t *testing.T) {
 		{multiTx, multiTxEncoded, 42, io.ErrShortWrite, io.EOF},
 		// Force error in number of transaction outputs.
 		{multiTx, multiTxEncoded, 46, io.ErrShortWrite, io.EOF},
-		// Force error in transaction output value.
+		// Force error in transaction output coin type (V13 format: CoinType first).
 		{multiTx, multiTxEncoded, 47, io.ErrShortWrite, io.EOF},
+		// Force error in transaction output value.
+		{multiTx, multiTxEncoded, 48, io.ErrShortWrite, io.EOF},
 		// Force error in transaction output version.
-		{multiTx, multiTxEncoded, 55, io.ErrShortWrite, io.EOF},
+		{multiTx, multiTxEncoded, 56, io.ErrShortWrite, io.EOF},
 		// Force error in transaction output pk script length.
-		{multiTx, multiTxEncoded, 57, io.ErrShortWrite, io.ErrUnexpectedEOF},
-		// Force error in transaction output pk script.
 		{multiTx, multiTxEncoded, 58, io.ErrShortWrite, io.EOF},
+		// Force error in transaction output pk script.
+		{multiTx, multiTxEncoded, 59, io.ErrShortWrite, io.EOF},
 		// Force error in transaction lock time.
 		{multiTx, multiTxEncoded, 203, io.ErrShortWrite, io.ErrUnexpectedEOF},
 		// Force error in transaction expiry.
@@ -666,14 +672,16 @@ func TestTxSerializeErrors(t *testing.T) {
 		{multiTx, multiTxEncoded, 213, io.ErrShortWrite, io.EOF},
 		// Force error in transaction sig 0 ValueIn.
 		{multiTx, multiTxEncoded, 214, io.ErrShortWrite, io.EOF},
-		// Force error in transaction sig 0 BlockHeight.
+		// Force error in transaction sig 0 SKAValueInLen.
 		{multiTx, multiTxEncoded, 222, io.ErrShortWrite, io.EOF},
+		// Force error in transaction sig 0 BlockHeight.
+		{multiTx, multiTxEncoded, 223, io.ErrShortWrite, io.EOF},
 		// Force error in transaction sig 0 BlockIndex.
-		{multiTx, multiTxEncoded, 226, io.ErrShortWrite, io.EOF},
+		{multiTx, multiTxEncoded, 227, io.ErrShortWrite, io.EOF},
 		// Force error in transaction sig 0 length.
-		{multiTx, multiTxEncoded, 230, io.ErrShortWrite, io.EOF},
-		// Force error in transaction sig 0 signature script.
 		{multiTx, multiTxEncoded, 231, io.ErrShortWrite, io.EOF},
+		// Force error in transaction sig 0 signature script.
+		{multiTx, multiTxEncoded, 232, io.ErrShortWrite, io.EOF},
 	}
 
 	t.Logf("Running %d tests", len(tests))
@@ -841,8 +849,8 @@ func TestTxSerializeSize(t *testing.T) {
 		// No inputs or outputs.
 		{noTx, 15},
 
-		// Transaction with an input and an output.
-		{multiTx, 238},
+		// Transaction with an input and an output (+1 byte for SKAValueInLen).
+		{multiTx, 239},
 	}
 
 	t.Logf("Running %d tests", len(tests))
@@ -990,7 +998,8 @@ var multiTxWitness = &MsgTx{
 }
 
 // multiTxEncoded is the wire encoded bytes for multiTx using protocol version
-// 0 and is used in the various tests.
+// 13 (SKABigIntVersion) and is used in the various tests.
+// V13 format: TxOut has CoinType first, then Value.
 var multiTxEncoded = []byte{
 	0x01, 0x00, 0x00, 0x00, // Version [0]
 	0x01,                                           // Varint for number of input transactions [4]
@@ -1002,11 +1011,11 @@ var multiTxEncoded = []byte{
 	0x00,                   // Previous output tree [41]
 	0xff, 0xff, 0xff, 0xff, // Sequence [42]
 	0x02,                                           // Varint for number of output transactions [46]
-	0x00, 0xf2, 0x05, 0x2a, 0x01, 0x00, 0x00, 0x00, // Transaction amount [47]
-	0x00,       // CoinType (VAR) [55]
+	0x00,                                           // CoinType (VAR) [47]
+	0x00, 0xf2, 0x05, 0x2a, 0x01, 0x00, 0x00, 0x00, // Transaction amount [48]
 	0xab, 0xab, // Script version [56]
-	0x43, // Varint for length of pk script [57]
-	0x41, // OP_DATA_65 [58]
+	0x43, // Varint for length of pk script [58]
+	0x41, // OP_DATA_65 [59]
 	0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
 	0xfe, 0x29, 0x5a, 0xbd, 0xeb, 0x1d, 0xca, 0x42,
 	0x81, 0xbe, 0x98, 0x8e, 0x2d, 0xa0, 0xb6, 0xc1,
@@ -1017,10 +1026,10 @@ var multiTxEncoded = []byte{
 	0xd1, 0x84, 0x24, 0x1a, 0x6a, 0xed, 0x8b, 0x63,
 	0xa6,                                           // 65-byte pubkey
 	0xac,                                           // OP_CHECKSIG
-	0x00, 0xe1, 0xf5, 0x05, 0x00, 0x00, 0x00, 0x00, // Transaction amount [123]
-	0x00,       // CoinType (VAR) [131]
-	0xbc, 0xbc, // Script version [132]
-	0x43, // Varint for length of pk script [136]
+	0x00,                                           // CoinType (VAR) [124]
+	0x00, 0xe1, 0xf5, 0x05, 0x00, 0x00, 0x00, 0x00, // Transaction amount [125]
+	0xbc, 0xbc, // Script version [133]
+	0x43, // Varint for length of pk script [135]
 	0x41, // OP_DATA_65
 	0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
 	0xfe, 0x29, 0x5a, 0xbd, 0xeb, 0x1d, 0xca, 0x42,
@@ -1036,14 +1045,16 @@ var multiTxEncoded = []byte{
 	0x00, 0x00, 0x00, 0x00, // Expiry [207]
 	0x01,                                           // Varint for number of input signature [211]
 	0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, // ValueIn [212]
-	0x15, 0x15, 0x15, 0x15, // BlockHeight [220]
-	0x34, 0x34, 0x34, 0x34, // BlockIndex [224]
-	0x07,                                     // Varint for length of signature script [228]
-	0x04, 0x31, 0xdc, 0x00, 0x1b, 0x01, 0x62, // Signature script [229]
+	0x00,                   // SKAValueInLen (0 = no SKA value) [220]
+	0x15, 0x15, 0x15, 0x15, // BlockHeight [221]
+	0x34, 0x34, 0x34, 0x34, // BlockIndex [225]
+	0x07,                                     // Varint for length of signature script [229]
+	0x04, 0x31, 0xdc, 0x00, 0x1b, 0x01, 0x62, // Signature script [230]
 }
 
 // multiTxPrefixEncoded is the wire encoded bytes for multiTx using protocol
-// version 1 and is used in the various tests.
+// version 13 (SKABigIntVersion) and is used in the various tests.
+// V13 format: TxOut has CoinType first, then Value.
 var multiTxPrefixEncoded = []byte{
 	0x01, 0x00, 0x01, 0x00, // Version [0]
 	0x01,                                           // Varint for number of input transactions [4]
@@ -1055,11 +1066,11 @@ var multiTxPrefixEncoded = []byte{
 	0x00,                   // Previous output tree [41]
 	0xff, 0xff, 0xff, 0xff, // Sequence [43]
 	0x02,                                           // Varint for number of output transactions [47]
-	0x00, 0xf2, 0x05, 0x2a, 0x01, 0x00, 0x00, 0x00, // Transaction amount [48]
-	0x00,       // CoinType (VAR) [56]
-	0xab, 0xab, // Script version
-	0x43, // Varint for length of pk script [56]
-	0x41, // OP_DATA_65 [57]
+	0x00,                                           // CoinType (VAR) [48]
+	0x00, 0xf2, 0x05, 0x2a, 0x01, 0x00, 0x00, 0x00, // Transaction amount [49]
+	0xab, 0xab, // Script version [57]
+	0x43, // Varint for length of pk script [59]
+	0x41, // OP_DATA_65 [60]
 	0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
 	0xfe, 0x29, 0x5a, 0xbd, 0xeb, 0x1d, 0xca, 0x42,
 	0x81, 0xbe, 0x98, 0x8e, 0x2d, 0xa0, 0xb6, 0xc1,
@@ -1070,10 +1081,10 @@ var multiTxPrefixEncoded = []byte{
 	0xd1, 0x84, 0x24, 0x1a, 0x6a, 0xed, 0x8b, 0x63,
 	0xa6,                                           // 65-byte signature
 	0xac,                                           // OP_CHECKSIG
-	0x00, 0xe1, 0xf5, 0x05, 0x00, 0x00, 0x00, 0x00, // Transaction amount [124]
-	0x00,       // CoinType (VAR) [132]
-	0xbc, 0xbc, // Script version
-	0x43, // Varint for length of pk script [132]
+	0x00,                                           // CoinType (VAR) [125]
+	0x00, 0xe1, 0xf5, 0x05, 0x00, 0x00, 0x00, 0x00, // Transaction amount [126]
+	0xbc, 0xbc, // Script version [134]
+	0x43, // Varint for length of pk script [136]
 	0x41, // OP_DATA_65
 	0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
 	0xfe, 0x29, 0x5a, 0xbd, 0xeb, 0x1d, 0xca, 0x42,
@@ -1085,16 +1096,17 @@ var multiTxPrefixEncoded = []byte{
 	0xd1, 0x84, 0x24, 0x1a, 0x6a, 0xed, 0x8b, 0x63,
 	0xa6,                   // 65-byte signature
 	0xac,                   // OP_CHECKSIG
-	0x00, 0x00, 0x00, 0x00, // Lock time [198]
-	0x00, 0x00, 0x00, 0x00, // Expiry [202]
+	0x00, 0x00, 0x00, 0x00, // Lock time [202]
+	0x00, 0x00, 0x00, 0x00, // Expiry [206]
 }
 
 // multiTxWitnessEncoded is the wire encoded bytes for multiTx using protocol version
-// 1 and is used in the various tests.
+// 13 (SKABigIntVersion) and is used in the various tests.
 var multiTxWitnessEncoded = []byte{
 	0x01, 0x00, 0x02, 0x00, // Version
 	0x01,                                           // Varint for number of input signature
 	0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, // ValueIn
+	0x00,                   // SKAValueInLen (0 = no SKA value)
 	0x15, 0x15, 0x15, 0x15, // BlockHeight
 	0x34, 0x34, 0x34, 0x34, // BlockIndex
 	0x07,                                     // Varint for length of signature script

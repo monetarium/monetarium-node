@@ -110,8 +110,13 @@ func TestSSFeeAugmentation_SKA_Staker_NullInput(t *testing.T) {
 			}
 
 			// Verify output
-			if tx.TxOut[1].Value != tc.fee {
-				t.Errorf("Expected output %d, got %d", tc.fee, tx.TxOut[1].Value)
+			// SKA outputs use SKAValue, not Value
+			var outputValue int64
+			if tx.TxOut[1].SKAValue != nil {
+				outputValue = tx.TxOut[1].SKAValue.Int64()
+			}
+			if outputValue != tc.fee {
+				t.Errorf("Expected output %d, got %d", tc.fee, outputValue)
 			}
 			if tx.TxOut[1].CoinType != tc.coinType {
 				t.Errorf("Expected coin type %d, got %d", tc.coinType, tx.TxOut[1].CoinType)
@@ -176,8 +181,13 @@ func TestSSFeeAugmentation_SKA_Miner_NullInput(t *testing.T) {
 			if len(tx.TxOut) < 2 {
 				t.Fatalf("Expected at least 2 outputs, got %d", len(tx.TxOut))
 			}
-			if tx.TxOut[1].Value != tc.fee {
-				t.Errorf("Expected output %d, got %d", tc.fee, tx.TxOut[1].Value)
+			// SKA outputs use SKAValue, not Value
+			var outputValue int64
+			if tx.TxOut[1].SKAValue != nil {
+				outputValue = tx.TxOut[1].SKAValue.Int64()
+			}
+			if outputValue != tc.fee {
+				t.Errorf("Expected output %d, got %d", tc.fee, outputValue)
 			}
 			if tx.TxOut[1].CoinType != tc.coinType {
 				t.Errorf("Expected coin type %d, got %d", tc.coinType, tx.TxOut[1].CoinType)

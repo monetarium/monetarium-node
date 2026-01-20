@@ -8,6 +8,7 @@ package blockchain
 import (
 	"bytes"
 	"fmt"
+	"math/big"
 
 	"github.com/monetarium/monetarium-node/blockchain/stake"
 	"github.com/monetarium/monetarium-node/blockchain/standalone"
@@ -68,7 +69,19 @@ func (view *UtxoViewpoint) addTxOut(outpoint wire.OutPoint, txOut *wire.TxOut,
 	ticketMinOuts *ticketMinimalOutputs) {
 
 	// Don't add provably unspendable outputs.
-	if txscript.IsUnspendable(txOut.Value, txOut.PkScript) {
+	// For SKA outputs, Value=0 but SKAValue contains the actual amount,
+	// so check SKAValue before calling IsUnspendable.
+	if txOut.CoinType.IsSKA() {
+		// SKA outputs are unspendable only if SKAValue is nil/zero or script is bad
+		if txOut.SKAValue == nil || txOut.SKAValue.Sign() == 0 {
+			return
+		}
+		// Check script validity for SKA
+		if len(txOut.PkScript) > txscript.MaxScriptSize ||
+			(len(txOut.PkScript) > 0 && txOut.PkScript[0] == txscript.OP_RETURN) {
+			return
+		}
+	} else if txscript.IsUnspendable(txOut.Value, txOut.PkScript) {
 		return
 	}
 
@@ -82,13 +95,28 @@ func (view *UtxoViewpoint) addTxOut(outpoint wire.OutPoint, txOut *wire.TxOut,
 		view.entries[outpoint] = entry
 	}
 
-	entry.amount = txOut.Value
 	entry.blockHeight = uint32(blockHeight)
 	entry.blockIndex = blockIndex
 	entry.scriptVersion = txOut.Version
 	entry.coinType = txOut.CoinType
 	entry.packedFlags = packedFlags
 	entry.ticketMinOuts = ticketMinOuts
+
+	// Set amount fields based on coin type:
+	// - VAR: use amount (int64), skaAmount = nil
+	// - SKA: use skaAmount (big.Int), amount = 0
+	// This ensures clean separation and prevents int64 overflow issues.
+	if txOut.CoinType.IsSKA() {
+		entry.amount = 0 // SKA uses skaAmount only
+		if txOut.SKAValue != nil {
+			entry.skaAmount = new(big.Int).Set(txOut.SKAValue)
+		} else {
+			entry.skaAmount = nil
+		}
+	} else {
+		entry.amount = txOut.Value // VAR uses amount only
+		entry.skaAmount = nil
+	}
 
 	// The referenced transaction output should always be marked as unspent and
 	// modified when being added to the view.
@@ -228,7 +256,7 @@ func (view *UtxoViewpoint) PriorityInput(prevOut *wire.OutPoint) (int64, int64, 
 // use in tracking all spent txouts for the spend journal.
 func utxoEntryToSpentTxOut(entry *UtxoEntry) spentTxOut {
 	// Populate the stxo details using the utxo entry.
-	return spentTxOut{
+	stxo := spentTxOut{
 		amount:        entry.Amount(),
 		pkScript:      entry.PkScript(),
 		ticketMinOuts: entry.ticketMinOuts,
@@ -239,6 +267,13 @@ func utxoEntryToSpentTxOut(entry *UtxoEntry) spentTxOut {
 		packedFlags: encodeFlags(entry.IsCoinBase(), entry.HasExpiry(),
 			entry.TransactionType()),
 	}
+
+	// Copy SKA amount for SKA coin types
+	if entry.skaAmount != nil {
+		stxo.skaAmount = new(big.Int).Set(entry.skaAmount)
+	}
+
+	return stxo
 }
 
 // connectStakeTransaction updates the view by adding all new utxos created by
@@ -520,6 +555,11 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 						txType),
 				}
 
+				// Set SKA amount for SKA coin types
+				if txOut.CoinType.IsSKA() && txOut.SKAValue != nil {
+					entry.skaAmount = new(big.Int).Set(txOut.SKAValue)
+				}
+
 				// Deep copy the script when the script in the entry differs
 				// from the one in the txout.  This is required since the txout
 				// script is a subslice of the overall contiguous buffer that
@@ -596,6 +636,11 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 					state:         utxoStateModified,
 					packedFlags: encodeUtxoFlags(stxo.IsCoinBase(),
 						stxo.HasExpiry(), stxo.TransactionType()),
+				}
+
+				// Copy SKA amount for SKA coin types
+				if stxo.coinType.IsSKA() && stxo.skaAmount != nil {
+					entry.skaAmount = new(big.Int).Set(stxo.skaAmount)
 				}
 
 				view.entries[txIn.PreviousOutPoint] = entry
@@ -822,7 +867,12 @@ func (view *UtxoViewpoint) GetCoinTypeBalance(coinType cointype.CoinType) int64 
 	var balance int64
 	for _, entry := range view.entries {
 		if entry != nil && !entry.IsSpent() && entry.CoinType() == coinType {
-			balance += entry.Amount()
+			// SKA amounts are in skaAmount field, VAR amounts in amount field
+			if coinType.IsSKA() && entry.skaAmount != nil {
+				balance += entry.skaAmount.Int64()
+			} else {
+				balance += entry.Amount()
+			}
 		}
 	}
 	return balance

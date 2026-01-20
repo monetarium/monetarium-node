@@ -11,6 +11,10 @@ import (
 	"github.com/monetarium/monetarium-node/cointype"
 )
 
+// atomsPerSKA is the number of atoms in one SKA coin for test purposes.
+// SKA uses 1e18 atoms/coin. For production code, use atomsPerSKACoin (big.Int).
+const atomsPerSKA int64 = 1e18
+
 // TestNewAmountForCoinType tests the NewAmountForCoinType function.
 func TestNewAmountForCoinType(t *testing.T) {
 	tests := []struct {
@@ -21,12 +25,12 @@ func TestNewAmountForCoinType(t *testing.T) {
 		shouldError bool
 	}{
 		{"VAR 1.0", 1.0, cointype.CoinTypeVAR, Amount(cointype.AtomsPerVAR), false},
-		{"SKA 1.0", 1.0, cointype.CoinType(1), Amount(cointype.AtomsPerSKA), false},
+		{"SKA 1.0", 1.0, cointype.CoinType(1), Amount(atomsPerSKA), false},
 		{"VAR 0.5", 0.5, cointype.CoinTypeVAR, Amount(cointype.AtomsPerVAR / 2), false},
-		{"SKA 0.5", 0.5, cointype.CoinType(1), Amount(cointype.AtomsPerSKA / 2), false},
+		{"SKA 0.5", 0.5, cointype.CoinType(1), Amount(atomsPerSKA / 2), false},
 		{"VAR 0", 0.0, cointype.CoinTypeVAR, 0, false},
 		{"SKA 0", 0.0, cointype.CoinType(1), 0, false},
-		{"Valid SKA-99 coin type", 1.0, cointype.CoinType(99), Amount(cointype.AtomsPerSKA), false},
+		{"Valid SKA-99 coin type", 1.0, cointype.CoinType(99), Amount(atomsPerSKA), false},
 		{"NaN", math.NaN(), cointype.CoinTypeVAR, 0, true},
 		{"Positive infinity", math.Inf(1), cointype.CoinTypeVAR, 0, true},
 		{"Negative infinity", math.Inf(-1), cointype.CoinTypeVAR, 0, true},
@@ -60,12 +64,12 @@ func TestAmountToCoinType(t *testing.T) {
 		expected float64
 	}{
 		{"VAR 1 coin", Amount(cointype.AtomsPerVAR), cointype.CoinTypeVAR, 1.0},
-		{"SKA 1 coin", Amount(cointype.AtomsPerSKA), cointype.CoinType(1), 1.0},
+		{"SKA 1 coin", Amount(atomsPerSKA), cointype.CoinType(1), 1.0},
 		{"VAR 0.5 coin", Amount(cointype.AtomsPerVAR / 2), cointype.CoinTypeVAR, 0.5},
-		{"SKA 0.5 coin", Amount(cointype.AtomsPerSKA / 2), cointype.CoinType(1), 0.5},
+		{"SKA 0.5 coin", Amount(atomsPerSKA / 2), cointype.CoinType(1), 0.5},
 		{"VAR 0", 0, cointype.CoinTypeVAR, 0.0},
 		{"SKA 0", 0, cointype.CoinType(1), 0.0},
-		{"Valid SKA-99 coin type", Amount(cointype.AtomsPerSKA), cointype.CoinType(99), 1.0},
+		{"Valid SKA-99 coin type", Amount(atomsPerSKA), cointype.CoinType(99), 1.0},
 	}
 
 	for _, test := range tests {
@@ -102,16 +106,18 @@ func TestAmountToVAR(t *testing.T) {
 }
 
 // TestAmountToSKA tests the ToSKA method.
+// Note: SKA amounts larger than ~9 coins overflow int64. For large SKA amounts,
+// use cointype.SKAAmount with big.Int instead of dcrutil.Amount.
 func TestAmountToSKA(t *testing.T) {
 	tests := []struct {
 		name     string
 		amount   Amount
 		expected float64
 	}{
-		{"1 SKA", Amount(cointype.AtomsPerSKA), 1.0},
-		{"0.5 SKA", Amount(cointype.AtomsPerSKA / 2), 0.5},
+		{"1 SKA", Amount(atomsPerSKA), 1.0},
+		{"0.5 SKA", Amount(atomsPerSKA / 2), 0.5},
 		{"0 SKA", 0, 0.0},
-		{"10 SKA", Amount(10 * cointype.AtomsPerSKA), 10.0},
+		{"2 SKA", Amount(2 * atomsPerSKA), 2.0}, // Max safe is ~9 SKA in int64
 	}
 
 	for _, test := range tests {
@@ -133,12 +139,12 @@ func TestAmountStringForCoinType(t *testing.T) {
 		expected string
 	}{
 		{"VAR 1.0", Amount(cointype.AtomsPerVAR), cointype.CoinTypeVAR, "1.00000000 VAR"},
-		{"SKA 1.0", Amount(cointype.AtomsPerSKA), cointype.CoinType(1), "1.00000000 SKA-1"},
+		{"SKA 1.0", Amount(atomsPerSKA), cointype.CoinType(1), "1.00000000 SKA-1"},
 		{"VAR 0.5", Amount(cointype.AtomsPerVAR / 2), cointype.CoinTypeVAR, "0.50000000 VAR"},
-		{"SKA 0.5", Amount(cointype.AtomsPerSKA / 2), cointype.CoinType(1), "0.50000000 SKA-1"},
+		{"SKA 0.5", Amount(atomsPerSKA / 2), cointype.CoinType(1), "0.50000000 SKA-1"},
 		{"VAR 0", 0, cointype.CoinTypeVAR, "0.00000000 VAR"},
 		{"SKA 0", 0, cointype.CoinType(1), "0.00000000 SKA-1"},
-		{"Valid SKA-99 coin type", Amount(cointype.AtomsPerSKA), cointype.CoinType(99), "1.00000000 SKA-99"},
+		{"Valid SKA-99 coin type", Amount(atomsPerSKA), cointype.CoinType(99), "1.00000000 SKA-99"},
 	}
 
 	for _, test := range tests {
@@ -163,7 +169,7 @@ func TestAmountStringVAR(t *testing.T) {
 
 // TestAmountStringSKA tests the StringSKA method.
 func TestAmountStringSKA(t *testing.T) {
-	amount := Amount(cointype.AtomsPerSKA)
+	amount := Amount(atomsPerSKA)
 	expected := "1.00000000 SKA-1"
 	result := amount.StringSKA()
 	if result != expected {

@@ -17,7 +17,7 @@ const (
 	InitialProcotolVersion uint32 = 1
 
 	// ProtocolVersion is the latest protocol version this package supports.
-	ProtocolVersion uint32 = 12
+	ProtocolVersion uint32 = 13
 
 	// NodeBloomVersion is the protocol version which added the SFNodeBloom
 	// service flag (unused).
@@ -62,6 +62,14 @@ const (
 	// DualCoinVersion is the protocol version which added dual-coin support
 	// with CoinType field in transaction outputs.
 	DualCoinVersion uint32 = 12
+
+	// SKABigIntVersion is the protocol version which added big.Int support
+	// for SKA amounts with 18 decimal precision. This version changes the
+	// TxOut wire format for SKA coins to use variable-length encoding.
+	// Wire format:
+	//   VAR: [CoinType:1][Value:8 bytes][Version:2][PkScript:var]
+	//   SKA: [CoinType:1][ValLen:1][Value:N bytes][Version:2][PkScript:var]
+	SKABigIntVersion uint32 = 13
 )
 
 // ServiceFlag identifies services supported by a Decred peer.

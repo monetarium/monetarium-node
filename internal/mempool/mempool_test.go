@@ -36,7 +36,8 @@ import (
 const (
 	// singleInputTicketSize is the typical size of a normal P2PKH ticket
 	// in bytes when the ticket has one input, rounded up.
-	singleInputTicketSize int64 = 300
+	// V13 wire format adds SKAValueInLen byte per input: 300 + 1 = 301
+	singleInputTicketSize int64 = 301
 )
 
 // fakeChain is used by the pool harness to provide generated test utxos and

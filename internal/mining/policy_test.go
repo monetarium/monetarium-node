@@ -112,8 +112,8 @@ func TestCalcPriority(t *testing.T) {
 				amount: dummyTxIn.ValueIn,
 			}},
 		nextHeight: int64(dummyTxIn.BlockHeight) + 100,
-		wantSize:   217,
-		want:       19230.76923076923,
+		wantSize:   218, // +1 byte for SKAValueInLen
+		want:       18867.924528301886,
 	}, {
 		name: "p2pkh spend (input age 100) with two outputs",
 		tx: wire.MsgTx{
@@ -135,8 +135,8 @@ func TestCalcPriority(t *testing.T) {
 				amount: dummyTxIn.ValueIn,
 			}},
 		nextHeight: int64(dummyTxIn.BlockHeight) + 100,
-		wantSize:   254,
-		want:       11235.955056179775,
+		wantSize:   255, // +1 byte for SKAValueInLen
+		want:       11111.111111111111,
 	}, {
 		name: "p2pkh spend (input age 350) with one output",
 		tx: wire.MsgTx{
@@ -152,8 +152,8 @@ func TestCalcPriority(t *testing.T) {
 				amount: dummyTxIn.ValueIn,
 			}},
 		nextHeight: int64(dummyTxIn.BlockHeight) + 350,
-		wantSize:   217,
-		want:       67307.69230769231,
+		wantSize:   218, // +1 byte for SKAValueInLen
+		want:       66037.7358490566,
 	}, {
 		name: "p2pkh spend (input age 350) with two outputs",
 		tx: wire.MsgTx{
@@ -175,8 +175,8 @@ func TestCalcPriority(t *testing.T) {
 				amount: dummyTxIn.ValueIn,
 			}},
 		nextHeight: int64(dummyTxIn.BlockHeight) + 350,
-		wantSize:   254,
-		want:       39325.84269662921,
+		wantSize:   255, // +1 byte for SKAValueInLen
+		want:       38888.88888888889,
 	}, {
 		name: "p2sh spend (input age 50) with one output",
 		tx: wire.MsgTx{
@@ -192,8 +192,8 @@ func TestCalcPriority(t *testing.T) {
 				amount: dummyTxInP2SH.ValueIn,
 			}},
 		nextHeight: int64(dummyTxInP2SH.BlockHeight) + 50,
-		wantSize:   255,
-		want:       11494.252873563219,
+		wantSize:   256, // +1 byte for SKAValueInLen
+		want:       11363.636363636364,
 	}, {
 		name: "p2pkh and p2sh spends (input age 50 and 100) with one output",
 		tx: wire.MsgTx{
@@ -215,8 +215,8 @@ func TestCalcPriority(t *testing.T) {
 				amount: dummyTxInP2SH.ValueIn,
 			}},
 		nextHeight: int64(dummyTxIn.BlockHeight) + 50,
-		wantSize:   420,
-		want:       28735.632183908045,
+		wantSize:   422, // +2 bytes for SKAValueInLen (2 inputs)
+		want:       28089.887640449437,
 	}, {
 		name: "p2pkh and p2sh spends (input age 50 and 100) with one output",
 		tx: wire.MsgTx{
@@ -238,8 +238,8 @@ func TestCalcPriority(t *testing.T) {
 				amount: dummyTxInP2SH.ValueIn,
 			}},
 		nextHeight: int64(dummyTxIn.BlockHeight) + 50,
-		wantSize:   420,
-		want:       28735.632183908045,
+		wantSize:   422, // +2 bytes for SKAValueInLen (2 inputs)
+		want:       28089.887640449437,
 	}}
 
 	for _, test := range tests {

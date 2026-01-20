@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/monetarium/monetarium-node/chaincfg"
 	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
@@ -80,6 +81,13 @@ type ChainQueryer interface {
 	// Returns (amount=0, height=0, index=0, spent=true) if the UTXO doesn't exist or is spent.
 	// Returns (amount>0, height>0, index>=0, spent=false) if the UTXO exists and is unspent.
 	FetchUtxoEntryDetails(outpoint wire.OutPoint) (amount int64, blockHeight int64, blockIndex uint32, spent bool, err error)
+
+	// FetchUtxoEntrySKADetails returns the SKA amount as *big.Int, block height, and block index
+	// of the specified unspent transaction output. This is used for SKA coin types where
+	// the amount can exceed int64 range.
+	// Returns (nil, 0, 0, true) if the UTXO doesn't exist or is spent.
+	// Returns (amount, height, index, false) if the UTXO exists and is unspent.
+	FetchUtxoEntrySKADetails(outpoint wire.OutPoint) (amount *big.Int, blockHeight int64, blockIndex uint32, spent bool, err error)
 }
 
 // Indexer defines a generic interface for an indexer.

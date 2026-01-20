@@ -95,9 +95,10 @@ func TestCoinType_AtomsPerCoin(t *testing.T) {
 		expected int64
 	}{
 		{CoinTypeVAR, AtomsPerVAR},
-		{CoinType(1), AtomsPerSKA},
-		{CoinType(2), AtomsPerSKA},
-		{CoinType(255), AtomsPerSKA},
+		// SKA returns 0 - use AtomsPerSKACoin (big.Int) or SKACoinConfig.AtomsPerCoin
+		{CoinType(1), 0},
+		{CoinType(2), 0},
+		{CoinType(255), 0},
 	}
 
 	for _, test := range tests {
@@ -115,9 +116,10 @@ func TestCoinType_MaxAtoms(t *testing.T) {
 		expected int64
 	}{
 		{CoinTypeVAR, MaxVARAtoms},
-		{CoinType(1), MaxSKAAtoms},
-		{CoinType(2), MaxSKAAtoms},
-		{CoinType(255), MaxSKAAtoms},
+		// SKA returns 0 - max supply is per-config (big.Int) in SKACoinConfig.MaxSupply
+		{CoinType(1), 0},
+		{CoinType(2), 0},
+		{CoinType(255), 0},
 	}
 
 	for _, test := range tests {
@@ -135,9 +137,10 @@ func TestCoinType_MaxAmount(t *testing.T) {
 		expected Amount
 	}{
 		{CoinTypeVAR, MaxVARAmount},
-		{CoinType(1), MaxSKAAmount},
-		{CoinType(2), MaxSKAAmount},
-		{CoinType(255), MaxSKAAmount},
+		// SKA returns 0 - max supply is per-config (big.Int) in SKACoinConfig.MaxSupply
+		{CoinType(1), 0},
+		{CoinType(2), 0},
+		{CoinType(255), 0},
 	}
 
 	for _, test := range tests {

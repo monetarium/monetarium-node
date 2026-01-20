@@ -87,7 +87,7 @@ func TestCalculateMinFee(t *testing.T) {
 			name:           "SKA transaction 250 bytes",
 			serializedSize: 250,
 			coinType:       cointype.CoinType(1), // SKA-1
-			expectedMin:    250,                  // SKA has 10x lower fee: (250 * 1000) / 1000 = 250 atoms
+			expectedMin:    25,                   // SKA fee rate 100/KB: (250 * 100) / 1000 = 25 atoms
 		},
 		{
 			name:           "Large VAR transaction 1000 bytes",
@@ -99,7 +99,7 @@ func TestCalculateMinFee(t *testing.T) {
 			name:           "Large SKA transaction 1000 bytes",
 			serializedSize: 1000,
 			coinType:       cointype.CoinType(1), // SKA-1
-			expectedMin:    1000,                 // (1000 * 1000) / 1000 = 1000 atoms
+			expectedMin:    100,                  // SKA fee rate 100/KB: (1000 * 100) / 1000 = 100 atoms
 		},
 		{
 			name:           "Unknown coin type defaults to VAR",
@@ -302,7 +302,7 @@ func TestValidateTransactionFees(t *testing.T) {
 		},
 		{
 			name:           "SKA sufficient fee",
-			txFee:          300,
+			txFee:          50,
 			serializedSize: 250,
 			coinType:       cointype.CoinType(1), // SKA-1
 			allowHighFees:  false,
@@ -310,9 +310,9 @@ func TestValidateTransactionFees(t *testing.T) {
 		},
 		{
 			name:           "SKA insufficient fee",
-			txFee:          100,
+			txFee:          5,
 			serializedSize: 250,
-			coinType:       cointype.CoinType(1), // SKA-1
+			coinType:       cointype.CoinType(1), // SKA-1 - min fee is (250*50)/1000=12 atoms
 			allowHighFees:  false,
 			expectError:    true,
 			errorContains:  "insufficient fee",

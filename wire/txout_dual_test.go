@@ -6,6 +6,7 @@ package wire
 
 import (
 	"bytes"
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/cointype"
@@ -62,51 +63,65 @@ func TestTxOutSerialization(t *testing.T) {
 	pkScript := []byte{0x76, 0xa9, 0x14}
 	value := int64(100000000)
 
-	tests := []struct {
-		name     string
-		coinType cointype.CoinType
-	}{
-		{"VAR serialization", cointype.CoinTypeVAR},
-		{"SKA serialization", cointype.CoinType(1)},
-	}
+	t.Run("VAR serialization", func(t *testing.T) {
+		txOut := NewTxOutWithCoinType(value, cointype.CoinTypeVAR, pkScript)
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			txOut := NewTxOutWithCoinType(value, test.coinType, pkScript)
+		// Test serialization
+		var buf bytes.Buffer
+		err := writeTxOut(&buf, ProtocolVersion, TxVersion, txOut)
+		if err != nil {
+			t.Errorf("Serialization failed: %v", err)
+		}
 
-			// Test serialization
-			var buf bytes.Buffer
-			err := writeTxOut(&buf, ProtocolVersion, TxVersion, txOut)
-			if err != nil {
-				t.Errorf("Serialization failed: %v", err)
-			}
+		// Test deserialization
+		var deserializedTxOut TxOut
+		reader := bytes.NewReader(buf.Bytes())
+		err = readTxOut(reader, ProtocolVersion, TxVersion, &deserializedTxOut)
+		if err != nil {
+			t.Errorf("Deserialization failed: %v", err)
+		}
 
-			// Test deserialization
-			var deserializedTxOut TxOut
-			reader := bytes.NewReader(buf.Bytes())
-			err = readTxOut(reader, ProtocolVersion, TxVersion, &deserializedTxOut)
-			if err != nil {
-				t.Errorf("Deserialization failed: %v", err)
-			}
+		// Verify round-trip
+		if deserializedTxOut.Value != txOut.Value {
+			t.Errorf("Value mismatch: expected %d, got %d", txOut.Value, deserializedTxOut.Value)
+		}
 
-			// Verify round-trip
-			if deserializedTxOut.Value != txOut.Value {
-				t.Errorf("Value mismatch: expected %d, got %d", txOut.Value, deserializedTxOut.Value)
-			}
+		if deserializedTxOut.CoinType != txOut.CoinType {
+			t.Errorf("cointype.CoinType mismatch: expected %d, got %d", txOut.CoinType, deserializedTxOut.CoinType)
+		}
+	})
 
-			if deserializedTxOut.CoinType != txOut.CoinType {
-				t.Errorf("cointype.CoinType mismatch: expected %d, got %d", txOut.CoinType, deserializedTxOut.CoinType)
-			}
+	t.Run("SKA serialization", func(t *testing.T) {
+		// Use NewTxOutSKA for SKA outputs with big.Int values
+		skaValue := big.NewInt(value)
+		txOut := NewTxOutSKA(skaValue, cointype.CoinType(1), pkScript)
 
-			if deserializedTxOut.Version != txOut.Version {
-				t.Errorf("Version mismatch: expected %d, got %d", txOut.Version, deserializedTxOut.Version)
-			}
+		// Test serialization
+		var buf bytes.Buffer
+		err := writeTxOut(&buf, ProtocolVersion, TxVersion, txOut)
+		if err != nil {
+			t.Errorf("Serialization failed: %v", err)
+		}
 
-			if !bytes.Equal(deserializedTxOut.PkScript, txOut.PkScript) {
-				t.Errorf("Script mismatch: expected %x, got %x", txOut.PkScript, deserializedTxOut.PkScript)
-			}
-		})
-	}
+		// Test deserialization
+		var deserializedTxOut TxOut
+		reader := bytes.NewReader(buf.Bytes())
+		err = readTxOut(reader, ProtocolVersion, TxVersion, &deserializedTxOut)
+		if err != nil {
+			t.Errorf("Deserialization failed: %v", err)
+		}
+
+		// Verify round-trip - for SKA we check SKAValue
+		if deserializedTxOut.SKAValue == nil {
+			t.Errorf("SKAValue is nil after deserialization")
+		} else if deserializedTxOut.SKAValue.Cmp(skaValue) != 0 {
+			t.Errorf("SKAValue mismatch: expected %s, got %s", skaValue.String(), deserializedTxOut.SKAValue.String())
+		}
+
+		if deserializedTxOut.CoinType != txOut.CoinType {
+			t.Errorf("cointype.CoinType mismatch: expected %d, got %d", txOut.CoinType, deserializedTxOut.CoinType)
+		}
+	})
 }
 
 // TestTxOutSerializeSize tests that SerializeSize accounts for coin type.

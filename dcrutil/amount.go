@@ -82,6 +82,9 @@ func NewAmount(f float64) (Amount, error) {
 // NewAmountForCoinType creates an Amount from a floating point value for
 // a specific coin type. This function handles the conversion from coins
 // to atoms for both VAR and SKA.
+//
+// Note: For SKA, Amount (int64) can only hold ~9 coins due to 1e18 atoms/coin.
+// For large SKA amounts, use cointype.SKAAmount with big.Int instead.
 func NewAmountForCoinType(f float64, coinType cointype.CoinType) (Amount, error) {
 	// The amount is only considered invalid if it cannot be represented
 	// as an integer type.  This may happen if f is NaN or +-Infinity.
@@ -98,8 +101,14 @@ func NewAmountForCoinType(f float64, coinType cointype.CoinType) (Amount, error)
 		return 0, cointype.ErrInvalidCoinType
 	}
 
-	atomsPerCoin := coinType.AtomsPerCoin()
-	return round(f * float64(atomsPerCoin)), nil
+	var atomsPerCoin float64
+	if coinType.IsVAR() {
+		atomsPerCoin = float64(coinType.AtomsPerCoin())
+	} else {
+		// SKA uses 1e18 atoms/coin
+		atomsPerCoin = 1e18
+	}
+	return round(f * atomsPerCoin), nil
 }
 
 // ToUnit converts a monetary amount counted in coin base units to a
@@ -120,16 +129,27 @@ func (a Amount) ToVAR() float64 {
 }
 
 // ToSKA converts the amount to SKA coins as a floating point value.
+// Note: SKA uses 1e18 atoms/coin. This method is for display purposes only.
+// For precise SKA calculations, use cointype.SKAAmount with big.Int.
 func (a Amount) ToSKA() float64 {
-	return float64(a) / cointype.AtomsPerSKA
+	// SKA has 1e18 atoms per coin (same as Ethereum wei to ETH)
+	const atomsPerSKA = 1e18
+	return float64(a) / atomsPerSKA
 }
 
 // ToCoinType converts the amount to coins for the specified coin type.
+// Note: For SKA coins, this uses 1e18 atoms/coin for display purposes.
+// For precise SKA calculations, use cointype.SKAAmount with big.Int.
 func (a Amount) ToCoinType(coinType cointype.CoinType) float64 {
 	if !coinType.IsValid() {
 		return 0
 	}
-	return float64(a) / float64(coinType.AtomsPerCoin())
+	if coinType.IsVAR() {
+		return float64(a) / float64(coinType.AtomsPerCoin())
+	}
+	// SKA uses 1e18 atoms per coin
+	const atomsPerSKA = 1e18
+	return float64(a) / atomsPerSKA
 }
 
 // Format formats a monetary amount counted in coin base units as a

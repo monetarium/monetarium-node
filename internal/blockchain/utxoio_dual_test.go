@@ -6,6 +6,7 @@ package blockchain
 
 import (
 	"bytes"
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/cointype"
@@ -33,7 +34,7 @@ func TestUtxoSerializationDualCoin(t *testing.T) {
 		{
 			name: "SKA UTXO",
 			entry: &UtxoEntry{
-				amount:        50000000,
+				skaAmount:     big.NewInt(50000000),
 				pkScript:      []byte{0xa9, 0x14, 0x04, 0x05, 0x06, 0x87},
 				blockHeight:   54321,
 				blockIndex:    1,
@@ -71,9 +72,23 @@ func TestUtxoSerializationDualCoin(t *testing.T) {
 			}
 
 			// Compare all fields
-			if deserialized.amount != test.entry.amount {
-				t.Errorf("Amount mismatch: expected %d, got %d",
-					test.entry.amount, deserialized.amount)
+			// For VAR, compare amount; for SKA, compare skaAmount
+			if test.entry.coinType.IsSKA() {
+				if test.entry.skaAmount == nil && deserialized.skaAmount != nil {
+					t.Errorf("SKA Amount mismatch: expected nil, got %v", deserialized.skaAmount)
+				} else if test.entry.skaAmount != nil {
+					if deserialized.skaAmount == nil {
+						t.Errorf("SKA Amount mismatch: expected %v, got nil", test.entry.skaAmount)
+					} else if test.entry.skaAmount.Cmp(deserialized.skaAmount) != 0 {
+						t.Errorf("SKA Amount mismatch: expected %v, got %v",
+							test.entry.skaAmount, deserialized.skaAmount)
+					}
+				}
+			} else {
+				if deserialized.amount != test.entry.amount {
+					t.Errorf("Amount mismatch: expected %d, got %d",
+						test.entry.amount, deserialized.amount)
+				}
 			}
 
 			if deserialized.coinType != test.entry.coinType {
@@ -183,7 +198,7 @@ func TestUtxoSerializationSize(t *testing.T) {
 		{
 			name: "Large SKA UTXO",
 			entry: &UtxoEntry{
-				amount:        100000000,
+				skaAmount:     big.NewInt(100000000),
 				pkScript:      make([]byte, 25), // Larger script
 				blockHeight:   1000000,
 				blockIndex:    100,
@@ -206,8 +221,22 @@ func TestUtxoSerializationSize(t *testing.T) {
 			expectedSize := serializeSizeVLQ(uint64(test.entry.blockHeight)) +
 				serializeSizeVLQ(uint64(test.entry.blockIndex)) +
 				serializeSizeVLQ(uint64(flags)) +
-				serializeSizeVLQ(uint64(test.entry.coinType)) + // New coin type field
-				compressedTxOutSize(uint64(test.entry.amount), test.entry.scriptVersion, test.entry.pkScript, true)
+				serializeSizeVLQ(uint64(test.entry.coinType))
+
+			// Amount size depends on coin type
+			if test.entry.coinType.IsSKA() {
+				// SKA: 1-byte length prefix + big.Int bytes + script
+				var skaAmountBytes []byte
+				if test.entry.skaAmount != nil {
+					skaAmountBytes = test.entry.skaAmount.Bytes()
+				}
+				expectedSize += 1 + len(skaAmountBytes) +
+					serializeSizeVLQ(uint64(test.entry.scriptVersion)) +
+					compressedScriptSize(test.entry.scriptVersion, test.entry.pkScript)
+			} else {
+				// VAR: standard compressed txout
+				expectedSize += compressedTxOutSize(uint64(test.entry.amount), test.entry.scriptVersion, test.entry.pkScript, true)
+			}
 
 			if len(serialized) != expectedSize {
 				t.Errorf("Serialization size mismatch: expected %d, got %d", expectedSize, len(serialized))

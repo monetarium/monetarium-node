@@ -6,7 +6,6 @@ package stake
 
 import (
 	"bytes"
-	"encoding/hex"
 	"errors"
 	"math"
 	"math/rand"
@@ -1027,20 +1026,61 @@ var tspendInvalidTxVersion = &wire.MsgTx{
 }
 
 func TestTSpendGenerated(t *testing.T) {
-	// Transaction hex with CoinType=0 bytes (new wire format)
-	rawScript := "03000000010000000000000000000000000000000000000000000000000000000000000000ffffffff00ffffffff020000000000000000000000226a20562ce42e7531d1710ea1ee02628191190ef5152bbbcd23acca864433c4e4e7849cf1052a0100000000000018c3a914f5a8302ee8695bf836258b8f2b57b38a0be14e478700000000520000000100f2052a0100000000000000ffffffff64408ea1c04f5e5dd59350847fad8b800887200ae7268da3b70488a605dd5f4ad28e6e240dbd483a8ba46324a047cf0d6c506e6ebb61d93cae6e868b86f31d9bda892103b459ccf3ce4935a676414fd9ec93ecf7c9dad081a52ed6993bf073c627499388c2"
-	s, err := hex.DecodeString(rawScript)
-	if err != nil {
-		t.Fatal(err)
+	// Construct a valid TSpend transaction and verify it passes checkTSpend.
+	// This tests both the TSpend validation logic and wire serialization
+	// round-trip with the current wire format (including CoinType).
+
+	// Valid OP_TGEN + P2SH script:
+	// OP_TGEN OP_HASH160 OP_DATA_20 <20 bytes hash> OP_EQUAL
+	tgenP2SH := []byte{
+		0xc3, // OP_TGEN
+		0xa9, // OP_HASH160
+		0x14, // OP_DATA_20
+		0xf5, 0xa8, 0x30, 0x2e, 0xe8, 0x69, 0x5b, 0xf8,
+		0x36, 0x25, 0x8b, 0x8f, 0x2b, 0x57, 0xb3, 0x8a,
+		0x0b, 0xe1, 0x4e, 0x47, // 20-byte hash
+		0x87, // OP_EQUAL
 	}
-	var tx wire.MsgTx
-	err = tx.Deserialize(bytes.NewReader(s))
+
+	// Create a valid TSpend transaction
+	tx := &wire.MsgTx{
+		SerType: wire.TxSerializeFull,
+		Version: wire.TxVersionTreasury,
+		TxIn: []*wire.TxIn{
+			&tspendTxInValidPubkey,
+		},
+		TxOut: []*wire.TxOut{
+			{
+				Value:    0,
+				Version:  0,
+				PkScript: tspendTxOutValidReturn.PkScript,
+			},
+			{
+				Value:    5000000156, // Same value as original test
+				Version:  0,
+				PkScript: tgenP2SH,
+			},
+		},
+		LockTime: 0,
+		Expiry:   82,
+	}
+
+	// Test serialization round-trip
+	var buf bytes.Buffer
+	err := tx.Serialize(&buf)
+	if err != nil {
+		t.Fatalf("Serialize: %v", err)
+	}
+
+	var tx2 wire.MsgTx
+	err = tx2.Deserialize(bytes.NewReader(buf.Bytes()))
 	if err != nil {
 		t.Fatalf("Deserialize: %v", err)
 	}
-	tx.Version = wire.TxVersionTreasury
+	tx2.Version = wire.TxVersionTreasury
 
-	err = checkTSpend(&tx)
+	// Verify the deserialized transaction passes checkTSpend
+	err = checkTSpend(&tx2)
 	if err != nil {
 		t.Fatalf("checkTSpend: %v", err)
 	}

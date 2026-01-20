@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/chaincfg"
@@ -35,8 +36,8 @@ func TestSKAEmissionSignatureVerification(t *testing.T) {
 				EmissionAddresses: []string{
 					"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", // Test address
 				},
-				EmissionAmounts: []int64{
-					1000000000, // 10 million atoms
+				EmissionAmounts: []*big.Int{
+					big.NewInt(1000000000), // 10 million atoms
 				},
 			},
 		},
@@ -56,7 +57,7 @@ func TestSKAEmissionSignatureVerification(t *testing.T) {
 	addresses := []string{
 		"TsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc",
 	}
-	amounts := []int64{1000000000} // Match EmissionAmounts[0]
+	amounts := []*big.Int{big.NewInt(1000000000)} // Match EmissionAmounts[0]
 
 	// Create a valid emission transaction
 	tx := createTestEmissionTx(t, addresses, amounts, 1, params)
@@ -66,8 +67,8 @@ func TestSKAEmissionSignatureVerification(t *testing.T) {
 		EmissionKey: pubKey,
 		CoinType:    1,
 		Nonce:       1,
-		Amount:      1000000000, // Match EmissionAmounts[0]
-		Height:      150,        // Within window
+		Amount:      big.NewInt(1000000000), // Match EmissionAmounts[0]
+		Height:      150,                    // Within window
 	}
 
 	// Sign the transaction properly
@@ -135,7 +136,7 @@ func TestSKAEmissionMinerRedirectProtection(t *testing.T) {
 	legitAddresses := []string{
 		"TsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc",
 	}
-	amounts := []int64{1000000}
+	amounts := []*big.Int{big.NewInt(1000000)}
 
 	// Create and sign legitimate transaction
 	legitTx := createTestEmissionTx(t, legitAddresses, amounts, 1, params)
@@ -143,7 +144,7 @@ func TestSKAEmissionMinerRedirectProtection(t *testing.T) {
 		EmissionKey: pubKey,
 		CoinType:    1,
 		Nonce:       1,
-		Amount:      1000000,
+		Amount:      big.NewInt(1000000),
 		Height:      150,
 	}
 	signEmissionTx(t, legitTx, auth, privKey, params)
@@ -222,14 +223,14 @@ func TestSKAEmissionNetworkReplayProtection(t *testing.T) {
 
 	// Create emission for mainnet
 	addresses := []string{"MsPDyEAjtHYGz9JyT6u92hKi2EzhPodiZMm"}
-	amounts := []int64{1000000}
+	amounts := []*big.Int{big.NewInt(1000000)}
 
 	mainnetTx := createTestEmissionTx(t, addresses, amounts, 1, mainnetParams)
 	auth := &chaincfg.SKAEmissionAuth{
 		EmissionKey: pubKey,
 		CoinType:    1,
 		Nonce:       1,
-		Amount:      1000000,
+		Amount:      big.NewInt(1000000),
 		Height:      150,
 	}
 
@@ -280,14 +281,14 @@ func TestSKAEmissionDuplicateProtection(t *testing.T) {
 
 	// Try to emit again with nonce 2
 	addresses := []string{"TsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"}
-	amounts := []int64{1000000}
+	amounts := []*big.Int{big.NewInt(1000000)}
 
 	tx := createTestEmissionTx(t, addresses, amounts, 1, params)
 	auth := &chaincfg.SKAEmissionAuth{
 		EmissionKey: pubKey,
 		CoinType:    1,
 		Nonce:       2, // Next nonce
-		Amount:      1000000,
+		Amount:      big.NewInt(1000000),
 		Height:      150,
 	}
 	signEmissionTx(t, tx, auth, privKey, params)
@@ -336,7 +337,7 @@ func TestSKAEmissionNonceValidation(t *testing.T) {
 	chain := createMockChain(t, params)
 
 	addresses := []string{"TsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"}
-	amounts := []int64{1000000}
+	amounts := []*big.Int{big.NewInt(1000000)}
 
 	// Test 1: Nonce 0 should fail (must start at 1)
 	tx0 := createTestEmissionTx(t, addresses, amounts, 1, params)
@@ -344,7 +345,7 @@ func TestSKAEmissionNonceValidation(t *testing.T) {
 		EmissionKey: pubKey,
 		CoinType:    1,
 		Nonce:       0, // Invalid!
-		Amount:      1000000,
+		Amount:      big.NewInt(1000000),
 		Height:      150,
 	}
 	signEmissionTx(t, tx0, auth0, privKey, params)
@@ -360,7 +361,7 @@ func TestSKAEmissionNonceValidation(t *testing.T) {
 		EmissionKey: pubKey,
 		CoinType:    1,
 		Nonce:       1, // Correct
-		Amount:      1000000,
+		Amount:      big.NewInt(1000000),
 		Height:      150,
 	}
 	signEmissionTx(t, tx1, auth1, privKey, params)
@@ -376,7 +377,7 @@ func TestSKAEmissionNonceValidation(t *testing.T) {
 		EmissionKey: pubKey,
 		CoinType:    1,
 		Nonce:       2, // Skipping!
-		Amount:      1000000,
+		Amount:      big.NewInt(1000000),
 		Height:      150,
 	}
 	signEmissionTx(t, tx2, auth2, privKey, params)
@@ -409,7 +410,7 @@ func TestSKAEmissionWindowValidation(t *testing.T) {
 	chain := createMockChain(t, params)
 
 	addresses := []string{"TsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"}
-	amounts := []int64{1000000}
+	amounts := []*big.Int{big.NewInt(1000000)}
 
 	tests := []struct {
 		name        string
@@ -430,7 +431,7 @@ func TestSKAEmissionWindowValidation(t *testing.T) {
 				EmissionKey: pubKey,
 				CoinType:    1,
 				Nonce:       1,
-				Amount:      1000000,
+				Amount:      big.NewInt(1000000),
 				Height:      test.blockHeight,
 			}
 			signEmissionTx(t, tx, auth, privKey, params)
@@ -528,7 +529,7 @@ func TestSKAPreActivationProtection(t *testing.T) {
 
 // Helper functions for tests
 
-func createTestEmissionTx(_ *testing.T, addresses []string, amounts []int64, coinType cointype.CoinType, params *chaincfg.Params) *wire.MsgTx {
+func createTestEmissionTx(_ *testing.T, addresses []string, amounts []*big.Int, coinType cointype.CoinType, params *chaincfg.Params) *wire.MsgTx {
 	// Calculate emission window end for Expiry field
 	var expiry uint32
 	if config, exists := params.SKACoins[coinType]; exists {
@@ -561,22 +562,36 @@ func createTestEmissionTx(_ *testing.T, addresses []string, amounts []int64, coi
 			// Use a unique dummy script based on address string for testing
 			// This ensures different addresses produce different outputs
 			hash := sha256.Sum256([]byte(addrStr))
-			tx.TxOut = append(tx.TxOut, &wire.TxOut{
-				Value:    amounts[i],
+			txOut := &wire.TxOut{
+				Value:    0, // Not used for SKA
 				CoinType: coinType,
 				Version:  0,
 				PkScript: hash[:20], // Use first 20 bytes of hash as unique script
-			})
+			}
+			// Set SKAValue for SKA coin types
+			if coinType.IsSKA() {
+				txOut.SKAValue = amounts[i]
+			} else {
+				txOut.Value = amounts[i].Int64()
+			}
+			tx.TxOut = append(tx.TxOut, txOut)
 			continue
 		}
 
 		ver, pkScript := addr.PaymentScript()
-		tx.TxOut = append(tx.TxOut, &wire.TxOut{
-			Value:    amounts[i],
+		txOut := &wire.TxOut{
+			Value:    0, // Not used for SKA
 			CoinType: coinType,
 			Version:  ver,
 			PkScript: pkScript,
-		})
+		}
+		// Set SKAValue for SKA coin types
+		if coinType.IsSKA() {
+			txOut.SKAValue = amounts[i]
+		} else {
+			txOut.Value = amounts[i].Int64()
+		}
+		tx.TxOut = append(tx.TxOut, txOut)
 	}
 
 	return tx
@@ -616,8 +631,8 @@ func embedAuth(tx *wire.MsgTx, auth *chaincfg.SKAEmissionAuth) {
 	// SKA marker
 	script.Write([]byte{0x01, 0x53, 0x4b, 0x41})
 
-	// Auth version
-	script.WriteByte(0x02)
+	// Auth version 3 for big.Int amounts
+	script.WriteByte(0x03)
 
 	// Nonce (8 bytes)
 	nonceBytes := make([]byte, 8)
@@ -627,9 +642,9 @@ func embedAuth(tx *wire.MsgTx, auth *chaincfg.SKAEmissionAuth) {
 	// Coin type (1 byte)
 	script.WriteByte(uint8(auth.CoinType))
 
-	// Amount (8 bytes)
-	amountBytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(amountBytes, uint64(auth.Amount))
+	// Amount (variable length big.Int for v3)
+	amountBytes := auth.Amount.Bytes()
+	script.WriteByte(uint8(len(amountBytes)))
 	script.Write(amountBytes)
 
 	// Height (8 bytes)

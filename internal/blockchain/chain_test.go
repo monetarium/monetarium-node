@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -67,8 +68,12 @@ func cloneParams(params *chaincfg.Params) *chaincfg.Params {
 				copy(configCopy.EmissionAddresses, v.EmissionAddresses)
 			}
 			if v.EmissionAmounts != nil {
-				configCopy.EmissionAmounts = make([]int64, len(v.EmissionAmounts))
-				copy(configCopy.EmissionAmounts, v.EmissionAmounts)
+				configCopy.EmissionAmounts = make([]*big.Int, len(v.EmissionAmounts))
+				for i, amt := range v.EmissionAmounts {
+					if amt != nil {
+						configCopy.EmissionAmounts[i] = new(big.Int).Set(amt)
+					}
+				}
 			}
 			// EmissionKey doesn't need deep copying as secp256k1.PublicKey is immutable
 			result.SKACoins[k] = &configCopy

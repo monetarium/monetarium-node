@@ -120,6 +120,7 @@ func NewTxDeep(msgTx *wire.MsgTx) *Tx {
 			},
 			Sequence:        txin.Sequence,
 			ValueIn:         txin.ValueIn,
+			SKAValueIn:      txin.SKAValueIn, // Copy SKA value for dual-coin support
 			BlockHeight:     txin.BlockHeight,
 			BlockIndex:      txin.BlockIndex,
 			SignatureScript: sigScript,
@@ -132,6 +133,7 @@ func NewTxDeep(msgTx *wire.MsgTx) *Tx {
 
 		txOuts[i] = &wire.TxOut{
 			Value:    txout.Value,
+			SKAValue: txout.SKAValue, // Copy SKA value for dual-coin support
 			CoinType: txout.CoinType,
 			Version:  txout.Version,
 			PkScript: pkScript,
@@ -181,6 +183,7 @@ func NewTxDeepTxIns(tx *Tx) *Tx {
 			},
 			Sequence:        txin.Sequence,
 			ValueIn:         txin.ValueIn,
+			SKAValueIn:      txin.SKAValueIn, // Copy SKA value for dual-coin support
 			BlockHeight:     txin.BlockHeight,
 			BlockIndex:      txin.BlockIndex,
 			SignatureScript: sigScript,

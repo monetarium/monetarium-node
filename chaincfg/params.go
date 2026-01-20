@@ -22,6 +22,26 @@ import (
 // overhead of creating it multiple times.
 var bigOne = big.NewInt(1)
 
+// mustParseBigInt parses a decimal string as *big.Int, panicking on failure.
+// Used for configuring SKA amounts that exceed int64 (e.g., 900T * 1e18).
+func mustParseBigInt(s string) *big.Int {
+	v, ok := new(big.Int).SetString(s, 10)
+	if !ok {
+		panic("failed to parse big.Int: " + s)
+	}
+	return v
+}
+
+// bigIntSlice creates a []*big.Int from a slice of strings.
+// Used for configuring SKA emission amounts.
+func bigIntSlice(strs ...string) []*big.Int {
+	result := make([]*big.Int, len(strs))
+	for i, s := range strs {
+		result[i] = mustParseBigInt(s)
+	}
+	return result
+}
+
 // SKABurnScriptMarker is the ASCII marker used in SKA burn scripts to identify
 // them as burn outputs. This marker appears in the OP_RETURN data of burn scripts.
 var SKABurnScriptMarker = []byte("SKA_BURN")
@@ -237,8 +257,13 @@ type SKACoinConfig struct {
 	Symbol string
 
 	// MaxSupply is the maximum number of atoms that can be emitted for
-	// this specific SKA coin type.
-	MaxSupply int64
+	// this specific SKA coin type. Uses *big.Int because SKA amounts
+	// can exceed int64 (e.g., 900 trillion coins * 1e18 atoms/coin).
+	MaxSupply *big.Int
+
+	// AtomsPerCoin is the number of atoms per whole coin for this SKA type.
+	// Default is 1e18 (like Ethereum wei). Uses *big.Int for consistency.
+	AtomsPerCoin *big.Int
 
 	// EmissionHeight is the block height at which this SKA coin type
 	// was or will be initially emitted. Set to 0 for genesis emission.
@@ -260,14 +285,30 @@ type SKACoinConfig struct {
 	// receive the emitted SKA coins for this coin type.
 	EmissionAddresses []string
 
-	// EmissionAmounts are the corresponding amounts to be sent to each
+	// EmissionAmounts are the corresponding amounts in atoms to be sent to each
 	// address in EmissionAddresses. Must have same length as EmissionAddresses.
-	EmissionAmounts []int64
+	// Uses []*big.Int because SKA amounts can exceed int64.
+	EmissionAmounts []*big.Int
 
 	// EmissionKey is the authorized public key for creating emission transactions
 	// for this specific SKA coin type. Only transactions signed by the corresponding
 	// private key are valid emissions.
 	EmissionKey *secp256k1.PublicKey
+}
+
+// IsActive returns true if this SKA coin type is active.
+// Implements cointype.SKACoinConfig interface.
+func (c *SKACoinConfig) IsActive() bool {
+	return c != nil && c.Active
+}
+
+// GetAtomsPerCoin returns the atoms per coin for this SKA type.
+// Returns cointype.AtomsPerSKACoin (1e18) if not explicitly configured.
+func (c *SKACoinConfig) GetAtomsPerCoin() *big.Int {
+	if c == nil || c.AtomsPerCoin == nil {
+		return cointype.AtomsPerSKACoin
+	}
+	return c.AtomsPerCoin
 }
 
 // DNSSeed identifies a DNS seed.
@@ -303,8 +344,9 @@ type SKAEmissionAuth struct {
 	// CoinType specifies which SKA coin type this authorization covers (1-255)
 	CoinType cointype.CoinType
 
-	// Amount is the total amount authorized for emission
-	Amount int64
+	// Amount is the total amount authorized for emission.
+	// Uses *big.Int because SKA amounts can exceed int64.
+	Amount *big.Int
 
 	// Height is the target block height for this emission
 	Height int64

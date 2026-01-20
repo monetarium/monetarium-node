@@ -7,6 +7,7 @@ package indexers
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sync"
 
 	"github.com/monetarium/monetarium-node/blockchain/stake"
@@ -24,14 +25,20 @@ const (
 	ssfeeIndexName = "ssfee utxo index"
 
 	// ssfeeIndexVersion is the current version of the SSFee UTXO index.
-	ssfeeIndexVersion = 1
+	// Version 2: Added feeType (SF/MF) to key to separate staker and miner UTXOs
+	ssfeeIndexVersion = 2
 
 	// ssfeeKeyPrefix is the prefix used for all SSFee index keys.
 	ssfeeKeyPrefix = "sf"
 
 	// ssfeeKeySize is the total size of an SSFee index key.
-	// Format: prefix(2) + coinType(1) + addressHash160(20) = 23 bytes
-	ssfeeKeySize = 23
+	// Format: prefix(2) + feeType(1) + coinType(1) + addressHash160(20) = 24 bytes
+	// feeType: 0=SF (staker), 1=MF (miner)
+	ssfeeKeySize = 24
+
+	// SSFee type constants for index key
+	ssfeeTypeStaker byte = 0 // SF - staker fee
+	ssfeeTypeMiner  byte = 1 // MF - miner fee
 
 	// outpointSize is the serialized size of a wire.OutPoint.
 	// Format: hash(32) + index(4) + tree(1) = 37 bytes
@@ -227,19 +234,53 @@ func (idx *SSFeeIndex) ProcessNotification(dbTx database.Tx, ntfn *IndexNtfn) er
 	return nil
 }
 
-// makeSSFeeIndexKey creates an index key for the given coinType and address hash160.
+// makeSSFeeIndexKey creates an index key for the given fee type, coinType and address hash160.
 //
-// Format: "sf" + coinType(1 byte) + addressHash160(20 bytes) = 23 bytes
-func makeSSFeeIndexKey(coinType cointype.CoinType, hash160 []byte) ([]byte, error) {
+// Format: "sf" + feeType(1 byte) + coinType(1 byte) + addressHash160(20 bytes) = 24 bytes
+// feeType: 0=SF (staker), 1=MF (miner)
+func makeSSFeeIndexKey(feeType byte, coinType cointype.CoinType, hash160 []byte) ([]byte, error) {
 	if len(hash160) != 20 {
 		return nil, fmt.Errorf("invalid hash160 length: %d (expected 20)", len(hash160))
 	}
 
 	key := make([]byte, ssfeeKeySize)
 	copy(key[0:2], []byte(ssfeeKeyPrefix))
-	key[2] = byte(coinType)
-	copy(key[3:23], hash160)
+	key[2] = feeType
+	key[3] = byte(coinType)
+	copy(key[4:24], hash160)
 	return key, nil
+}
+
+// extractFeeTypeFromSSFee extracts the fee type (SF/MF) from an SSFee transaction.
+// SSFee transactions have an OP_RETURN marker in output[0] containing "SF" or "MF".
+// Returns ssfeeTypeStaker (0) for staker fees, ssfeeTypeMiner (1) for miner fees.
+func extractFeeTypeFromSSFee(tx *wire.MsgTx) byte {
+	if len(tx.TxOut) == 0 {
+		return ssfeeTypeStaker // default
+	}
+
+	// Check output[0] for OP_RETURN marker
+	script := tx.TxOut[0].PkScript
+	if len(script) < 4 || script[0] != txscript.OP_RETURN {
+		return ssfeeTypeStaker // default
+	}
+
+	// Parse the OP_RETURN data to find SF/MF marker
+	// Format: OP_RETURN OP_DATA_N <data>
+	if script[1] >= 1 && script[1] <= 75 {
+		dataLen := int(script[1])
+		if len(script) >= 2+dataLen {
+			data := script[2 : 2+dataLen]
+			// Look for "MF" in the data
+			for i := 0; i < len(data)-1; i++ {
+				if data[i] == 'M' && data[i+1] == 'F' {
+					return ssfeeTypeMiner
+				}
+			}
+		}
+	}
+
+	return ssfeeTypeStaker
 }
 
 // extractHash160FromPkScript extracts the address hash160 from a P2PKH script.
@@ -400,6 +441,9 @@ func (idx *SSFeeIndex) ConnectBlock(dbTx database.Tx, block *dcrutil.Block) erro
 		paymentOutput := stx.MsgTx().TxOut[1]
 		const paymentIndex uint32 = 1
 
+		// Extract fee type (SF/MF) from OP_RETURN marker in output[0]
+		feeType := extractFeeTypeFromSSFee(stx.MsgTx())
+
 		// Extract hash160 from the payment output
 		hash160, err := extractHash160FromPkScript(paymentOutput.PkScript)
 		if err != nil {
@@ -408,8 +452,8 @@ func (idx *SSFeeIndex) ConnectBlock(dbTx database.Tx, block *dcrutil.Block) erro
 			continue
 		}
 
-		// Create index key for this (coinType, address)
-		key, err := makeSSFeeIndexKey(paymentOutput.CoinType, hash160)
+		// Create index key for this (feeType, coinType, address)
+		key, err := makeSSFeeIndexKey(feeType, paymentOutput.CoinType, hash160)
 		if err != nil {
 			return fmt.Errorf("failed to create index key: %w", err)
 		}
@@ -419,6 +463,26 @@ func (idx *SSFeeIndex) ConnectBlock(dbTx database.Tx, block *dcrutil.Block) erro
 		existingOutpoints, err := deserializeOutPoints(existingData)
 		if err != nil {
 			return fmt.Errorf("failed to deserialize existing outpoints: %w", err)
+		}
+
+		// If this SSFee tx has a real input (not null), it's augmenting an existing UTXO.
+		// We need to remove the spent input's outpoint from the index.
+		if len(stx.MsgTx().TxIn) > 0 {
+			spentOutpoint := stx.MsgTx().TxIn[0].PreviousOutPoint
+			// Check if this is a real input (not a null input like coinbase/treasurybase)
+			if spentOutpoint.Index != wire.MaxPrevOutIndex {
+				// Remove the spent outpoint from the list
+				for i, op := range existingOutpoints {
+					if op.Hash.IsEqual(&spentOutpoint.Hash) && op.Index == spentOutpoint.Index && op.Tree == spentOutpoint.Tree {
+						// Remove by swapping with last element and truncating
+						existingOutpoints[i] = existingOutpoints[len(existingOutpoints)-1]
+						existingOutpoints = existingOutpoints[:len(existingOutpoints)-1]
+						log.Debugf("SSFeeIndex: Removed spent outpoint %v:%d from index (augmented by %v)",
+							spentOutpoint.Hash, spentOutpoint.Index, stx.Hash())
+						break
+					}
+				}
+			}
 		}
 
 		// Add this outpoint to the list
@@ -478,6 +542,9 @@ func (idx *SSFeeIndex) DisconnectBlock(dbTx database.Tx, block *dcrutil.Block) e
 		paymentOutput := stx.MsgTx().TxOut[1]
 		const paymentIndex uint32 = 1
 
+		// Extract fee type (SF/MF) from OP_RETURN marker in output[0]
+		feeType := extractFeeTypeFromSSFee(stx.MsgTx())
+
 		// Extract hash160 from the payment output
 		hash160, err := extractHash160FromPkScript(paymentOutput.PkScript)
 		if err != nil {
@@ -485,8 +552,8 @@ func (idx *SSFeeIndex) DisconnectBlock(dbTx database.Tx, block *dcrutil.Block) e
 			continue
 		}
 
-		// Create index key for this (coinType, address)
-		key, err := makeSSFeeIndexKey(paymentOutput.CoinType, hash160)
+		// Create index key for this (feeType, coinType, address)
+		key, err := makeSSFeeIndexKey(feeType, paymentOutput.CoinType, hash160)
 		if err != nil {
 			return fmt.Errorf("failed to create index key: %w", err)
 		}
@@ -498,12 +565,26 @@ func (idx *SSFeeIndex) DisconnectBlock(dbTx database.Tx, block *dcrutil.Block) e
 			return fmt.Errorf("failed to deserialize existing outpoints: %w", err)
 		}
 
+		_ = paymentIndex // Used for clarity, outpoint index is always 1
+
 		// Remove this outpoint from the list
 		targetHash := *stx.Hash()
 		filtered := make([]wire.OutPoint, 0, len(existingOutpoints))
 		for _, op := range existingOutpoints {
 			if op.Hash != targetHash || op.Index != paymentIndex {
 				filtered = append(filtered, op)
+			}
+		}
+
+		// If this SSFee tx had a real input (not null), it was augmenting an existing UTXO.
+		// Disconnecting means the old input is no longer spent, so add it back to the index.
+		if len(stx.MsgTx().TxIn) > 0 {
+			spentOutpoint := stx.MsgTx().TxIn[0].PreviousOutPoint
+			// Check if this was a real input (not a null input like coinbase/treasurybase)
+			if spentOutpoint.Index != wire.MaxPrevOutIndex {
+				filtered = append(filtered, spentOutpoint)
+				log.Debugf("SSFeeIndex: Re-added outpoint %v:%d to index (disconnect of augmentation %v)",
+					spentOutpoint.Hash, spentOutpoint.Index, stx.Hash())
 			}
 		}
 
@@ -530,18 +611,27 @@ func (idx *SSFeeIndex) DisconnectBlock(dbTx database.Tx, block *dcrutil.Block) e
 //
 // Returns:
 //   - outpoint: The first unspent outpoint found, or nil if none exist
-//   - value: The value of the UTXO
+//   - value: The value of the UTXO as *big.Int (supports SKA large values)
 //   - blockHeight: The block height where the UTXO was created (for fraud proofs)
 //   - blockIndex: The transaction index within the block (for fraud proofs)
 //   - error: Any error encountered during lookup
 //
 // This is the primary query method used by block template generation to find
 // existing SSFee UTXOs for augmentation.
-func (idx *SSFeeIndex) LookupUTXO(coinType cointype.CoinType, addressHash160 []byte) (*wire.OutPoint, int64, int64, uint32, error) {
+//
+// The isMiner parameter specifies whether to look up miner (true) or staker (false) UTXOs.
+// Miner and staker SSFees are tracked separately to avoid collisions.
+func (idx *SSFeeIndex) LookupUTXO(isMiner bool, coinType cointype.CoinType, addressHash160 []byte) (*wire.OutPoint, *big.Int, int64, uint32, error) {
 	var outpoint *wire.OutPoint
-	var value int64
+	var value *big.Int
 	var blockHeight int64
 	var blockIndex uint32
+
+	// Determine fee type based on caller
+	feeType := ssfeeTypeStaker
+	if isMiner {
+		feeType = ssfeeTypeMiner
+	}
 
 	err := idx.db.View(func(dbTx database.Tx) error {
 		// Get the SSFee index bucket
@@ -550,8 +640,8 @@ func (idx *SSFeeIndex) LookupUTXO(coinType cointype.CoinType, addressHash160 []b
 			return fmt.Errorf("ssfee index bucket not found")
 		}
 
-		// Create index key for this (coinType, address)
-		key, err := makeSSFeeIndexKey(coinType, addressHash160)
+		// Create index key for this (feeType, coinType, address)
+		key, err := makeSSFeeIndexKey(feeType, coinType, addressHash160)
 		if err != nil {
 			return fmt.Errorf("failed to create index key: %w", err)
 		}
@@ -572,14 +662,14 @@ func (idx *SSFeeIndex) LookupUTXO(coinType cointype.CoinType, addressHash160 []b
 		// Query blockchain UTXO set to find an unspent output
 		// Try each outpoint until we find an unspent one
 		for _, op := range outpoints {
-			// Fetch UTXO details including fraud proof data (block height and index)
-			amount, height, index, spent, err := idx.chain.FetchUtxoEntryDetails(op)
+			// Use SKA-specific method to get *big.Int amount directly (avoids int64 truncation)
+			amount, height, index, spent, err := idx.chain.FetchUtxoEntrySKADetails(op)
 			if err != nil {
 				continue
 			}
 
 			// Skip if UTXO doesn't exist or is spent
-			if spent || amount <= 0 {
+			if spent || amount == nil || amount.Sign() <= 0 {
 				continue
 			}
 
@@ -588,7 +678,7 @@ func (idx *SSFeeIndex) LookupUTXO(coinType cointype.CoinType, addressHash160 []b
 			value = amount
 			blockHeight = height
 			blockIndex = index
-			log.Debugf("SSFeeIndex: Selected outpoint %v with value %d (height=%d, index=%d)",
+			log.Debugf("SSFeeIndex: Selected outpoint %v with value %v (height=%d, index=%d)",
 				op, amount, height, index)
 			return nil
 		}

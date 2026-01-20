@@ -5,6 +5,7 @@
 package blockalloc
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/cointype"
@@ -13,6 +14,7 @@ import (
 )
 
 // createMockTransaction creates a mock transaction with the specified coin type outputs.
+// VAR outputs use Value (int64), SKA outputs use SKAValue (big.Int).
 func createMockTransaction(coinTypes []cointype.CoinType) *dcrutil.Tx {
 	tx := &wire.MsgTx{
 		Version: 1,
@@ -27,17 +29,26 @@ func createMockTransaction(coinTypes []cointype.CoinType) *dcrutil.Tx {
 	}
 
 	for i, coinType := range coinTypes {
-		tx.TxOut[i] = &wire.TxOut{
-			Value:    1000000, // 1 coin in atoms
+		txOut := &wire.TxOut{
 			CoinType: coinType,
 			PkScript: []byte{0x51}, // OP_TRUE
 		}
+		if coinType.IsSKA() {
+			// SKA outputs use SKAValue, Value must be 0
+			txOut.Value = 0
+			txOut.SKAValue = big.NewInt(1000000) // 1 coin in atoms
+		} else {
+			// VAR outputs use Value
+			txOut.Value = 1000000 // 1 coin in atoms
+		}
+		tx.TxOut[i] = txOut
 	}
 
 	return dcrutil.NewTx(tx)
 }
 
 // createMockTransactionWithValues creates a transaction with specific values per output.
+// VAR outputs use Value (int64), SKA outputs use SKAValue (big.Int).
 func createMockTransactionWithValues(outputs []struct {
 	coinType cointype.CoinType
 	value    int64
@@ -55,17 +66,27 @@ func createMockTransactionWithValues(outputs []struct {
 	}
 
 	for i, out := range outputs {
-		tx.TxOut[i] = &wire.TxOut{
-			Value:    out.value,
+		txOut := &wire.TxOut{
 			CoinType: out.coinType,
 			PkScript: []byte{0x51}, // OP_TRUE
 		}
+		if out.coinType.IsSKA() {
+			// SKA outputs use SKAValue, Value must be 0
+			txOut.Value = 0
+			txOut.SKAValue = big.NewInt(out.value)
+		} else {
+			// VAR outputs use Value
+			txOut.Value = out.value
+		}
+		tx.TxOut[i] = txOut
 	}
 
 	return dcrutil.NewTx(tx)
 }
 
 // TestGetTransactionCoinType verifies transaction coin type determination.
+// Note: In practice, transactions cannot mix coin types (consensus rule).
+// This function returns the coin type of the first output with a positive value.
 func TestGetTransactionCoinType(t *testing.T) {
 	testCases := []struct {
 		name         string
@@ -83,17 +104,17 @@ func TestGetTransactionCoinType(t *testing.T) {
 			expectedType: cointype.CoinType(1),
 		},
 		{
-			name:         "Mixed transaction - VAR majority",
-			coinTypes:    []cointype.CoinType{cointype.CoinTypeVAR, cointype.CoinTypeVAR, cointype.CoinType(1)},
+			name:         "SKA-2 only transaction",
+			coinTypes:    []cointype.CoinType{cointype.CoinType(2), cointype.CoinType(2)},
+			expectedType: cointype.CoinType(2),
+		},
+		{
+			name:         "Single VAR output transaction",
+			coinTypes:    []cointype.CoinType{cointype.CoinTypeVAR},
 			expectedType: cointype.CoinTypeVAR,
 		},
 		{
-			name:         "Mixed transaction - SKA majority",
-			coinTypes:    []cointype.CoinType{cointype.CoinTypeVAR, cointype.CoinType(1), cointype.CoinType(1)},
-			expectedType: cointype.CoinType(1),
-		},
-		{
-			name:         "Single output transaction",
+			name:         "Single SKA output transaction",
 			coinTypes:    []cointype.CoinType{cointype.CoinType(2)},
 			expectedType: cointype.CoinType(2),
 		},
@@ -111,8 +132,9 @@ func TestGetTransactionCoinType(t *testing.T) {
 	}
 }
 
-// TestGetTransactionCoinTypeValueWeighted tests value-weighted coin type determination.
-func TestGetTransactionCoinTypeValueWeighted(t *testing.T) {
+// TestGetTransactionCoinTypeWithValues tests coin type determination with specific values.
+// Note: Transactions cannot mix coin types, but this tests edge cases like zero-value outputs.
+func TestGetTransactionCoinTypeWithValues(t *testing.T) {
 	testCases := []struct {
 		name    string
 		outputs []struct {
@@ -122,41 +144,60 @@ func TestGetTransactionCoinTypeValueWeighted(t *testing.T) {
 		expectedType cointype.CoinType
 	}{
 		{
-			name: "Many dust outputs vs one large output",
+			name: "VAR transaction with multiple outputs",
 			outputs: []struct {
 				coinType cointype.CoinType
 				value    int64
 			}{
-				{cointype.CoinTypeVAR, 1},       // dust
-				{cointype.CoinTypeVAR, 1},       // dust
-				{cointype.CoinTypeVAR, 1},       // dust
-				{cointype.CoinType(1), 1000000}, // 1 coin
+				{cointype.CoinTypeVAR, 100000},
+				{cointype.CoinTypeVAR, 200000},
+				{cointype.CoinTypeVAR, 300000},
 			},
-			expectedType: cointype.CoinType(1), // SKA-1 wins by value
+			expectedType: cointype.CoinTypeVAR,
 		},
 		{
-			name: "Equal count but different values",
+			name: "SKA transaction with multiple outputs",
 			outputs: []struct {
 				coinType cointype.CoinType
 				value    int64
 			}{
-				{cointype.CoinTypeVAR, 100000}, // 0.1 coin
-				{cointype.CoinTypeVAR, 200000}, // 0.2 coin
-				{cointype.CoinType(2), 500000}, // 0.5 coin
-				{cointype.CoinType(2), 600000}, // 0.6 coin
-			},
-			expectedType: cointype.CoinType(2), // SKA-2 wins: 1.1 vs 0.3
-		},
-		{
-			name: "Zero value outputs should still count",
-			outputs: []struct {
-				coinType cointype.CoinType
-				value    int64
-			}{
-				{cointype.CoinTypeVAR, 0},
-				{cointype.CoinType(1), 1},
+				{cointype.CoinType(1), 500000},
+				{cointype.CoinType(1), 600000},
 			},
 			expectedType: cointype.CoinType(1),
+		},
+		{
+			name: "Zero value output followed by positive value - same type",
+			outputs: []struct {
+				coinType cointype.CoinType
+				value    int64
+			}{
+				{cointype.CoinTypeVAR, 0},   // zero value
+				{cointype.CoinTypeVAR, 100}, // positive value
+			},
+			expectedType: cointype.CoinTypeVAR, // returns first positive value output
+		},
+		{
+			name: "SKA zero value output followed by positive value",
+			outputs: []struct {
+				coinType cointype.CoinType
+				value    int64
+			}{
+				{cointype.CoinType(2), 0},   // zero value SKA
+				{cointype.CoinType(2), 100}, // positive value SKA
+			},
+			expectedType: cointype.CoinType(2),
+		},
+		{
+			name: "All zero value outputs - uses first output type",
+			outputs: []struct {
+				coinType cointype.CoinType
+				value    int64
+			}{
+				{cointype.CoinType(1), 0},
+				{cointype.CoinType(1), 0},
+			},
+			expectedType: cointype.CoinType(1), // fallback to first output
 		},
 	}
 

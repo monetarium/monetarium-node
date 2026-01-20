@@ -5,6 +5,7 @@
 package blockchain
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/chaincfg"
@@ -32,12 +33,12 @@ func TestShipCriticalSecurityFixes(t *testing.T) {
 			CoinType:          1,
 			Name:              "SKA-1",
 			Symbol:            "SKA1",
-			MaxSupply:         10000000,
+			MaxSupply:         big.NewInt(10000000),
 			Active:            true,
 			EmissionHeight:    100,
 			EmissionWindow:    100,
 			EmissionAddresses: []string{"ScuQxvveKGfpG1ypt6u27F99Anf7EW3cqhq"},
-			EmissionAmounts:   []int64{10000000},
+			EmissionAmounts:   []*big.Int{big.NewInt(10000000)},
 			EmissionKey:       pubKey, // Add the emission key
 		},
 	}
@@ -49,14 +50,14 @@ func TestShipCriticalSecurityFixes(t *testing.T) {
 			Signature:   make([]byte, 64), // Dummy signature
 			Nonce:       1,
 			CoinType:    1,
-			Amount:      10000000,
+			Amount:      big.NewInt(10000000),
 			Height:      100,
 		}
 
 		tx, err := CreateAuthorizedSKAEmissionTransaction(
 			auth,
 			[]string{"ScuQxvveKGfpG1ypt6u27F99Anf7EW3cqhq"},
-			[]int64{10000000}, params)
+			[]*big.Int{big.NewInt(10000000)}, params)
 		if err != nil {
 			t.Fatalf("Failed to create transaction: %v", err)
 		}
@@ -76,14 +77,14 @@ func TestShipCriticalSecurityFixes(t *testing.T) {
 			Signature:   make([]byte, 64), // Dummy signature
 			Nonce:       999,              // Any nonce should work at creation time
 			CoinType:    1,
-			Amount:      10000000,
+			Amount:      big.NewInt(10000000),
 			Height:      100,
 		}
 
 		// This should NOT fail despite wrong nonce
 		_, err := CreateAuthorizedSKAEmissionTransaction(auth,
 			[]string{"ScuQxvveKGfpG1ypt6u27F99Anf7EW3cqhq"},
-			[]int64{10000000}, params)
+			[]*big.Int{big.NewInt(10000000)}, params)
 		if err != nil {
 			t.Fatalf("Creation should not check nonce, but got error: %v", err)
 		}
@@ -156,7 +157,7 @@ func TestShipCriticalSecurityFixes(t *testing.T) {
 			Signature:   make([]byte, 64), // Will be set after signing
 			Nonce:       1,
 			CoinType:    1,
-			Amount:      5000000, // Wrong amount! Should be 10000000
+			Amount:      big.NewInt(5000000), // Wrong amount! Should be 10000000
 			Height:      100,
 		}
 
@@ -210,14 +211,14 @@ func TestShipCriticalSecurityFixes(t *testing.T) {
 			Signature:   make([]byte, 64),
 			Nonce:       1,
 			CoinType:    1,
-			Amount:      10000000,
+			Amount:      big.NewInt(10000000),
 			Height:      100, // Start of window
 		}
 
 		// Test at start of window (should succeed)
 		tx, err := CreateAuthorizedSKAEmissionTransaction(auth,
 			[]string{"ScuQxvveKGfpG1ypt6u27F99Anf7EW3cqhq"},
-			[]int64{10000000}, params)
+			[]*big.Int{big.NewInt(10000000)}, params)
 		if err != nil {
 			t.Fatalf("Should allow emission at start of window: %v", err)
 		}
@@ -227,7 +228,7 @@ func TestShipCriticalSecurityFixes(t *testing.T) {
 		auth.Height = 200 // End of window (100 + 100)
 		tx2, err := CreateAuthorizedSKAEmissionTransaction(auth,
 			[]string{"ScuQxvveKGfpG1ypt6u27F99Anf7EW3cqhq"},
-			[]int64{10000000}, params)
+			[]*big.Int{big.NewInt(10000000)}, params)
 		if err != nil {
 			t.Fatalf("Should allow emission at end of window: %v", err)
 		}
@@ -237,7 +238,7 @@ func TestShipCriticalSecurityFixes(t *testing.T) {
 		auth.Height = 201 // Just past end of window
 		_, err = CreateAuthorizedSKAEmissionTransaction(auth,
 			[]string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"},
-			[]int64{10000000}, params)
+			[]*big.Int{big.NewInt(10000000)}, params)
 		if err == nil {
 			t.Error("Should reject emission outside window")
 		}

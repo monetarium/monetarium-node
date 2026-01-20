@@ -575,27 +575,28 @@ func MainNetParams() *Params {
 		seeders: []string{},
 
 		// SKA (Skarb) dual-coin system parameters for mainnet
-		// 50 atoms/KB ensures ~10 atoms fee for typical 200-byte tx → 1 atom per staker (5 stakers)
-		SKAMinRelayTxFee: 50,
+		// 100 atoms/KB ensures safe staker fee distribution (minimum ~17 atoms for 177-byte tx)
+		SKAMinRelayTxFee: 100,
 
 		// SKA coin type configurations for multiple coin support
 		SKACoins: map[cointype.CoinType]*SKACoinConfig{
 			1: {
 				CoinType:       1,
 				Name:           "Skarb-1",
-				Symbol:         "SKA-1",
-				MaxSupply:      10e6 * 1e8, // 10 million SKA-1
-				EmissionHeight: 4096,       // Aligned with StakeValidationHeight
-				EmissionWindow: 4320,       // 30-day emission window (~144 blocks/day * 30)
+				Symbol:         "SKA-1",                                              // 10 million SKA-1
+				EmissionHeight: 4096,                                                 // Aligned with StakeValidationHeight
+				EmissionWindow: 4320,                                                 // 30-day emission window (~144 blocks/day * 30)
+				MaxSupply:      mustParseBigInt("900000000000000000000000000000000"), // 900 trillion * 1e18 atoms
+				AtomsPerCoin:   mustParseBigInt("1000000000000000000"),               // 1e18
 				Active:         true,
 				Description:    "Primary asset-backed SKA coin type for mainnet",
 				// Governance-approved emission distribution (TO BE REPLACED WITH REAL ADDRESSES)
 				EmissionAddresses: []string{
 					"MsMz7mvUPBu5GDFexM2W8KiFxEeToFAC4Wv",
 				},
-				EmissionAmounts: []int64{
-					10e6 * 1e8, // 1,000,000 SKA-1 to staking rewards
-				},
+				EmissionAmounts: bigIntSlice(
+					"900000000000000000000000000000000", // 900 trillion * 1e18 atoms to treasury
+				),
 				// SECURITY NOTE: This is a placeholder key for development ONLY
 				// Production deployment MUST generate secure keys with proper key ceremony
 				EmissionKey: mustParseHexPubKey("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"),
@@ -604,18 +605,19 @@ func MainNetParams() *Params {
 				CoinType:       2,
 				Name:           "Skarb-2",
 				Symbol:         "SKA-2",
-				MaxSupply:      5e6 * 1e8, // 5 million SKA-2 (proof of concept)
-				EmissionHeight: 150000,    // Future emission height
-				EmissionWindow: 4320,      // 30-day emission window (~144 blocks/day * 30)
-				Active:         false,     // Inactive until governance vote
+				MaxSupply:      mustParseBigInt("5000000000000000000000000"), // 5 million * 1e18 atoms
+				AtomsPerCoin:   mustParseBigInt("1000000000000000000"),       // 1e18
+				EmissionHeight: 150000,                                       // Future emission height
+				EmissionWindow: 4320,                                         // 30-day emission window (~144 blocks/day * 30)
+				Active:         false,                                        // Inactive until governance vote
 				Description:    "Secondary SKA coin type for proof of concept testing",
 				// Governance-approved emission distribution (TO BE REPLACED WITH REAL ADDRESSES)
 				EmissionAddresses: []string{
 					"MsMz7mvUPBu5GDFexM2W8KiFxEeToFAC4Wv", // Full amount to treasury
 				},
-				EmissionAmounts: []int64{
-					5e6 * 1e8, // 5,000,000 SKA-2 to treasury
-				},
+				EmissionAmounts: bigIntSlice(
+					"5000000000000000000000000", // 5 million * 1e18 atoms to treasury
+				),
 				// SECURITY NOTE: This is a placeholder key for development ONLY
 				// Production deployment MUST generate secure keys with proper key ceremony
 				EmissionKey: mustParseHexPubKey("0316e57ce5fdb617dc192576d9c860f57e7e7a95592aa32e25941731a2eb2c57d6"),

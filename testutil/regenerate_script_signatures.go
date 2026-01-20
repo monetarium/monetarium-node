@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	scriptTestsFile = "../txscript/testdata/script_tests.json"
+	scriptTestsFile = "./txscript/testdata/script_tests.json"
 )
 
 // Known test private keys (32 bytes, big-endian)

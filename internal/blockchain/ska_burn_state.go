@@ -7,6 +7,7 @@ package blockchain
 import (
 	"encoding/binary"
 	"fmt"
+	"math/big"
 	"sync"
 
 	"github.com/monetarium/monetarium-node/chaincfg"
@@ -27,7 +28,8 @@ const (
 	skaBurnStateBucketName = "skaburnstate"
 
 	// Current version of the on-disk format
-	skaBurnStateFormatVersion = 1
+	// Version 2: Uses big.Int for amounts (variable-length encoding)
+	skaBurnStateFormatVersion = 2
 
 	// Meta key for format version
 	skaBurnStateVersionKey = "__meta_version__"
@@ -45,7 +47,8 @@ type SKABurnState struct {
 
 	// Total burned amount for each coin type (in atoms)
 	// Only SKA coin types (1-255) are tracked, VAR burns are not allowed
-	burned map[cointype.CoinType]int64
+	// Uses *big.Int to support large SKA amounts (900T with 1e18 atoms/coin)
+	burned map[cointype.CoinType]*big.Int
 
 	// Database handle for persistence
 	db database.DB
@@ -54,7 +57,7 @@ type SKABurnState struct {
 // NewSKABurnState creates a new SKA burn state manager.
 func NewSKABurnState(db database.DB) (*SKABurnState, error) {
 	state := &SKABurnState{
-		burned: make(map[cointype.CoinType]int64),
+		burned: make(map[cointype.CoinType]*big.Int),
 		db:     db,
 	}
 
@@ -67,23 +70,26 @@ func NewSKABurnState(db database.DB) (*SKABurnState, error) {
 }
 
 // GetBurnedAmount returns the total amount burned for the specified coin type.
-// Returns 0 if no burns have occurred for this coin type.
-func (s *SKABurnState) GetBurnedAmount(coinType cointype.CoinType) int64 {
+// Returns nil if no burns have occurred for this coin type.
+func (s *SKABurnState) GetBurnedAmount(coinType cointype.CoinType) *big.Int {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
-	return s.burned[coinType]
+	if amount, ok := s.burned[coinType]; ok {
+		return new(big.Int).Set(amount) // Return a copy
+	}
+	return nil
 }
 
 // GetAllBurnedAmounts returns a copy of all burned amounts.
 // This is useful for RPC queries and statistics.
-func (s *SKABurnState) GetAllBurnedAmounts() map[cointype.CoinType]int64 {
+func (s *SKABurnState) GetAllBurnedAmounts() map[cointype.CoinType]*big.Int {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
 	// Create a copy to avoid external modification
-	burnedCopy := make(map[cointype.CoinType]int64)
+	burnedCopy := make(map[cointype.CoinType]*big.Int)
 	for k, v := range s.burned {
-		burnedCopy[k] = v
+		burnedCopy[k] = new(big.Int).Set(v) // Deep copy each big.Int
 	}
 
 	return burnedCopy
@@ -93,7 +99,7 @@ func (s *SKABurnState) GetAllBurnedAmounts() map[cointype.CoinType]int64 {
 // This is used during block connection/disconnection to update state.
 type SKABurnRecord struct {
 	CoinType cointype.CoinType
-	Amount   int64
+	Amount   *big.Int // Uses big.Int for large SKA amounts
 	Height   int64
 	TxHash   [32]byte
 	OutIndex uint32
@@ -111,10 +117,16 @@ func (s *SKABurnState) ConnectSKABurnsTx(dbTx database.Tx, burns []SKABurnRecord
 
 	// Update state for each burn
 	for _, burn := range burns {
-		s.burned[burn.CoinType] += burn.Amount
+		if existing, ok := s.burned[burn.CoinType]; ok {
+			// Add to existing amount
+			s.burned[burn.CoinType] = new(big.Int).Add(existing, burn.Amount)
+		} else {
+			// First burn for this coin type
+			s.burned[burn.CoinType] = new(big.Int).Set(burn.Amount)
+		}
 
-		log.Debugf("Connected SKA burn: coin type %d, amount %d at height %d (tx %x:%d)",
-			burn.CoinType, burn.Amount, burn.Height, burn.TxHash[:8], burn.OutIndex)
+		log.Debugf("Connected SKA burn: coin type %d, amount %s at height %d (tx %x:%d)",
+			burn.CoinType, burn.Amount.String(), burn.Height, burn.TxHash[:8], burn.OutIndex)
 	}
 
 	// Persist to database using the provided transaction
@@ -133,15 +145,18 @@ func (s *SKABurnState) DisconnectSKABurnsTx(dbTx database.Tx, burns []SKABurnRec
 
 	// Reverse state for each burn
 	for _, burn := range burns {
-		s.burned[burn.CoinType] -= burn.Amount
-
-		// Remove entry if balance reaches zero
-		if s.burned[burn.CoinType] == 0 {
-			delete(s.burned, burn.CoinType)
+		if existing, ok := s.burned[burn.CoinType]; ok {
+			result := new(big.Int).Sub(existing, burn.Amount)
+			// Remove entry if balance reaches zero or negative (shouldn't happen)
+			if result.Sign() <= 0 {
+				delete(s.burned, burn.CoinType)
+			} else {
+				s.burned[burn.CoinType] = result
+			}
 		}
 
-		log.Debugf("Disconnected SKA burn: coin type %d, amount %d at height %d (tx %x:%d)",
-			burn.CoinType, burn.Amount, burn.Height, burn.TxHash[:8], burn.OutIndex)
+		log.Debugf("Disconnected SKA burn: coin type %d, amount %s at height %d (tx %x:%d)",
+			burn.CoinType, burn.Amount.String(), burn.Height, burn.TxHash[:8], burn.OutIndex)
 	}
 
 	// Persist to database using the provided transaction
@@ -192,13 +207,22 @@ func (s *SKABurnState) load() error {
 
 			coinType := cointype.CoinType(k[0])
 
-			// Value format: [amount:8 bytes] (signed int64)
-			if len(v) != 8 {
-				return fmt.Errorf("invalid value length for coin type %d: %d", coinType, len(v))
+			var amount *big.Int
+			if version == 1 {
+				// V1 format: [amount:8 bytes] (int64, little-endian)
+				if len(v) != 8 {
+					return fmt.Errorf("invalid value length for coin type %d in v1 format: %d", coinType, len(v))
+				}
+				amount = big.NewInt(int64(binary.LittleEndian.Uint64(v)))
+			} else {
+				// V2 format: [length:1 byte][amount:N bytes] (big.Int, big-endian)
+				if len(v) < 1 {
+					return fmt.Errorf("invalid value length for coin type %d in v2 format: %d", coinType, len(v))
+				}
+				// Value is stored as big-endian bytes (variable length)
+				amount = new(big.Int).SetBytes(v)
 			}
 
-			// Parse burned amount
-			amount := int64(binary.LittleEndian.Uint64(v))
 			s.burned[coinType] = amount
 
 			return nil
@@ -239,16 +263,15 @@ func (s *SKABurnState) saveWithTx(dbTx database.Tx) error {
 
 	// Save each coin type's burned amount (only non-zero amounts)
 	for coinType, amount := range s.burned {
-		if amount == 0 {
+		if amount == nil || amount.Sign() == 0 {
 			continue
 		}
 
 		// Create key (1 byte coin type)
 		key := []byte{byte(coinType)}
 
-		// Create value (8 bytes amount)
-		value := make([]byte, 8)
-		binary.LittleEndian.PutUint64(value, uint64(amount))
+		// Create value: big-endian bytes from big.Int (variable length, no leading zeros)
+		value := amount.Bytes()
 
 		// Store in bucket
 		if err := bucket.Put(key, value); err != nil {
@@ -266,7 +289,7 @@ func (s *SKABurnState) Clear() error {
 	defer s.mtx.Unlock()
 
 	// Clear in-memory state
-	s.burned = make(map[cointype.CoinType]int64)
+	s.burned = make(map[cointype.CoinType]*big.Int)
 
 	// Clear database state
 	return s.db.Update(func(dbTx database.Tx) error {
@@ -307,9 +330,11 @@ func extractSKABurnsFromBlock(block *dcrutil.Block, blockHeight int64, params *c
 			// - "SKA_BURN" marker
 			// - Valid SKA coin type (1-255)
 			if params.IsSKABurnScript(txOut.PkScript) {
+				// All SKA transactions use SKAValue (big.Int) - no legacy support needed
+				// since no SKA coins were minted before the big.Int protocol
 				burns = append(burns, SKABurnRecord{
 					CoinType: txOut.CoinType,
-					Amount:   txOut.Value,
+					Amount:   new(big.Int).Set(txOut.SKAValue),
 					Height:   blockHeight,
 					TxHash:   *txHash,
 					OutIndex: uint32(outIndex),

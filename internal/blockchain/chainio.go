@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/monetarium/monetarium-node/blockchain/stake"
@@ -516,6 +517,11 @@ type spentTxOut struct {
 	amount   int64
 	pkScript []byte
 
+	// skaAmount stores the amount for SKA coin types using big.Int to support
+	// large values (up to 900 trillion with 1e18 atoms/coin). This field is
+	// only used when coinType.IsSKA() is true; for VAR, use the amount field.
+	skaAmount *big.Int
+
 	// ticketMinOuts is the minimal outputs for the ticket transaction that the
 	// output is contained in.  This is only stored in ticket submission outputs
 	// and is nil for all other output types.
@@ -609,9 +615,9 @@ func putSpentTxOut(target []byte, stxo *spentTxOut) int {
 
 // decodeSpentTxOut decodes the passed serialized stxo entry, possibly followed
 // by other data, into the passed stxo struct.  It returns the number of bytes
-// read.
+// read. For SKA coin types, skaAmount should be provided (from TxIn.SKAValueIn).
 func decodeSpentTxOut(serialized []byte, stxo *spentTxOut, amount int64,
-	height uint32, index uint32, txOutIndex uint32) (int, error) {
+	skaAmount *big.Int, height uint32, index uint32, txOutIndex uint32) (int, error) {
 
 	// Deserialize the flags.
 	flags, bytesRead := deserializeVLQ(serialized)
@@ -647,6 +653,11 @@ func decodeSpentTxOut(serialized []byte, stxo *spentTxOut, amount int64,
 	stxo.scriptVersion = scriptVersion
 	stxo.coinType = coinType
 	stxo.packedFlags = txOutFlags(flags)
+
+	// Copy SKA amount for SKA coin types
+	if skaAmount != nil {
+		stxo.skaAmount = new(big.Int).Set(skaAmount)
+	}
 
 	// Copy the minimal outputs if this was a ticket submission output.
 	if isTicketSubmissionOutput(stxo.TransactionType(), txOutIndex) {
@@ -736,7 +747,7 @@ func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx) ([]spen
 			stxoIdx--
 
 			n, err := decodeSpentTxOut(serialized[offset:], stxo, txIn.ValueIn,
-				txIn.BlockHeight, txIn.BlockIndex, txIn.PreviousOutPoint.Index)
+				txIn.SKAValueIn, txIn.BlockHeight, txIn.BlockIndex, txIn.PreviousOutPoint.Index)
 			offset += n
 			if err != nil {
 				return nil, errDeserialize(fmt.Sprintf("unable "+

@@ -5,6 +5,7 @@
 package blockchain
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/chaincfg"
@@ -33,9 +34,11 @@ func TestSKAEmissionBasicValidation(t *testing.T) {
 
 	t.Run("ValidEmission", func(t *testing.T) {
 		// Calculate expected total emission amount from config
-		var expectedEmissionAmount int64
+		expectedEmissionAmount := new(big.Int)
 		for _, amount := range config.EmissionAmounts {
-			expectedEmissionAmount += amount
+			if amount != nil {
+				expectedEmissionAmount.Add(expectedEmissionAmount, amount)
+			}
 		}
 
 		// Generate test key and configure params
@@ -48,7 +51,7 @@ func TestSKAEmissionBasicValidation(t *testing.T) {
 
 		// Create a valid emission transaction with proper authorization
 		addresses := []string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"}
-		amounts := []int64{expectedEmissionAmount}
+		amounts := []*big.Int{expectedEmissionAmount}
 		tx := createTestEmissionTx(t, addresses, amounts, cointype.CoinType(1), params)
 
 		auth := &chaincfg.SKAEmissionAuth{
@@ -69,9 +72,11 @@ func TestSKAEmissionBasicValidation(t *testing.T) {
 
 	t.Run("InvalidAmount", func(t *testing.T) {
 		// Calculate expected total emission amount from config
-		var expectedEmissionAmount int64
+		expectedEmissionAmount := new(big.Int)
 		for _, amount := range config.EmissionAmounts {
-			expectedEmissionAmount += amount
+			if amount != nil {
+				expectedEmissionAmount.Add(expectedEmissionAmount, amount)
+			}
 		}
 
 		// Create emission with wrong amount by using CreateAuthorizedSKAEmissionTransaction
@@ -88,10 +93,11 @@ func TestSKAEmissionBasicValidation(t *testing.T) {
 			Amount:      expectedEmissionAmount, // Auth for correct amount
 			Height:      10,
 		}
+		wrongAmount := new(big.Int).Add(expectedEmissionAmount, big.NewInt(1))
 		_, err := CreateAuthorizedSKAEmissionTransaction(
 			auth,
 			[]string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"},
-			[]int64{expectedEmissionAmount + 1},
+			[]*big.Int{wrongAmount},
 			params,
 		)
 		if err == nil {
@@ -101,9 +107,11 @@ func TestSKAEmissionBasicValidation(t *testing.T) {
 
 	t.Run("InvalidHeight", func(t *testing.T) {
 		// Calculate expected total emission amount from config
-		var expectedEmissionAmount int64
+		expectedEmissionAmount := new(big.Int)
 		for _, amount := range config.EmissionAmounts {
-			expectedEmissionAmount += amount
+			if amount != nil {
+				expectedEmissionAmount.Add(expectedEmissionAmount, amount)
+			}
 		}
 
 		// Generate test key and configure params
@@ -116,7 +124,7 @@ func TestSKAEmissionBasicValidation(t *testing.T) {
 
 		// Create valid emission at wrong height
 		addresses := []string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"}
-		amounts := []int64{expectedEmissionAmount}
+		amounts := []*big.Int{expectedEmissionAmount}
 		tx := createTestEmissionTx(t, addresses, amounts, cointype.CoinType(1), params)
 
 		auth := &chaincfg.SKAEmissionAuth{
@@ -136,9 +144,11 @@ func TestSKAEmissionBasicValidation(t *testing.T) {
 
 	t.Run("VAROutput", func(t *testing.T) {
 		// Calculate expected total emission amount from config
-		var expectedEmissionAmount int64
+		expectedEmissionAmount := new(big.Int)
 		for _, amount := range config.EmissionAmounts {
-			expectedEmissionAmount += amount
+			if amount != nil {
+				expectedEmissionAmount.Add(expectedEmissionAmount, amount)
+			}
 		}
 
 		// Generate test key and configure params
@@ -151,7 +161,7 @@ func TestSKAEmissionBasicValidation(t *testing.T) {
 
 		// Create emission with proper authorization
 		addresses := []string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"}
-		amounts := []int64{expectedEmissionAmount}
+		amounts := []*big.Int{expectedEmissionAmount}
 		tx := createTestEmissionTx(t, addresses, amounts, cointype.CoinType(1), params)
 
 		auth := &chaincfg.SKAEmissionAuth{
@@ -251,9 +261,11 @@ func TestSKAEmissionConcurrency(t *testing.T) {
 
 	t.Run("MultipleEmissions", func(t *testing.T) {
 		// Calculate expected total emission amount from config
-		var expectedEmissionAmount int64
+		expectedEmissionAmount := new(big.Int)
 		for _, amount := range config.EmissionAmounts {
-			expectedEmissionAmount += amount
+			if amount != nil {
+				expectedEmissionAmount.Add(expectedEmissionAmount, amount)
+			}
 		}
 
 		// Test that creating emission transactions with partial amounts fails
@@ -262,6 +274,8 @@ func TestSKAEmissionConcurrency(t *testing.T) {
 		if emissionKey == nil {
 			t.Fatal("No emission key configured for SKA-1")
 		}
+
+		halfAmount := new(big.Int).Div(expectedEmissionAmount, big.NewInt(2))
 
 		auth1 := &chaincfg.SKAEmissionAuth{
 			EmissionKey: emissionKey,
@@ -274,7 +288,7 @@ func TestSKAEmissionConcurrency(t *testing.T) {
 		_, err1 := CreateAuthorizedSKAEmissionTransaction(
 			auth1,
 			[]string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"},
-			[]int64{expectedEmissionAmount / 2},
+			[]*big.Int{halfAmount},
 			params,
 		)
 
@@ -289,7 +303,7 @@ func TestSKAEmissionConcurrency(t *testing.T) {
 		_, err2 := CreateAuthorizedSKAEmissionTransaction(
 			auth2,
 			[]string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"},
-			[]int64{expectedEmissionAmount / 2},
+			[]*big.Int{halfAmount},
 			params,
 		)
 

@@ -5,6 +5,7 @@
 package blockchain
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/chaincfg"
@@ -39,7 +40,7 @@ func TestSKAEmissionStakeValidationHeight(t *testing.T) {
 				CoinType:       1,
 				Name:           "TestSKA",
 				Symbol:         "TSK",
-				MaxSupply:      1e6 * 1e8,
+				MaxSupply:      big.NewInt(1e6 * 1e8),
 				EmissionHeight: 150, // After stake validation
 				EmissionWindow: 50,
 				Active:         true,

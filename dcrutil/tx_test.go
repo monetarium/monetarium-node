@@ -61,7 +61,8 @@ func TestTx(t *testing.T) {
 	}
 
 	// Hash for block 100,000 transaction 0.
-	wantHashStr := "7d4a0700bb0d5e75ff809552cdd4a9bf236ed44030cafb699fb10fbb683901ed"
+	// Updated for wire protocol with CoinType field in TxOut.
+	wantHashStr := "9237ddf4bc4d7648eae4bfadde336fffec0d1501af61d646ec8002e8702a411c"
 	wantHash, err := chainhash.NewHashFromStr(wantHashStr)
 	if err != nil {
 		t.Errorf("NewHashFromStr: %v", err)

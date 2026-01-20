@@ -18,6 +18,7 @@ import (
 func TestSSFeeIndexKey(t *testing.T) {
 	tests := []struct {
 		name      string
+		feeType   byte
 		coinType  cointype.CoinType
 		hash160   []byte
 		wantLen   int
@@ -25,28 +26,40 @@ func TestSSFeeIndexKey(t *testing.T) {
 		errSubstr string
 	}{
 		{
-			name:     "valid VAR coin type",
+			name:     "valid staker VAR coin type",
+			feeType:  ssfeeTypeStaker,
 			coinType: cointype.CoinTypeVAR,
 			hash160:  make([]byte, 20),
-			wantLen:  23,
+			wantLen:  24,
 			wantErr:  false,
 		},
 		{
-			name:     "valid SKA-1 coin type",
+			name:     "valid miner VAR coin type",
+			feeType:  ssfeeTypeMiner,
+			coinType: cointype.CoinTypeVAR,
+			hash160:  make([]byte, 20),
+			wantLen:  24,
+			wantErr:  false,
+		},
+		{
+			name:     "valid staker SKA-1 coin type",
+			feeType:  ssfeeTypeStaker,
 			coinType: cointype.CoinType(1),
 			hash160:  make([]byte, 20),
-			wantLen:  23,
+			wantLen:  24,
 			wantErr:  false,
 		},
 		{
-			name:     "valid SKA-2 coin type",
+			name:     "valid miner SKA-2 coin type",
+			feeType:  ssfeeTypeMiner,
 			coinType: cointype.CoinType(2),
 			hash160:  make([]byte, 20),
-			wantLen:  23,
+			wantLen:  24,
 			wantErr:  false,
 		},
 		{
 			name:      "invalid hash160 length (too short)",
+			feeType:   ssfeeTypeStaker,
 			coinType:  cointype.CoinTypeVAR,
 			hash160:   make([]byte, 19),
 			wantLen:   0,
@@ -55,6 +68,7 @@ func TestSSFeeIndexKey(t *testing.T) {
 		},
 		{
 			name:      "invalid hash160 length (too long)",
+			feeType:   ssfeeTypeStaker,
 			coinType:  cointype.CoinTypeVAR,
 			hash160:   make([]byte, 21),
 			wantLen:   0,
@@ -63,6 +77,7 @@ func TestSSFeeIndexKey(t *testing.T) {
 		},
 		{
 			name:      "nil hash160",
+			feeType:   ssfeeTypeStaker,
 			coinType:  cointype.CoinTypeVAR,
 			hash160:   nil,
 			wantLen:   0,
@@ -73,7 +88,7 @@ func TestSSFeeIndexKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			key, err := makeSSFeeIndexKey(tt.coinType, tt.hash160)
+			key, err := makeSSFeeIndexKey(tt.feeType, tt.coinType, tt.hash160)
 
 			if tt.wantErr {
 				if err == nil {
@@ -93,17 +108,21 @@ func TestSSFeeIndexKey(t *testing.T) {
 				t.Fatalf("expected key length %d, got %d", tt.wantLen, len(key))
 			}
 
-			// Verify key format: "sf" + coinType + hash160
+			// Verify key format: "sf" + feeType + coinType + hash160
 			if !bytes.Equal(key[0:2], []byte("sf")) {
 				t.Fatalf("expected prefix 'sf', got %q", key[0:2])
 			}
 
-			if key[2] != byte(tt.coinType) {
-				t.Fatalf("expected coinType %d, got %d", tt.coinType, key[2])
+			if key[2] != tt.feeType {
+				t.Fatalf("expected feeType %d, got %d", tt.feeType, key[2])
 			}
 
-			if !bytes.Equal(key[3:23], tt.hash160) {
-				t.Fatalf("expected hash160 %x, got %x", tt.hash160, key[3:23])
+			if key[3] != byte(tt.coinType) {
+				t.Fatalf("expected coinType %d, got %d", tt.coinType, key[3])
+			}
+
+			if !bytes.Equal(key[4:24], tt.hash160) {
+				t.Fatalf("expected hash160 %x, got %x", tt.hash160, key[4:24])
 			}
 		})
 	}
@@ -336,7 +355,7 @@ func TestDeserializeOutPointsInvalid(t *testing.T) {
 	}
 }
 
-// TestSSFeeIndexKeyUniqueness tests that different (coinType, address) pairs
+// TestSSFeeIndexKeyUniqueness tests that different (feeType, coinType, address) tuples
 // produce unique keys.
 func TestSSFeeIndexKeyUniqueness(t *testing.T) {
 	hash160_1 := make([]byte, 20)
@@ -346,27 +365,34 @@ func TestSSFeeIndexKeyUniqueness(t *testing.T) {
 	keys := make(map[string]bool)
 
 	testCases := []struct {
+		feeType  byte
 		coinType cointype.CoinType
 		hash160  []byte
 	}{
-		{cointype.CoinTypeVAR, hash160_1},
-		{cointype.CoinTypeVAR, hash160_2},
-		{cointype.CoinType(1), hash160_1},
-		{cointype.CoinType(1), hash160_2},
-		{cointype.CoinType(2), hash160_1},
-		{cointype.CoinType(2), hash160_2},
+		{ssfeeTypeStaker, cointype.CoinTypeVAR, hash160_1},
+		{ssfeeTypeStaker, cointype.CoinTypeVAR, hash160_2},
+		{ssfeeTypeMiner, cointype.CoinTypeVAR, hash160_1},
+		{ssfeeTypeMiner, cointype.CoinTypeVAR, hash160_2},
+		{ssfeeTypeStaker, cointype.CoinType(1), hash160_1},
+		{ssfeeTypeStaker, cointype.CoinType(1), hash160_2},
+		{ssfeeTypeMiner, cointype.CoinType(1), hash160_1},
+		{ssfeeTypeMiner, cointype.CoinType(1), hash160_2},
+		{ssfeeTypeStaker, cointype.CoinType(2), hash160_1},
+		{ssfeeTypeStaker, cointype.CoinType(2), hash160_2},
+		{ssfeeTypeMiner, cointype.CoinType(2), hash160_1},
+		{ssfeeTypeMiner, cointype.CoinType(2), hash160_2},
 	}
 
 	for _, tc := range testCases {
-		key, err := makeSSFeeIndexKey(tc.coinType, tc.hash160)
+		key, err := makeSSFeeIndexKey(tc.feeType, tc.coinType, tc.hash160)
 		if err != nil {
 			t.Fatalf("unexpected error creating key: %v", err)
 		}
 
 		keyStr := string(key)
 		if keys[keyStr] {
-			t.Fatalf("duplicate key generated for coinType=%d, hash160=%x",
-				tc.coinType, tc.hash160)
+			t.Fatalf("duplicate key generated for feeType=%d, coinType=%d, hash160=%x",
+				tc.feeType, tc.coinType, tc.hash160)
 		}
 		keys[keyStr] = true
 	}

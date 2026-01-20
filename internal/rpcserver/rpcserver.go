@@ -1137,6 +1137,19 @@ func handleDebugLevel(_ context.Context, s *Server, cmd interface{}) (interface{
 
 // createVinList returns a slice of JSON objects for the inputs of the passed
 // transaction.
+// setSKAAmountIn sets both AmountIn (float64) and SKAAmountIn (string) for SKA inputs.
+func setSKAAmountIn(vinEntry *types.Vin, skaValue *big.Int) {
+	if skaValue != nil {
+		// Set string value for full precision
+		vinEntry.SKAAmountIn = skaValue.String()
+		// Also set float64 for backward compatibility (may lose precision)
+		valueFloat := new(big.Float).SetInt(skaValue)
+		atomsPerCoin := new(big.Float).SetInt(cointype.AtomsPerSKACoin)
+		coinValue, _ := new(big.Float).Quo(valueFloat, atomsPerCoin).Float64()
+		vinEntry.AmountIn = coinValue
+	}
+}
+
 func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 	// Treasurybase transactions only have a single txin by definition.
 	//
@@ -1148,6 +1161,7 @@ func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 		vinEntry := &vinList[0]
 		vinEntry.Treasurybase = true
 		vinEntry.Sequence = txIn.Sequence
+		// Treasurybase is always VAR
 		vinEntry.AmountIn = dcrutil.Amount(txIn.ValueIn).ToCoin()
 		vinEntry.BlockHeight = txIn.BlockHeight
 		vinEntry.BlockIndex = txIn.BlockIndex
@@ -1160,6 +1174,7 @@ func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 		vinEntry := &vinList[0]
 		vinEntry.Coinbase = hex.EncodeToString(txIn.SignatureScript)
 		vinEntry.Sequence = txIn.Sequence
+		// Coinbase is always VAR
 		vinEntry.AmountIn = dcrutil.Amount(txIn.ValueIn).ToCoin()
 		vinEntry.BlockHeight = txIn.BlockHeight
 		vinEntry.BlockIndex = txIn.BlockIndex
@@ -1172,6 +1187,7 @@ func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 		vinEntry := &vinList[0]
 		vinEntry.TreasurySpend = hex.EncodeToString(txIn.SignatureScript)
 		vinEntry.Sequence = txIn.Sequence
+		// Treasury spend is always VAR
 		vinEntry.AmountIn = dcrutil.Amount(txIn.ValueIn).ToCoin()
 		vinEntry.BlockHeight = txIn.BlockHeight
 		vinEntry.BlockIndex = txIn.BlockIndex
@@ -1188,6 +1204,7 @@ func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 			vinEntry := &vinList[0]
 			vinEntry.Stakebase = hex.EncodeToString(txIn.SignatureScript)
 			vinEntry.Sequence = txIn.Sequence
+			// Stakebase is always VAR
 			vinEntry.AmountIn = dcrutil.Amount(txIn.ValueIn).ToCoin()
 			vinEntry.BlockHeight = txIn.BlockHeight
 			vinEntry.BlockIndex = txIn.BlockIndex
@@ -1204,7 +1221,12 @@ func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 		vinEntry.Vout = txIn.PreviousOutPoint.Index
 		vinEntry.Tree = txIn.PreviousOutPoint.Tree
 		vinEntry.Sequence = txIn.Sequence
-		vinEntry.AmountIn = dcrutil.Amount(txIn.ValueIn).ToCoin()
+		// Handle SKA inputs with big.Int values
+		if txIn.SKAValueIn != nil {
+			setSKAAmountIn(vinEntry, txIn.SKAValueIn)
+		} else {
+			vinEntry.AmountIn = dcrutil.Amount(txIn.ValueIn).ToCoin()
+		}
 		vinEntry.BlockHeight = txIn.BlockHeight
 		vinEntry.BlockIndex = txIn.BlockIndex
 		vinEntry.ScriptSig = &types.ScriptSig{
@@ -1291,7 +1313,17 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params,
 		var vout types.Vout
 		voutSPK := &vout.ScriptPubKey
 		vout.N = uint32(i)
-		vout.Value = dcrutil.Amount(v.Value).ToCoin()
+		// For SKA coins, use SKAValue (string) only - no Value (float64) to avoid
+		// int64 overflow and maintain clean separation between VAR and SKA fields.
+		// For VAR coins, use Value (float64) only.
+		if v.CoinType.IsSKA() && v.SKAValue != nil {
+			// SKA: only set SKAValue (string) for full precision
+			vout.SKAValue = v.SKAValue.String()
+			// vout.Value is omitted (zero value) for SKA - clean separation
+		} else {
+			// VAR: only set Value (float64)
+			vout.Value = dcrutil.Amount(v.Value).ToCoin()
+		}
 		vout.Version = v.Version
 		vout.CoinType = uint8(v.CoinType)
 		voutSPK.Addresses = encodedAddrs
@@ -3341,22 +3373,30 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 
 		// Deserialize the transaction
 		var msgTx wire.MsgTx
-		// Try legacy protocol version first for old transaction data
-		err = msgTx.BtcDecode(bytes.NewReader(originalTxBytes), wire.CFilterV2Version)
+		// Try V13 protocol version first (CoinType before Value in TxOut)
+		err = msgTx.BtcDecode(bytes.NewReader(originalTxBytes), wire.ProtocolVersion)
 		if err != nil {
-			// Try current protocol version
-			err = msgTx.BtcDecode(bytes.NewReader(originalTxBytes), wire.ProtocolVersion)
+			// Try DualCoinVersion (v12) which has CoinType but uses old wire format
+			// (Value before CoinType)
+			err = msgTx.BtcDecode(bytes.NewReader(originalTxBytes), wire.DualCoinVersion)
 			if err != nil {
-				return nil, rpcInternalErr(err, "Failed to deserialize transaction")
+				// Try legacy protocol version (pre-CoinType) for old transaction data
+				err = msgTx.BtcDecode(bytes.NewReader(originalTxBytes), wire.CFilterV2Version)
+				if err != nil {
+					return nil, rpcInternalErr(err, "Failed to deserialize transaction")
+				}
+				// Legacy transaction data - need to add CoinType field
+				for i := range msgTx.TxOut {
+					msgTx.TxOut[i].CoinType = cointype.CoinTypeVAR
+				}
+				isLegacyFormat = true
+			} else {
+				// V12 format already includes CoinType field
+				isLegacyFormat = false
 			}
-			// Already includes CoinType field
-			isLegacyFormat = false
 		} else {
-			// Legacy transaction data - need to add CoinType field
-			for i := range msgTx.TxOut {
-				msgTx.TxOut[i].CoinType = cointype.CoinTypeVAR
-			}
-			isLegacyFormat = true
+			// V13 format - current format
+			isLegacyFormat = false
 		}
 		mtx = &msgTx
 	} else {
@@ -3460,11 +3500,15 @@ func handleGetSKAInfo(_ context.Context, s *Server, _ interface{}) (interface{},
 
 	// Get all configured SKA coin types
 	for coinType, cfg := range chainParams.SKACoins {
+		maxSupplyStr := "0"
+		if cfg.MaxSupply != nil {
+			maxSupplyStr = cfg.MaxSupply.String()
+		}
 		result = append(result, types.GetSKAInfoResult{
 			CoinType:    uint8(coinType),
 			Name:        cfg.Name,
 			Symbol:      cfg.Symbol,
-			MaxSupply:   cfg.MaxSupply,
+			MaxSupply:   maxSupplyStr,
 			Active:      cfg.Active,
 			Description: cfg.Description,
 		})
@@ -3519,10 +3563,20 @@ func handleGetEmissionStatus(_ context.Context, s *Server, icmd interface{}) (in
 	alreadyEmitted := s.cfg.Chain.HasSKAEmissionOccurred(coinType)
 
 	// Calculate circulating supply (max - burned), 0 if not yet emitted
-	var circulatingSupply int64
-	if alreadyEmitted {
+	circulatingSupplyStr := "0"
+	if alreadyEmitted && config.MaxSupply != nil {
 		burnedAmount := s.cfg.Chain.GetSKABurnedAmount(coinType)
-		circulatingSupply = config.MaxSupply - burnedAmount
+		circulatingSupply := new(big.Int).Set(config.MaxSupply)
+		if burnedAmount != nil {
+			circulatingSupply.Sub(circulatingSupply, burnedAmount)
+		}
+		circulatingSupplyStr = circulatingSupply.String()
+	}
+
+	// Convert MaxSupply to string for JSON
+	maxSupplyStr := "0"
+	if config.MaxSupply != nil {
+		maxSupplyStr = config.MaxSupply.String()
 	}
 
 	return types.GetEmissionStatusResult{
@@ -3536,8 +3590,8 @@ func handleGetEmissionStatus(_ context.Context, s *Server, icmd interface{}) (in
 		CurrentNonce:      currentNonce,
 		NextNonce:         currentNonce + 1,
 		AlreadyEmitted:    alreadyEmitted,
-		MaxSupply:         config.MaxSupply,
-		CirculatingSupply: circulatingSupply,
+		MaxSupply:         maxSupplyStr,
+		CirculatingSupply: circulatingSupplyStr,
 	}, nil
 }
 
@@ -3546,7 +3600,7 @@ func handleGetBurnedCoins(_ context.Context, s *Server, icmd interface{}) (inter
 	c := icmd.(*types.GetBurnedCoinsCmd)
 
 	// Get burned amounts from blockchain
-	var burnedAmounts map[cointype.CoinType]int64
+	var burnedAmounts map[cointype.CoinType]*big.Int
 
 	if c.CoinType != nil {
 		// Specific coin type requested
@@ -3560,7 +3614,11 @@ func handleGetBurnedCoins(_ context.Context, s *Server, icmd interface{}) (inter
 
 		// Get burned amount for this coin type
 		amount := s.cfg.Chain.GetSKABurnedAmount(coinType)
-		burnedAmounts = map[cointype.CoinType]int64{coinType: amount}
+		if amount != nil {
+			burnedAmounts = map[cointype.CoinType]*big.Int{coinType: amount}
+		} else {
+			burnedAmounts = make(map[cointype.CoinType]*big.Int)
+		}
 	} else {
 		// Get all burned amounts
 		burnedAmounts = s.cfg.Chain.GetAllSKABurnedAmounts()
@@ -3569,15 +3627,20 @@ func handleGetBurnedCoins(_ context.Context, s *Server, icmd interface{}) (inter
 	// Convert to result format
 	stats := make([]types.GetBurnedCoinsStat, 0, len(burnedAmounts))
 	for coinType, amount := range burnedAmounts {
-		// Skip coin types with zero burns (shouldn't happen but be defensive)
-		if amount == 0 {
+		// Skip coin types with zero/nil burns (shouldn't happen but be defensive)
+		if amount == nil || amount.Sign() == 0 {
 			continue
 		}
+
+		// Convert big.Int atoms to string coins for display (preserves precision)
+		// SKA uses 1e18 atoms/coin
+		atomsPerCoin := cointype.AtomsPerSKACoin
+		totalBurnedStr := cointype.AtomsToDecimalString(amount, atomsPerCoin)
 
 		stats = append(stats, types.GetBurnedCoinsStat{
 			CoinType:    uint8(coinType),
 			Name:        coinType.String(),
-			TotalBurned: dcrutil.Amount(amount).ToCoinType(coinType),
+			TotalBurned: totalBurnedStr,
 		})
 	}
 

@@ -121,7 +121,7 @@ func TestBlock(t *testing.T) {
 // hashes from a block accurately.
 func TestBlockTxHashes(t *testing.T) {
 	// Block 1, transaction 1 hash.
-	hashStr := "b7c3565764c9e3d773087be183560e847e2488573bd3e5af706813e2ef92d2a7"
+	hashStr := "d1202fd90a1558a05a8df68dd1595d7d8b132b5474621ededfb30ee46c34c446"
 	wantHash, err := chainhash.NewHashFromStr(hashStr)
 	if err != nil {
 		t.Errorf("NewHashFromStr: %v", err)
@@ -140,7 +140,7 @@ func TestBlockTxHashes(t *testing.T) {
 // transaction hashes from a block accurately.
 func TestBlockSTxHashes(t *testing.T) {
 	// Block 1, transaction 1 hash.
-	hashStr := "a1a8d21973cc887c2e8e9de0f797c333feb008542b2fd3040acb03848c334f71"
+	hashStr := "3daba7d1fcf18146205b52b174ba94a988f389c60ed021a629a41b7f364fa4ab"
 	wantHash, err := chainhash.NewHashFromStr(hashStr)
 	if err != nil {
 		t.Errorf("NewHashFromStr: %v", err)
@@ -696,6 +696,7 @@ var testBlock = MsgBlock{
 }
 
 // testBlockBytes is the serialized bytes for the above test block (testBlock).
+// Uses protocol version 13 (SKABigIntVersion) format with CoinType before Value.
 var testBlockBytes = []byte{
 	// Begin block header
 	0x01, 0x00, 0x00, 0x00, // Version 1 [0]
@@ -741,11 +742,11 @@ var testBlockBytes = []byte{
 	0x00,                   // Previous output tree [222]
 	0xff, 0xff, 0xff, 0xff, // Sequence [223]
 	0x01,                                           // Varint for number of transaction outputs [227]
-	0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, // Transaction amount [228]
-	0x00,       // CoinType (VAR) [236]
-	0x98, 0x98, // Script version
-	0x43, // Varint for length of pk script
-	0x41, // OP_DATA_65
+	0x00,                                           // CoinType (VAR) [228] - V13 format: CoinType first
+	0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, // Transaction amount [229]
+	0x98, 0x98, // Script version [237]
+	0x43, // Varint for length of pk script [239]
+	0x41, // OP_DATA_65 [240]
 	0x04, 0x96, 0xb5, 0x38, 0xe8, 0x53, 0x51, 0x9c,
 	0x72, 0x6a, 0x2c, 0x91, 0xe6, 0x1e, 0xc1, 0x16,
 	0x00, 0xae, 0x13, 0x90, 0x81, 0x3a, 0x62, 0x7c,
@@ -760,6 +761,7 @@ var testBlockBytes = []byte{
 	0x22, 0x22, 0x22, 0x22, // Expiry
 	0x01,                                           // Varint for number of signatures
 	0x16, 0x16, 0x16, 0x16, 0x16, 0x16, 0x16, 0x16, // ValueIn
+	0x00,                   // SKAValueInLen (0 = no SKA value)
 	0x17, 0x17, 0x17, 0x17, // BlockHeight
 	0x18, 0x18, 0x18, 0x18, // BlockIndex
 	0x07,                                     // SigScript length
@@ -777,8 +779,8 @@ var testBlockBytes = []byte{
 	0x01,                   // Previous output tree
 	0xff, 0xff, 0xff, 0xff, // Sequence
 	0x01,                                           // Varint for number of transaction outputs
+	0x00,                                           // CoinType (VAR) - V13 format: CoinType first
 	0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, // Transaction amount
-	0x00,       // CoinType (VAR)
 	0x12, 0x12, // Script version
 	0x43, // Varint for length of pk script
 	0x41, // OP_DATA_65
@@ -796,6 +798,7 @@ var testBlockBytes = []byte{
 	0x22, 0x22, 0x22, 0x22, // Expiry
 	0x01,                                           // Varint for number of signatures
 	0x13, 0x13, 0x13, 0x13, 0x13, 0x13, 0x13, 0x13, // ValueIn
+	0x00,                   // SKAValueInLen (0 = no SKA value)
 	0x14, 0x14, 0x14, 0x14, // BlockHeight
 	0x15, 0x15, 0x15, 0x15, // BlockIndex
 	0x07,                                     // SigScript length
@@ -804,10 +807,10 @@ var testBlockBytes = []byte{
 
 // Transaction location information for the test block transactions.
 var testBlockTxLocs = []TxLoc{
-	{TxStart: 181, TxLen: 159},
+	{TxStart: 181, TxLen: 160}, // +1 byte for SKAValueInLen
 }
 
 // Transaction location information for the test block stake transactions.
 var testBlockSTxLocs = []TxLoc{
-	{TxStart: 341, TxLen: 159},
+	{TxStart: 342, TxLen: 160}, // +1 for first tx's SKAValueInLen, +1 for this tx's SKAValueInLen
 }

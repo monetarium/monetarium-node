@@ -217,7 +217,14 @@ func TestCreateSSFeeTxBatched(t *testing.T) {
 				}
 
 				// Accumulate total distributed (payment is at index 1)
-				totalDistributed += msgTx.TxOut[1].Value
+				// VAR uses Value, SKA uses SKAValue
+				if msgTx.TxOut[1].CoinType.IsSKA() {
+					if msgTx.TxOut[1].SKAValue != nil {
+						totalDistributed += msgTx.TxOut[1].SKAValue.Int64()
+					}
+				} else {
+					totalDistributed += msgTx.TxOut[1].Value
+				}
 			}
 
 			// Verify total distributed across all transactions equals input fee
@@ -272,7 +279,10 @@ func TestSSFeeMultipleCoinTypes(t *testing.T) {
 				t.Errorf("SSFee %d has wrong coin type: got %d, want %d",
 					i, msgTx.TxOut[1].CoinType, expectedCoinType)
 			}
-			totalDistributed += msgTx.TxOut[1].Value
+			// SKA outputs use SKAValue, not Value
+			if msgTx.TxOut[1].SKAValue != nil {
+				totalDistributed += msgTx.TxOut[1].SKAValue.Int64()
+			}
 		}
 
 		// Check fee distribution across all SSFee transactions for this coin type
@@ -339,7 +349,10 @@ func TestSSFeeEdgeCases(t *testing.T) {
 		// Total should be exactly 100
 		var total int64
 		for _, tx := range ssFeeTxns {
-			total += tx.MsgTx().TxOut[1].Value
+			// SKA outputs use SKAValue, not Value
+			if tx.MsgTx().TxOut[1].SKAValue != nil {
+				total += tx.MsgTx().TxOut[1].SKAValue.Int64()
+			}
 		}
 		if total != 100 {
 			t.Errorf("Total distributed %d != 100", total)
@@ -366,8 +379,13 @@ func TestSSFeeEdgeCases(t *testing.T) {
 		}
 
 		// Single tx should have full 5000
-		if ssFeeTxns[0].MsgTx().TxOut[1].Value != 5000 {
-			t.Errorf("Expected 5000, got %d", ssFeeTxns[0].MsgTx().TxOut[1].Value)
+		// SKA outputs use SKAValue, not Value
+		var outputValue int64
+		if ssFeeTxns[0].MsgTx().TxOut[1].SKAValue != nil {
+			outputValue = ssFeeTxns[0].MsgTx().TxOut[1].SKAValue.Int64()
+		}
+		if outputValue != 5000 {
+			t.Errorf("Expected 5000, got %d", outputValue)
 		}
 	})
 
@@ -400,7 +418,10 @@ func TestSSFeeEdgeCases(t *testing.T) {
 		// Total should be 3000
 		var total int64
 		for _, tx := range ssFeeTxns {
-			total += tx.MsgTx().TxOut[1].Value
+			// SKA outputs use SKAValue, not Value
+			if tx.MsgTx().TxOut[1].SKAValue != nil {
+				total += tx.MsgTx().TxOut[1].SKAValue.Int64()
+			}
 		}
 		if total != 3000 {
 			t.Errorf("Total distributed %d != 3000", total)
@@ -467,8 +488,13 @@ func TestCreateSSFeeTxBatchedUTXOAugmentation(t *testing.T) {
 				t.Errorf("Tx %d: Expected null input (no UTXO to augment)", i)
 			}
 			// Output value should equal fee (1000 each for 3 addresses)
-			if tx.MsgTx().TxOut[1].Value != 1000 {
-				t.Errorf("Tx %d: Expected output value 1000, got %d", i, tx.MsgTx().TxOut[1].Value)
+			// SKA outputs use SKAValue, not Value
+			var outputValue int64
+			if tx.MsgTx().TxOut[1].SKAValue != nil {
+				outputValue = tx.MsgTx().TxOut[1].SKAValue.Int64()
+			}
+			if outputValue != 1000 {
+				t.Errorf("Tx %d: Expected output value 1000, got %d", i, outputValue)
 			}
 		}
 	})
@@ -528,8 +554,13 @@ func TestCreateSSFeeTxBatchedUTXOAugmentation(t *testing.T) {
 				t.Errorf("SKA-2 transaction has wrong coin type")
 			}
 			// SKA-2 should have 2000 per address (6000 / 3)
-			if tx.MsgTx().TxOut[1].Value != 2000 {
-				t.Errorf("SKA-2 tx has wrong value: %d", tx.MsgTx().TxOut[1].Value)
+			// SKA outputs use SKAValue, not Value
+			var outputValue int64
+			if tx.MsgTx().TxOut[1].SKAValue != nil {
+				outputValue = tx.MsgTx().TxOut[1].SKAValue.Int64()
+			}
+			if outputValue != 2000 {
+				t.Errorf("SKA-2 tx has wrong value: %d", outputValue)
 			}
 		}
 	})

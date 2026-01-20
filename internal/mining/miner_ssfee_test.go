@@ -53,16 +53,22 @@ func TestCreateMinerSSFeeTx(t *testing.T) {
 				}
 
 				// First output should be OP_RETURN - standard SSFee format
-				if tx.TxOut[0].Value != 0 {
-					t.Errorf("Expected payment value 100000, got %d", tx.TxOut[0].Value)
+				// SKA OP_RETURN uses SKAValue (should be 0)
+				if tx.TxOut[0].SKAValue == nil || tx.TxOut[0].SKAValue.Sign() != 0 {
+					t.Errorf("Expected OP_RETURN SKAValue 0, got %v", tx.TxOut[0].SKAValue)
 				}
 				if tx.TxOut[0].CoinType != cointype.CoinType(1) {
 					t.Errorf("Expected coin type 1, got %d", tx.TxOut[0].CoinType)
 				}
 
 				// Second output should be payment - standard SSFee format
-				if tx.TxOut[1].Value != 100000 {
-					t.Errorf("Expected payment value 100000, got %d", tx.TxOut[1].Value)
+				// SKA outputs use SKAValue, not Value
+				if tx.TxOut[1].SKAValue == nil || tx.TxOut[1].SKAValue.Int64() != 100000 {
+					var got int64
+					if tx.TxOut[1].SKAValue != nil {
+						got = tx.TxOut[1].SKAValue.Int64()
+					}
+					t.Errorf("Expected payment SKAValue 100000, got %d", got)
 				}
 
 				// Check version
@@ -79,8 +85,9 @@ func TestCreateMinerSSFeeTx(t *testing.T) {
 			height:       2000,
 			expectError:  false,
 			validateTx: func(t *testing.T, tx *wire.MsgTx) {
-				if tx.TxOut[0].Value != 0 {
-					t.Errorf("Expected OP_RETURN value 0, got %d", tx.TxOut[0].Value)
+				// SKA OP_RETURN uses SKAValue (should be 0)
+				if tx.TxOut[0].SKAValue == nil || tx.TxOut[0].SKAValue.Sign() != 0 {
+					t.Errorf("Expected OP_RETURN SKAValue 0, got %v", tx.TxOut[0].SKAValue)
 				}
 				if tx.TxOut[0].CoinType != cointype.CoinType(2) {
 					t.Errorf("Expected coin type 2, got %d", tx.TxOut[0].CoinType)
@@ -189,8 +196,9 @@ func TestMinerSSFeeOpReturn(t *testing.T) {
 
 	// OP_RETURN should be at index 0 (standard SSFee format)
 	opReturnOut := tx.TxOut[0]
-	if opReturnOut.Value != 0 {
-		t.Error("OP_RETURN output should have 0 value")
+	// SKA OP_RETURN uses SKAValue (should be 0)
+	if opReturnOut.SKAValue == nil || opReturnOut.SKAValue.Sign() != 0 {
+		t.Errorf("OP_RETURN output should have SKAValue 0, got %v", opReturnOut.SKAValue)
 	}
 
 	// Check OP_RETURN script format
@@ -251,15 +259,27 @@ func TestMinerSSFeeDistribution(t *testing.T) {
 		tx := minerSSFeeTx.MsgTx()
 
 		// Verify input value matches fee amount
-		if tx.TxIn[0].ValueIn != tc.feeAmount {
+		// For SKA SSFee, input uses SKAValueIn (big.Int), not ValueIn
+		var inputValue int64
+		if tc.coinType.IsSKA() && tx.TxIn[0].SKAValueIn != nil {
+			inputValue = tx.TxIn[0].SKAValueIn.Int64()
+		} else {
+			inputValue = tx.TxIn[0].ValueIn
+		}
+		if inputValue != tc.feeAmount {
 			t.Errorf("Input value mismatch for coin type %d: expected %d, got %d",
-				tc.coinType, tc.feeAmount, tx.TxIn[0].ValueIn)
+				tc.coinType, tc.feeAmount, inputValue)
 		}
 
 		// Verify payment output value matches fee amount (output[1] in standard SSFee format)
-		if tx.TxOut[1].Value != tc.feeAmount {
+		// SKA outputs use SKAValue, not Value
+		var outputValue int64
+		if tx.TxOut[1].SKAValue != nil {
+			outputValue = tx.TxOut[1].SKAValue.Int64()
+		}
+		if outputValue != tc.feeAmount {
 			t.Errorf("Output value mismatch for coin type %d: expected %d, got %d",
-				tc.coinType, tc.feeAmount, tx.TxOut[1].Value)
+				tc.coinType, tc.feeAmount, outputValue)
 		}
 
 		// Verify coin type is correct

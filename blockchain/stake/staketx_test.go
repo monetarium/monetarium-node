@@ -1546,14 +1546,14 @@ func TestCreateRevocationFromTicket(t *testing.T) {
 		ticketOut4,
 		ticketOut5,
 	}
-	revocationHash := mustParseHash("42d970cf4eaf9c1685dc4f359d9bbd7fa468b06817" +
-		"165087bf926002bf02741a")
+	revocationHash := mustParseHash("c773adcf87fc55fd11772533348efe0cbc22366ba4" +
+		"4ef832cabd153c5aef456d")
 	revocationTxFee := dcrutil.Amount(285000)
 	revocationTxVersion := uint16(1)
 
 	// With auto revocations enabled.
-	autoRevocationsTxHash := mustParseHash("74950127b7b1027f2da1d94eb746e488b7659a310" +
-		"eddd254a7fccf75681541bf")
+	autoRevocationsTxHash := mustParseHash("05184b43d1181cec0b7dc7f61cac876225b5ed341" +
+		"de72f5ad46e4a146c874fca")
 	autoRevocationsTxFee := dcrutil.Amount(0)
 	autoRevocationsTxVersion := TxVersionAutoRevocations
 

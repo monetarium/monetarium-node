@@ -5,6 +5,8 @@
 package blockchain
 
 import (
+	"math/big"
+
 	"github.com/monetarium/monetarium-node/blockchain/stake"
 	"github.com/monetarium/monetarium-node/cointype"
 )
@@ -112,6 +114,11 @@ type UtxoEntry struct {
 	amount   int64
 	pkScript []byte
 
+	// skaAmount stores the amount for SKA coin types using big.Int to support
+	// large values (up to 900 trillion with 1e18 atoms/coin). This field is
+	// only used when coinType.IsSKA() is true; for VAR, use the amount field.
+	skaAmount *big.Int
+
 	// ticketMinOuts is the minimal outputs for the ticket transaction that the
 	// output is contained in.  This is only stored in ticket submission outputs
 	// and is nil for all other output types.
@@ -214,9 +221,20 @@ func (entry *UtxoEntry) Spend() {
 	entry.state |= utxoStateSpent | utxoStateModified
 }
 
-// Amount returns the amount of the output.
+// Amount returns the amount of the output for VAR coin type.
+// For SKA coin types, use SKAAmount() instead.
 func (entry *UtxoEntry) Amount() int64 {
 	return entry.amount
+}
+
+// SKAAmount returns the amount of the output for SKA coin types as a *big.Int.
+// Returns nil for VAR coin types. The returned value is a copy to prevent
+// external modification.
+func (entry *UtxoEntry) SKAAmount() *big.Int {
+	if entry.skaAmount == nil {
+		return nil
+	}
+	return new(big.Int).Set(entry.skaAmount)
 }
 
 // PkScript returns the public key script for the output.
@@ -254,7 +272,8 @@ func (entry *UtxoEntry) TicketMinimalOutputs() []*stake.MinimalOutput {
 
 // Clone returns a copy of the utxo entry.  It performs a deep copy for any
 // fields that are mutable.  Specifically, the script and ticket minimal outputs
-// are NOT deep copied since they are immutable.
+// are NOT deep copied since they are immutable. The skaAmount is deep copied
+// since big.Int is mutable.
 func (entry *UtxoEntry) Clone() *UtxoEntry {
 	if entry == nil {
 		return nil
@@ -270,6 +289,11 @@ func (entry *UtxoEntry) Clone() *UtxoEntry {
 		coinType:      entry.coinType,
 		state:         entry.state,
 		packedFlags:   entry.packedFlags,
+	}
+
+	// Deep copy skaAmount since big.Int is mutable
+	if entry.skaAmount != nil {
+		newEntry.skaAmount = new(big.Int).Set(entry.skaAmount)
 	}
 
 	return newEntry

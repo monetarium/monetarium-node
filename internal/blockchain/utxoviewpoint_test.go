@@ -5,6 +5,7 @@
 package blockchain
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/blockchain/chaingen"
@@ -255,7 +256,8 @@ func TestUtxoViewpointCoinTypeTracking(t *testing.T) {
 	}
 
 	skaTxOut := &wire.TxOut{
-		Value:    5000000000, // 50 SKA
+		Value:    0,                      // Not used for SKA
+		SKAValue: big.NewInt(5000000000), // 50 SKA - uses SKAValue
 		Version:  0,
 		PkScript: p2pkhScript,
 		CoinType: cointype.CoinType(1),
@@ -299,21 +301,32 @@ func TestUtxoViewpointCoinTypeTracking(t *testing.T) {
 	if skaEntry.CoinType() != cointype.CoinType(1) {
 		t.Errorf("Expected SKA coin type (%d), got %d", cointype.CoinType(1), skaEntry.CoinType())
 	}
-	if skaEntry.Amount() != 5000000000 {
-		t.Errorf("Expected SKA amount 5000000000, got %d", skaEntry.Amount())
+	// SKA amounts use SKAAmount(), not Amount()
+	skaAmt := skaEntry.SKAAmount()
+	if skaAmt == nil || skaAmt.Int64() != 5000000000 {
+		var got int64
+		if skaAmt != nil {
+			got = skaAmt.Int64()
+		}
+		t.Errorf("Expected SKA amount 5000000000, got %d", got)
 	}
 
-	// Test AmountWithCoinType method
+	// Test AmountWithCoinType method for VAR
 	varAmount, varCoinType := varEntry.AmountWithCoinType()
 	if varAmount != 1000000000 || varCoinType != cointype.CoinTypeVAR {
 		t.Errorf("AmountWithCoinType for VAR: expected (1000000000, %d), got (%d, %d)",
 			cointype.CoinTypeVAR, varAmount, varCoinType)
 	}
 
-	skaAmount, skaCoinType := skaEntry.AmountWithCoinType()
-	if skaAmount != 5000000000 || skaCoinType != cointype.CoinType(1) {
-		t.Errorf("AmountWithCoinType for SKA: expected (5000000000, %d), got (%d, %d)",
-			cointype.CoinType(1), skaAmount, skaCoinType)
+	// For SKA, AmountWithCoinType returns 0 for amount (uses SKAAmount instead)
+	skaAmountFromMethod, skaCoinType := skaEntry.AmountWithCoinType()
+	if skaCoinType != cointype.CoinType(1) {
+		t.Errorf("AmountWithCoinType for SKA: expected coin type %d, got %d",
+			cointype.CoinType(1), skaCoinType)
+	}
+	// SKA's Amount() returns 0 since we use SKAValue; this is expected
+	if skaAmountFromMethod != 0 {
+		t.Errorf("AmountWithCoinType for SKA: expected 0 (SKA uses SKAAmount), got %d", skaAmountFromMethod)
 	}
 
 	// Test enhanced query methods

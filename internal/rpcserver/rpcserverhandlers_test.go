@@ -205,7 +205,7 @@ type testRPCChain struct {
 	subsidySplitR2ActiveErr       error
 	skaEmissionNonce              uint64
 	skaEmissionOccurred           bool
-	skaBurnedAmounts              map[cointype.CoinType]int64
+	skaBurnedAmounts              map[cointype.CoinType]*big.Int
 }
 
 // BestSnapshot returns a mocked blockchain.BestState.
@@ -468,22 +468,25 @@ func (c *testRPCChain) HasSKAEmissionOccurred(cointype.CoinType) bool {
 }
 
 // GetSKABurnedAmount returns the mocked burned amount for the specified coin type.
-func (c *testRPCChain) GetSKABurnedAmount(ct cointype.CoinType) int64 {
+func (c *testRPCChain) GetSKABurnedAmount(ct cointype.CoinType) *big.Int {
 	if c.skaBurnedAmounts == nil {
-		return 0
+		return nil
 	}
-	return c.skaBurnedAmounts[ct]
+	if amount, ok := c.skaBurnedAmounts[ct]; ok {
+		return new(big.Int).Set(amount)
+	}
+	return nil
 }
 
 // GetAllSKABurnedAmounts returns all mocked burned amounts.
-func (c *testRPCChain) GetAllSKABurnedAmounts() map[cointype.CoinType]int64 {
+func (c *testRPCChain) GetAllSKABurnedAmounts() map[cointype.CoinType]*big.Int {
 	if c.skaBurnedAmounts == nil {
-		return make(map[cointype.CoinType]int64)
+		return make(map[cointype.CoinType]*big.Int)
 	}
 	// Return a copy
-	result := make(map[cointype.CoinType]int64)
+	result := make(map[cointype.CoinType]*big.Int)
 	for k, v := range c.skaBurnedAmounts {
-		result[k] = v
+		result[k] = new(big.Int).Set(v)
 	}
 	return result
 }
@@ -1394,11 +1397,13 @@ func hexToUint256(s string) uint256.Uint256 {
 // with hard-coded values.
 func hexToMsgTx(s string) *wire.MsgTx {
 	var msgTx wire.MsgTx
-	// First try with legacy protocol version for old test data
+	// First try with legacy protocol version (pre-CoinType) for old test data
 	err := msgTx.BtcDecode(bytes.NewReader(hexToBytes(s)), wire.CFilterV2Version)
 	if err != nil {
-		// Try with current protocol version
-		err = msgTx.BtcDecode(bytes.NewReader(hexToBytes(s)), wire.ProtocolVersion)
+		// Try with DualCoinVersion (v12) which has CoinType but uses old wire format
+		// (Value before CoinType). Don't use ProtocolVersion (v13) as it expects
+		// CoinType first for SKA big.Int support.
+		err = msgTx.BtcDecode(bytes.NewReader(hexToBytes(s)), wire.DualCoinVersion)
 		if err != nil {
 			panic("invalid tx hex in source file: " + s)
 		}
@@ -1447,8 +1452,12 @@ func cloneParams(params *chaincfg.Params) *chaincfg.Params {
 				copy(configCopy.EmissionAddresses, v.EmissionAddresses)
 			}
 			if v.EmissionAmounts != nil {
-				configCopy.EmissionAmounts = make([]int64, len(v.EmissionAmounts))
-				copy(configCopy.EmissionAmounts, v.EmissionAmounts)
+				configCopy.EmissionAmounts = make([]*big.Int, len(v.EmissionAmounts))
+				for i, amt := range v.EmissionAmounts {
+					if amt != nil {
+						configCopy.EmissionAmounts[i] = new(big.Int).Set(amt)
+					}
+				}
 			}
 			// EmissionKey doesn't need deep copying as secp256k1.PublicKey is immutable
 			result.SKACoins[k] = &configCopy
@@ -1474,8 +1483,10 @@ var block432100 = func() wire.MsgBlock {
 	}
 	defer fi.Close()
 	var block wire.MsgBlock
-	// Use current protocol version for test data that includes CoinType field
-	err = block.BtcDecode(bzip2.NewReader(fi), wire.ProtocolVersion)
+	// Use DualCoinVersion (v12) for legacy test data that uses the old wire format
+	// where Value comes before CoinType. SKABigIntVersion (v13) changed the format
+	// to put CoinType first to support variable-length SKA amounts.
+	err = block.BtcDecode(bzip2.NewReader(fi), wire.DualCoinVersion)
 	if err != nil {
 		panic(err)
 	}
@@ -1973,7 +1984,7 @@ func defaultMockConfig(chainParams *chaincfg.Params) *Config {
 			ProxyRandomizeCredentials: false,
 		}},
 		MinRelayTxFee:      dcrutil.Amount(10000),
-		MaxProtocolVersion: wire.DualCoinVersion,
+		MaxProtocolVersion: wire.ProtocolVersion,
 		UserAgentVersion: fmt.Sprintf("%d.%d.%d", version.Major, version.Minor,
 			version.Patch),
 	}
@@ -2068,12 +2079,13 @@ func TestHandleCreateRawSStx(t *testing.T) {
 			Amount: defaultCmdAmount,
 			COuts:  defaultCmdCOuts,
 		},
+		// Updated for V13 wire format: CoinType (00) comes before Value for each output, SKAValueInLen (00) in witness
 		result: "01000000010d33d3840e9074183dc9a8d82a5031075a98135bfe182840ddaf575" +
-			"aa2032fe00000000000ffffffff0300e1f5050000000000000018baa914f0b4e851" +
+			"aa2032fe00000000000ffffffff030000e1f50500000000000018baa914f0b4e851" +
 			"00aee1a996f22915eb3c3f764d53779a870000000000000000000000206a1e000102" +
 			"030405060708090a0b0c0d0e0f1011121300e1f50500000000000000000000000000" +
 			"000000001abd76a914a23634e90541542fe2ac2a79e6064333a09b558188ac00000000" +
-			"000000000100e1f5050000000000000000ffffffff00",
+			"000000000100e1f505000000000000000000ffffffff00",
 	}, {
 		name:    "handleCreateRawSStx: num inputs != num outputs",
 		handler: handleCreateRawSStx,
@@ -2358,10 +2370,11 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 			Inputs: defaultCmdInputs,
 			Fee:    defaultFee,
 		},
+		// Updated for V13 wire format: CoinType (00) comes before Value, SKAValueInLen (00) in witness
 		result: "0100000001395ebc9af44c4a696fa8e6287bdbf0a89a4d6207f191cb0f1eefc25" +
-			"6e6cb89110000000001ffffffff01804a5d05000000000000001abc76a914355c96" +
+			"6e6cb89110000000001ffffffff0100804a5d050000000000001abc76a914355c96" +
 			"f48612d57509140e9a049981d5f9970f9488ac00000000000000000100e1f5050" +
-			"000000000000000ffffffff00",
+			"00000000000000000ffffffff00",
 	}, {
 		name:    "handleCreateRawSSRtx: ok P2SH",
 		handler: handleCreateRawSSRtx,
@@ -2406,10 +2419,11 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 			}
 			return chain
 		}(),
+		// Updated for V13 wire format: CoinType (00) comes before Value, SKAValueInLen (00) in witness
 		result: "0100000001395ebc9af44c4a696fa8e6287bdbf0a89a4d6207f191cb0f1eefc25" +
-			"6e6cb89110000000001ffffffff01804a5d050000000000000018bca914355c96f4" +
+			"6e6cb89110000000001ffffffff0100804a5d0500000000000018bca914355c96f4" +
 			"8612d57509140e9a049981d5f9970f948700000000000000000100e1f50500000" +
-			"00000000000ffffffff00",
+			"0000000000000ffffffff00",
 	}, {
 		name:    "handleCreateRawSSRtx: ok with auto revocations enabled",
 		handler: handleCreateRawSSRtx,
@@ -2422,10 +2436,11 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 			chain.autoRevocationsActive = true
 			return chain
 		}(),
+		// Updated for V13 wire format: CoinType (00) comes before Value, SKAValueInLen (00) in witness
 		result: "0200000001395ebc9af44c4a696fa8e6287bdbf0a89a4d6207f191cb0f1eefc2" +
-			"56e6cb89110000000001ffffffff0100e1f505000000000000001abc76a914355c96f486" +
-			"12d57509140e9a049981d5f9970f9488ac00000000000000000100e1f5050000000000" +
-			"000000ffffffff00",
+			"56e6cb89110000000001ffffffff010000e1f5050000000000001abc76a914355c96f486" +
+			"12d57509140e9a049981d5f9970f9488ac00000000000000000100e1f50500000000" +
+			"0000000000ffffffff00",
 	}, {
 		name:    "handleCreateRawSSRtx: could not obtain auto revocations status",
 		handler: handleCreateRawSSRtx,
@@ -2661,10 +2676,11 @@ func TestHandleCreateRawTransaction(t *testing.T) {
 			LockTime: defaultCmdLockTime,
 			Expiry:   defaultCmdExpiry,
 		},
+		// Updated for V13 wire format: CoinType (00) comes before Value, SKAValueInLen (00) in witness
 		result: "01000000010d33d3840e9074183dc9a8d82a5031075a98135bfe182840ddaf575" +
-			"aa2032fe00000000000feffffff0100e1f5050000000000000017a914f59833f104" +
+			"aa2032fe00000000000feffffff010000e1f50500000000000017a914f59833f104" +
 			"faa3c7fd0c7dc1e3967fe77a9c15238701000000010000000100e1f5050000000" +
-			"000000000ffffffff00",
+			"00000000000ffffffff00",
 	}, {
 		name:    "handleCreateRawTransaction: expiry out of range",
 		handler: handleCreateRawTransaction,
@@ -2805,13 +2821,16 @@ func TestHandleDecodeRawTransaction(t *testing.T) {
 		name:    "handleDecodeRawTransaction: ok",
 		handler: handleDecodeRawTransaction,
 		cmd: &types.DecodeRawTransactionCmd{
+			// V13 wire format: CoinType before Value in outputs, SKAValueInLen in witness
+			// ValueIn=1 atom (0100000000000000 little-endian)
 			HexTx: "01000000010d33d3840e9074183dc9a8d82a5031075a98135bfe182840ddaf575a" +
-				"a2032fe00000000000feffffff0100e1f5050000000000000017a914f59833f104" +
-				"faa3c7fd0c7dc1e3967fe77a9c152387010000000100000001010000000000000" +
-				"000000000ffffffff00",
+				"a2032fe00000000000feffffff010000e1f50500000000000017a914f59833f104" +
+				"faa3c7fd0c7dc1e3967fe77a9c15238701000000010000000101000000000000" +
+				"000000000000ffffffff00",
 		},
 		result: types.TxRawDecodeResult{
-			Txid:     "aa062122e592a84c4a365bb40b93a16088c1e43b2af2ab96d7c7ff9433ba5857",
+			// Txid for V13 wire format
+			Txid:     "52dfef484cda2041b4f28898e2d23f6ab17d2c9cdcaffb6a41b1154812003133",
 			Version:  1,
 			Locktime: 1,
 			Expiry:   1,
@@ -2848,13 +2867,16 @@ func TestHandleDecodeRawTransaction(t *testing.T) {
 		name:    "handleDecodeRawTransaction: ok with odd length hex",
 		handler: handleDecodeRawTransaction,
 		cmd: &types.DecodeRawTransactionCmd{
-			HexTx: "1000000010d33d3840e9074183dc9a8d82a5031075a98135bfe182840ddaf575aa" +
-				"2032fe00000000000feffffff0100e1f5050000000000000017a914f59833f104" +
-				"faa3c7fd0c7dc1e3967fe77a9c152387010000000100000001010000000000000" +
-				"000000000ffffffff00",
+			// V13 wire format: CoinType before Value, SKAValueInLen in witness
+			// Note: handler prepends '0' to odd-length hex (217->218 chars)
+			HexTx: "1000000010d33d3840e9074183dc9a8d82a5031075a98135bfe182840ddaf575a" +
+				"a2032fe00000000000feffffff010000e1f50500000000000017a914f59833f104" +
+				"faa3c7fd0c7dc1e3967fe77a9c15238701000000010000000101000000000000" +
+				"000000000000ffffffff00",
 		},
 		result: types.TxRawDecodeResult{
-			Txid:     "aa062122e592a84c4a365bb40b93a16088c1e43b2af2ab96d7c7ff9433ba5857",
+			// Txid for V13 wire format
+			Txid:     "52dfef484cda2041b4f28898e2d23f6ab17d2c9cdcaffb6a41b1154812003133",
 			Version:  1,
 			Locktime: 1,
 			Expiry:   1,
@@ -4007,16 +4029,17 @@ func TestHandleGetBlock(t *testing.T) {
 			ChainWork:     fmt.Sprintf("%064x", chainWork),
 			ExtraData:     hex.EncodeToString(blkHeader.ExtraData[:]),
 			NextHash:      nextHash.String(),
+			// Updated tx hashes for V13 wire format (CoinType byte before Value)
 			Tx: []string{
-				"961fe6e83e734e2f1706b283f40be0c2527d013cf14970b0a2811eab45ccbfef",
-				"f0b30c9fa4d6101a82c35613cc9b4dc7d8455e9cb934e8c4c9b74deb8d09dde5",
+				"512b24f7f007a00648c96fb89dac01c2203524d7d06bd3344173bb055eb780c4",
+				"9c02d825403efb71d5120ac825406226b77e3e00e645d305761d1e27c35bfb83",
 			},
 			STx: []string{
-				"6087de7341390f1a76a4a36ca47f95ee875f2975e0442da530b98ff7db70059b",
-				"9924b2f377d678c829c14031eb7a17babed97a06d7c5d2fb0a735a75cf90d042",
-				"8df78e03fe542c29f1dcc4daa3b8e03f08421961258e9ca17affd8f19e534b3d",
-				"c2a3f890a8dfe55b41902f90d504f4133969b61ded36f45aaeae1fe17c6fc789",
-				"1a240eb168a0e76dce115ccb1efa0c2ed2be48c7e06e627ae813442d776322a2",
+				"f5a6bcca1bb9b3cb5eb4fb4e4b96ed6dbdcc74f94adafdcf0bd28387f91fff25",
+				"1af0b59836bd149dd8c6f124649a8228fc0a31385e557570f03735dd6e281998",
+				"46543443efa1d4affde9ea6bd9e88893baf52e3e0e10c9e2c71415d7e5ff154e",
+				"87b119c22c6d78987b1da9ace3aad59de49665175af39c4f25a3b12fb347e6b6",
+				"3f670fbda7574e5c203f47990d932496f2c329e0b6c9e07120ba3906c29135de",
 			},
 		},
 	}, {
@@ -4579,7 +4602,7 @@ func TestHandleGetInfo(t *testing.T) {
 		result: &types.InfoChainResult{
 			Version: int32(1000000*version.Major + 10000*version.Minor +
 				100*version.Patch),
-			ProtocolVersion: int32(wire.DualCoinVersion),
+			ProtocolVersion: int32(wire.SKABigIntVersion),
 			Blocks:          int64(block432100.Header.Height),
 			TimeOffset:      int64(0),
 			Connections:     int32(4),
@@ -4619,9 +4642,10 @@ func TestHandleGetMempoolInfo(t *testing.T) {
 			return mp
 		}(),
 		cmd: &types.GetMempoolInfoCmd{},
+		// V13 wire format adds SKAValueInLen byte per input: 633 + 3 = 636
 		result: &types.GetMempoolInfoResult{
 			Size:  2,
-			Bytes: 633,
+			Bytes: 636,
 		},
 	}})
 }
@@ -4764,7 +4788,7 @@ func TestHandleGetNetworkInfo(t *testing.T) {
 				100*version.Patch),
 			SubVersion: fmt.Sprintf("%d.%d.%d", version.Major, version.Minor,
 				version.Patch),
-			ProtocolVersion: int32(wire.DualCoinVersion),
+			ProtocolVersion: int32(wire.SKABigIntVersion),
 			TimeOffset:      int64(0),
 			Connections:     int32(4),
 			Networks: []types.NetworksResult{{
@@ -6608,32 +6632,33 @@ func TestHandleTxFeeInfo(t *testing.T) {
 	beforeStart := uint32(5)
 	end := uint32(11)
 	heightRange := []chainhash.Hash{block432100.BlockHash()}
+	// V13 wire format changes transaction sizes, affecting fee rate calculations
 	feeInfoBlocks := []types.FeeInfoBlock{
 		{
 			Height: 432100,
 			Number: 1,
-			Min:    0.00010022,
-			Max:    0.00010022,
-			Mean:   0.00010022,
-			Median: 0.00010022,
+			Min:    9.978e-05,
+			Max:    9.978e-05,
+			Mean:   9.978e-05,
+			Median: 9.978e-05,
 			StdDev: 0,
 		},
 	}
 	feeInfoRange := types.FeeInfoRange{
 		Number: 1,
-		Min:    0.00010022,
-		Max:    0.00010022,
-		Mean:   0.00010022,
-		Median: 0.00010022,
+		Min:    9.978e-05,
+		Max:    9.978e-05,
+		Mean:   9.978e-05,
+		Median: 9.978e-05,
 		StdDev: 0,
 	}
 
 	feeInfoMempool := types.FeeInfoMempool{
 		Number: 1,
-		Min:    0.00660792,
-		Max:    0.00660792,
-		Mean:   0.00660792,
-		Median: 0.00660792,
+		Min:    0.00657894,
+		Max:    0.00657894,
+		Mean:   0.00657894,
+		Median: 0.00657894,
 		StdDev: 0,
 	}
 
@@ -6757,33 +6782,34 @@ func TestHandleTicketFeeInfo(t *testing.T) {
 	windows := uint32(1)
 	twoWindows := uint32(2)
 	heightRange := []chainhash.Hash{block432100.BlockHash()}
+	// V13 wire format changes transaction sizes, affecting fee rate calculations
 	firstFeeInfoWindowsEntry := types.FeeInfoWindow{
 		StartHeight: 432000,
 		EndHeight:   432101,
 		Number:      1,
-		Min:         0.00009933,
-		Max:         0.00009933,
-		Mean:        0.00009933,
-		Median:      0.00009933,
+		Min:         9.9e-05,
+		Max:         9.9e-05,
+		Mean:        9.9e-05,
+		Median:      9.9e-05,
 		StdDev:      0,
 	}
 	secondFeeInfoWindowEntry := types.FeeInfoWindow{
 		StartHeight: 431856,
 		EndHeight:   432000,
 		Number:      1,
-		Min:         0.00009933,
-		Max:         0.00009933,
-		Mean:        0.00009933,
-		Median:      0.00009933,
+		Min:         9.9e-05,
+		Max:         9.9e-05,
+		Mean:        9.9e-05,
+		Median:      9.9e-05,
 		StdDev:      0,
 	}
 	feeInfoBlocksEntry := types.FeeInfoBlock{
 		Height: 432100,
 		Number: 1,
-		Min:    0.00009933,
-		Max:    0.00009933,
-		Mean:   0.00009933,
-		Median: 0.00009933,
+		Min:    9.9e-05,
+		Max:    9.9e-05,
+		Mean:   9.9e-05,
+		Median: 9.9e-05,
 		StdDev: 0,
 	}
 
@@ -7530,30 +7556,30 @@ func TestHandleGetRawTransaction(t *testing.T) {
 
 	nonVerboseTx := 0
 	verboseTx := 1
-	txid := "b1a172e05df393fb5e8dd812ccdef517367f0da7abb017ae7e7adc4853b785a2"
-	// Transaction hex with CoinType=0 bytes after each output value (new wire format)
+	txid := "46586394fa86fd1b46898484e0c7d294fbea2ebedd7bd68e97bc9268d6237f97"
+	// Transaction hex with V13 wire format (CoinType:1 + Value:8 + Version:2 + PkScript in outputs, SKAValueInLen in witness)
 	nonVerboseResult := "0100000002b761292042421b09196a2a9cdf56001a95df8c" +
 		"508dacf1170bba8b0c813fc8210300000001ffffffffdca0b996c9078ed14749" +
 		"774aba78d6e1df78e29486deb59d1894ed16a53b74080200000000ffffffff03" +
-		"53170b00000000000000001976a914762432e9619f5ddaf122ac663684152ffe9e" +
-		"b0ec88acf747f15b030000000000001976a914762432e9619f5ddaf122ac663684" +
-		"152ffe9eb0ec88acba865695010000000000001976a914bc3c059489f447afbf54" +
-		"2ff33432adb9ded7f8e988ac000000000000000002772383e902000000e19606" +
-		"00010000006b483045022100ba5b20f9148273717deba544348f0595750e12cb" +
-		"57d7a818914c66453c9dfb930220486feb328c8f171cce5cfbf88382114282f9" +
-		"041ba53209a12ad48ac86ceb8eb2012102b9ff45cb72132bdf41cf97e96afa90" +
-		"102a4c96ef11fafe43e01983050880aab953d4cf0702000000d3970600020000" +
-		"006b483045022100b29ff29f99ae5b8e3fad72efe6dd13968b7d1c6b3fe2e0fb" +
-		"7eb7656cf7de75f202200888c36da42a0cc948770e3be29b0c75465096bc47cb" +
-		"ac27f7c19be7b33287760121039e58379edbbc239e965d7715a9834f6870d9e5" +
-		"e6bf7ebae8d12a30f7282ea5a5"
+		"0053170b000000000000001976a914762432e9619f5ddaf122ac663684152ffe9e" +
+		"b0ec88ac00f747f15b0300000000001976a914762432e9619f5ddaf122ac663684" +
+		"152ffe9eb0ec88ac00ba8656950100000000001976a914bc3c059489f447afbf54" +
+		"2ff33432adb9ded7f8e988ac000000000000000002772383e90200000000e196" +
+		"0600010000006b483045022100ba5b20f9148273717deba544348f0595750e12" +
+		"cb57d7a818914c66453c9dfb930220486feb328c8f171cce5cfbf88382114282" +
+		"f9041ba53209a12ad48ac86ceb8eb2012102b9ff45cb72132bdf41cf97e96afa" +
+		"90102a4c96ef11fafe43e01983050880aab953d4cf070200000000d397060002" +
+		"0000006b483045022100b29ff29f99ae5b8e3fad72efe6dd13968b7d1c6b3fe2" +
+		"e0fb7eb7656cf7de75f202200888c36da42a0cc948770e3be29b0c75465096bc" +
+		"47cbac27f7c19be7b33287760121039e58379edbbc239e965d7715a9834f6870" +
+		"d9e5e6bf7ebae8d12a30f7282ea5a5"
 
 	// Same format now used for all transactions (mempool and indexed)
 	nonVerboseMempoolResult := nonVerboseResult
 
 	verboseResult := types.TxRawResult{
 		Hex:      nonVerboseResult,
-		Txid:     "b1a172e05df393fb5e8dd812ccdef517367f0da7abb017ae7e7adc4853b785a2",
+		Txid:     "46586394fa86fd1b46898484e0c7d294fbea2ebedd7bd68e97bc9268d6237f97",
 		Version:  1,
 		LockTime: 0,
 		Expiry:   0,
@@ -7653,7 +7679,7 @@ func TestHandleGetRawTransaction(t *testing.T) {
 
 	verboseMempoolResult := types.TxRawResult{
 		Hex:      nonVerboseMempoolResult,
-		Txid:     "b1a172e05df393fb5e8dd812ccdef517367f0da7abb017ae7e7adc4853b785a2",
+		Txid:     "46586394fa86fd1b46898484e0c7d294fbea2ebedd7bd68e97bc9268d6237f97",
 		Version:  1,
 		LockTime: 0,
 		Expiry:   0,
@@ -7764,21 +7790,11 @@ func TestHandleGetRawTransaction(t *testing.T) {
 	}
 
 	var tx wire.MsgTx
-	// Try legacy protocol version first for old test data
-	err := tx.BtcDecode(bytes.NewReader(hexToBytes(tx0TestTx.hex)), wire.CFilterV2Version)
+	// Decode with V13 protocol version (CoinType first in TxOut)
+	err := tx.BtcDecode(bytes.NewReader(hexToBytes(tx0TestTx.hex)), wire.ProtocolVersion)
 	if err != nil {
-		// Try current protocol version
-		err = tx.BtcDecode(bytes.NewReader(hexToBytes(tx0TestTx.hex)), wire.ProtocolVersion)
-		if err != nil {
-			t.Fatalf("unable to create tx from bytes: %v", err)
-		}
-	} else {
-		// Legacy test data - need to add CoinType field
-		for i := range tx.TxOut {
-			tx.TxOut[i].CoinType = cointype.CoinTypeVAR
-		}
+		t.Fatalf("unable to create tx from bytes: %v", err)
 	}
-	// No need to manually set CoinType as it's already in the serialized data
 
 	txPool := func() *testTxMempooler {
 		mp := defaultMockTxMempooler()

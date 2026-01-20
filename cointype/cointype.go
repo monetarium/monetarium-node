@@ -38,19 +38,9 @@ const (
 	MaxVARAmount = Amount(MaxVARAtoms)
 )
 
-// Coin-specific constants for SKA (Skarb)
-const (
-	// AtomsPerSKA is the number of atoms in one SKA coin.
-	// Uses same precision as VAR for consistency.
-	AtomsPerSKA = 1e8
-
-	// MaxSKAAtoms is the maximum number of SKA atoms that can exist.
-	// Set to 10 million SKA total supply per coin type.
-	MaxSKAAtoms = 10e6 * AtomsPerSKA
-
-	// MaxSKAAmount is the maximum SKA amount as an Amount type.
-	MaxSKAAmount = Amount(MaxSKAAtoms)
-)
+// NOTE: SKA coin amounts use big.Int via the SKAAmount type.
+// MaxSupply and AtomsPerCoin for each SKA type are configured in SKACoinConfig.
+// See AtomsPerSKACoin in ska_amount.go for the default (1e18).
 
 // Amount represents a coin amount in atoms.
 type Amount int64
@@ -84,40 +74,41 @@ func (ct CoinType) String() string {
 	}
 }
 
-// AtomsPerCoin returns the number of atoms per coin for the given coin type.
+// AtomsPerCoin returns the number of atoms per coin for VAR.
+// For SKA coins, use AtomsPerSKACoin (big.Int) from ska_amount.go,
+// or get AtomsPerCoin from the SKACoinConfig for per-coin-type configuration.
 func (ct CoinType) AtomsPerCoin() int64 {
-	switch {
-	case ct == CoinTypeVAR:
+	if ct == CoinTypeVAR {
 		return AtomsPerVAR
-	case ct >= 1 && ct <= CoinTypeMax:
-		return AtomsPerSKA // All SKA variants use same precision
-	default:
-		return 0
 	}
+	// SKA uses big.Int - this method only works for VAR
+	return 0
 }
 
-// MaxAtoms returns the maximum number of atoms for the given coin type.
+// UsesBigInt returns true if this coin type requires big.Int for amounts.
+// SKA coins use big.Int due to their 18 decimal precision and large supply.
+func (ct CoinType) UsesBigInt() bool {
+	return ct.IsSKA()
+}
+
+// MaxAtoms returns the maximum number of atoms for VAR.
+// For SKA coins, get MaxSupply from the SKACoinConfig (it's a *big.Int).
 func (ct CoinType) MaxAtoms() int64 {
-	switch {
-	case ct == CoinTypeVAR:
+	if ct == CoinTypeVAR {
 		return MaxVARAtoms
-	case ct >= 1 && ct <= CoinTypeMax:
-		return MaxSKAAtoms // All SKA variants have same max supply
-	default:
-		return 0
 	}
+	// SKA max supply is per-config and uses big.Int
+	return 0
 }
 
-// MaxAmount returns the maximum amount for the given coin type.
+// MaxAmount returns the maximum amount for VAR.
+// For SKA coins, get MaxSupply from the SKACoinConfig (it's a *big.Int).
 func (ct CoinType) MaxAmount() Amount {
-	switch {
-	case ct == CoinTypeVAR:
+	if ct == CoinTypeVAR {
 		return MaxVARAmount
-	case ct >= 1 && ct <= CoinTypeMax:
-		return MaxSKAAmount // All SKA variants have same max supply
-	default:
-		return 0
 	}
+	// SKA max supply is per-config and uses big.Int
+	return 0
 }
 
 // ParseCoinType parses a string representation of a coin type.

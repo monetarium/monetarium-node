@@ -8,6 +8,7 @@ package mempool
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1642,6 +1643,15 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 
 			updateFraudProof = true
 		}
+
+		// Also check SKAValueIn for SKA UTXOs - if the UTXO has an SKA amount
+		// but the transaction input doesn't have matching SKAValueIn, update it.
+		skaAmount := entry.SKAAmount()
+		if skaAmount != nil {
+			if txIn.SKAValueIn == nil || txIn.SKAValueIn.Cmp(skaAmount) != 0 {
+				updateFraudProof = true
+			}
+		}
 	}
 
 	if len(missingParents) > 0 {
@@ -1677,6 +1687,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 
 			// Set the fraud proof data on the transaction input.
 			txIn.ValueIn = entry.Amount()
+			txIn.SKAValueIn = entry.SKAAmount() // For SKA UTXOs
 			txIn.BlockHeight = uint32(entry.BlockHeight())
 			txIn.BlockIndex = entry.BlockIndex()
 		}
@@ -2655,7 +2666,9 @@ func (mp *TxPool) computeFeesByType(utxoView *blockchain.UtxoViewpoint,
 	}
 
 	// Sum inputs by coin type
-	var inputSums = make(map[cointype.CoinType]int64)
+	// Use big.Int for SKA to handle large amounts
+	var varInputSums = make(map[cointype.CoinType]int64)
+	var skaInputSums = make(map[cointype.CoinType]*big.Int)
 	for _, txIn := range msgTx.TxIn {
 		entry := utxoView.LookupEntry(txIn.PreviousOutPoint)
 		if entry == nil || entry.IsSpent() {
@@ -2664,24 +2677,66 @@ func (mp *TxPool) computeFeesByType(utxoView *blockchain.UtxoViewpoint,
 		}
 
 		coinType := entry.CoinType()
-		inputSums[coinType] += entry.Amount()
+		if coinType.IsSKA() {
+			if skaInputSums[coinType] == nil {
+				skaInputSums[coinType] = new(big.Int)
+			}
+			if skaAmount := entry.SKAAmount(); skaAmount != nil {
+				skaInputSums[coinType].Add(skaInputSums[coinType], skaAmount)
+			}
+		} else {
+			varInputSums[coinType] += entry.Amount()
+		}
 	}
 
 	// Sum outputs by coin type
-	var outputSums = make(map[cointype.CoinType]int64)
+	var varOutputSums = make(map[cointype.CoinType]int64)
+	var skaOutputSums = make(map[cointype.CoinType]*big.Int)
 	for _, txOut := range msgTx.TxOut {
-		outputSums[txOut.CoinType] += txOut.Value
+		coinType := txOut.CoinType
+		if coinType.IsSKA() {
+			if skaOutputSums[coinType] == nil {
+				skaOutputSums[coinType] = new(big.Int)
+			}
+			// SKA outputs are required to use SKAValue (validated by CheckTransactionSanity)
+			if txOut.SKAValue != nil {
+				skaOutputSums[coinType].Add(skaOutputSums[coinType], txOut.SKAValue)
+			}
+		} else {
+			varOutputSums[coinType] += txOut.Value
+		}
 	}
 
-	// Calculate fees as inputs - outputs for each coin type
-	for coinType, inputSum := range inputSums {
-		outputSum := outputSums[coinType]
+	// Calculate fees for VAR coin types
+	for coinType, inputSum := range varInputSums {
+		outputSum := varOutputSums[coinType]
 		fee := inputSum - outputSum
 		if fee < 0 {
 			return nil, fmt.Errorf("negative fee for coin type %v: inputs=%d, outputs=%d",
 				coinType, inputSum, outputSum)
 		}
 		fees[coinType] = fee
+	}
+
+	// Calculate fees for SKA coin types
+	for coinType, inputSum := range skaInputSums {
+		outputSum := skaOutputSums[coinType]
+		if outputSum == nil {
+			outputSum = new(big.Int)
+		}
+		fee := new(big.Int).Sub(inputSum, outputSum)
+		if fee.Sign() < 0 {
+			return nil, fmt.Errorf("negative fee for SKA coin type %v: inputs=%s, outputs=%s",
+				coinType, inputSum.String(), outputSum.String())
+		}
+		// Cap fee to MaxInt64 if it exceeds (consistent with validation)
+		if fee.IsInt64() {
+			fees[coinType] = fee.Int64()
+		} else {
+			fees[coinType] = 1<<63 - 1 // math.MaxInt64
+			log.Warnf("SKA fee for coin type %v exceeds int64, capping (actual: %s)",
+				coinType, fee.String())
+		}
 	}
 
 	return fees, nil

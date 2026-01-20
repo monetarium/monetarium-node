@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"math/big"
 	"testing"
 	"time"
 
@@ -64,10 +65,10 @@ func TestCreateAuthorizedSKAEmissionTransactionValidation(t *testing.T) {
 	}
 
 	// Helper function to create authorization
-	createAuth := func(addresses []string, amounts []int64) *chaincfg.SKAEmissionAuth {
-		totalAmount := int64(0)
+	createAuth := func(addresses []string, amounts []*big.Int) *chaincfg.SKAEmissionAuth {
+		totalAmount := new(big.Int)
 		for _, amount := range amounts {
-			totalAmount += amount
+			totalAmount.Add(totalAmount, amount)
 		}
 		return &chaincfg.SKAEmissionAuth{
 			EmissionKey: emissionKey,
@@ -82,35 +83,35 @@ func TestCreateAuthorizedSKAEmissionTransactionValidation(t *testing.T) {
 	tests := []struct {
 		name        string
 		addresses   []string
-		amounts     []int64
+		amounts     []*big.Int
 		expectError bool
 		errorMsg    string
 	}{
 		{
 			name:        "Mismatched addresses and amounts",
 			addresses:   []string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", "SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"},
-			amounts:     []int64{50000000000000}, // Only one amount
+			amounts:     []*big.Int{big.NewInt(50000000000000)}, // Only one amount
 			expectError: true,
 			errorMsg:    "length mismatch",
 		},
 		{
 			name:        "No addresses",
 			addresses:   []string{},
-			amounts:     []int64{},
+			amounts:     []*big.Int{},
 			expectError: true,
 			errorMsg:    "no emission addresses",
 		},
 		{
 			name:        "Invalid amount (zero)",
 			addresses:   []string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", "SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"},
-			amounts:     []int64{0, 100000000000000},
+			amounts:     []*big.Int{big.NewInt(0), big.NewInt(100000000000000)},
 			expectError: true,
 			errorMsg:    "invalid emission amount",
 		},
 		{
 			name:        "Wrong total amount",
 			addresses:   []string{"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"},
-			amounts:     []int64{50000000000}, // Wrong amount (authorization will have different amount)
+			amounts:     []*big.Int{big.NewInt(50000000000)}, // Wrong amount (authorization will have different amount)
 			expectError: true,
 			errorMsg:    "does not match authorization",
 		},
@@ -121,7 +122,7 @@ func TestCreateAuthorizedSKAEmissionTransactionValidation(t *testing.T) {
 			auth := createAuth(test.addresses, test.amounts)
 			// Special case: create authorization mismatch for "Wrong total amount" test
 			if test.name == "Wrong total amount" {
-				auth.Amount = 99999999999 // Different from the amounts provided
+				auth.Amount = big.NewInt(99999999999) // Different from the amounts provided
 			}
 			_, err := CreateAuthorizedSKAEmissionTransaction(auth, test.addresses, test.amounts, params)
 
@@ -312,8 +313,6 @@ func TestValidateAuthorizedSKAEmissionTransactionBasic(t *testing.T) {
 	testScript = append(testScript, bytes.Repeat([]byte{0x01}, 20)...) // 20-byte hash
 	testScript = append(testScript, 0x88, 0xac)                        // OP_EQUALVERIFY OP_CHECKSIG
 
-	amounts := []int64{emissionAmount}
-
 	// Calculate Expiry (emission window end)
 	emissionWindow := int64(params.SKACoins[1].EmissionWindow)
 	expiry := uint32(int64(emissionHeight) + emissionWindow)
@@ -333,8 +332,9 @@ func TestValidateAuthorizedSKAEmissionTransactionBasic(t *testing.T) {
 
 	// Add output with test script
 	validTx.TxOut = append(validTx.TxOut, &wire.TxOut{
-		Value:    amounts[0],
-		CoinType: 1, // Use coin type 1 which has authorization
+		Value:    0,              // Not used for SKA
+		SKAValue: emissionAmount, // SKA uses big.Int for amounts
+		CoinType: 1,              // Use coin type 1 which has authorization
 		Version:  0,
 		PkScript: testScript,
 	})

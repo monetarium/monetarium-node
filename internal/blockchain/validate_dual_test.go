@@ -5,6 +5,7 @@
 package blockchain
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/chaincfg"
@@ -15,11 +16,15 @@ import (
 // TestChainParamsSKAConfiguration tests that SKA parameters are properly
 // configured in different network configurations using the new per-coin system.
 func TestChainParamsSKAConfiguration(t *testing.T) {
+	// SKA emission amounts are now big.Int - use string for comparison
+	// Both simnet and mainnet use 900T * 1e18 for realistic testing
+	expectedAmount, _ := new(big.Int).SetString("900000000000000000000000000000000", 10) // 900T * 1e18
+
 	tests := []struct {
 		name     string
 		params   *chaincfg.Params
 		expected struct {
-			ska1EmissionAmount int64
+			ska1EmissionAmount *big.Int
 			ska1EmissionHeight int32
 			ska1Active         bool
 			minRelayFee        int64
@@ -29,30 +34,30 @@ func TestChainParamsSKAConfiguration(t *testing.T) {
 			name:   "SimNet SKA-1 parameters",
 			params: chaincfg.SimNetParams(),
 			expected: struct {
-				ska1EmissionAmount int64
+				ska1EmissionAmount *big.Int
 				ska1EmissionHeight int32
 				ska1Active         bool
 				minRelayFee        int64
 			}{
-				ska1EmissionAmount: 1e6 * 1e8, // 1 million SKA-1
-				ska1EmissionHeight: 150,       // After stake validation to preserve SKA fees
-				ska1Active:         true,      // Active in simnet
-				minRelayFee:        1e3,       // 0.00001 SKA
+				ska1EmissionAmount: expectedAmount,
+				ska1EmissionHeight: 150,  // Simnet emission height (after stake validation at 144)
+				ska1Active:         true, // Active in simnet
+				minRelayFee:        100,  // 100 atoms/KB for safe staker fee distribution
 			},
 		},
 		{
 			name:   "MainNet SKA-1 parameters",
 			params: chaincfg.MainNetParams(),
 			expected: struct {
-				ska1EmissionAmount int64
+				ska1EmissionAmount *big.Int
 				ska1EmissionHeight int32
 				ska1Active         bool
 				minRelayFee        int64
 			}{
-				ska1EmissionAmount: 10e6 * 1e8, // 10 million SKA-1 total
-				ska1EmissionHeight: 4096,       // Aligned with StakeValidationHeight
-				ska1Active:         true,       // Active on mainnet
-				minRelayFee:        50,         // 50 atoms/KB for minimal fees
+				ska1EmissionAmount: expectedAmount,
+				ska1EmissionHeight: 4096, // Aligned with StakeValidationHeight
+				ska1Active:         true, // Active on mainnet
+				minRelayFee:        100,  // 100 atoms/KB for safe staker fee distribution
 			},
 		},
 	}
@@ -66,15 +71,17 @@ func TestChainParamsSKAConfiguration(t *testing.T) {
 				return
 			}
 
-			// Calculate total emission amount for SKA-1
-			var totalEmissionAmount int64
+			// Calculate total emission amount for SKA-1 using big.Int
+			totalEmissionAmount := new(big.Int)
 			for _, amount := range ska1Config.EmissionAmounts {
-				totalEmissionAmount += amount
+				if amount != nil {
+					totalEmissionAmount.Add(totalEmissionAmount, amount)
+				}
 			}
 
-			if totalEmissionAmount != test.expected.ska1EmissionAmount {
-				t.Errorf("SKA-1 emission amount: expected %d, got %d",
-					test.expected.ska1EmissionAmount, totalEmissionAmount)
+			if totalEmissionAmount.Cmp(test.expected.ska1EmissionAmount) != 0 {
+				t.Errorf("SKA-1 emission amount: expected %s, got %s",
+					test.expected.ska1EmissionAmount.String(), totalEmissionAmount.String())
 			}
 
 			if ska1Config.EmissionHeight != test.expected.ska1EmissionHeight {

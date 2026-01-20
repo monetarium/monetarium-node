@@ -157,7 +157,7 @@ func TestSKAFeeCalculation(t *testing.T) {
 			name:           "SKA transaction fee",
 			serializedSize: 250, // 250 bytes
 			coinType:       cointype.CoinType(1),
-			expectMinFee:   250, // SKA uses 1e3 fee rate, so (250 * 1000) / 1000 = 250
+			expectMinFee:   25, // SKA uses 100 atoms/KB, so (250 * 100) / 1000 = 25
 		},
 		{
 			name:           "Large transaction fee",

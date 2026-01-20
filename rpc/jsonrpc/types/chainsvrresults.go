@@ -222,7 +222,7 @@ type GetSKAInfoResult struct {
 	CoinType    uint8  `json:"cointype"`
 	Name        string `json:"name"`
 	Symbol      string `json:"symbol"`
-	MaxSupply   int64  `json:"maxsupply"`
+	MaxSupply   string `json:"maxsupply"` // String to handle amounts exceeding int64
 	Active      bool   `json:"active"`
 	Description string `json:"description"`
 }
@@ -239,15 +239,15 @@ type GetEmissionStatusResult struct {
 	CurrentNonce      uint64 `json:"currentnonce"`      // Last used nonce for replay protection
 	NextNonce         uint64 `json:"nextnonce"`         // Required nonce for next emission
 	AlreadyEmitted    bool   `json:"alreadyemitted"`    // Has this coin type been emitted
-	MaxSupply         int64  `json:"maxsupply"`         // Maximum supply for this coin type in atoms
-	CirculatingSupply int64  `json:"circulatingsupply"` // Current circulating supply in atoms (max - burned)
+	MaxSupply         string `json:"maxsupply"`         // Maximum supply in atoms (string for big.Int)
+	CirculatingSupply string `json:"circulatingsupply"` // Current circulating supply in atoms (string for big.Int)
 }
 
 // GetBurnedCoinsStat models burn statistics for a single coin type.
 type GetBurnedCoinsStat struct {
-	CoinType    uint8   `json:"cointype"`    // Coin type (1-255 for SKA)
-	Name        string  `json:"name"`        // Coin name (e.g., "SKA-1")
-	TotalBurned float64 `json:"totalburned"` // Total amount burned in coins
+	CoinType    uint8  `json:"cointype"`    // Coin type (1-255 for SKA)
+	Name        string `json:"name"`        // Coin name (e.g., "SKA-1")
+	TotalBurned string `json:"totalburned"` // Total amount burned in coins (string for big.Int precision)
 }
 
 // GetBurnedCoinsResult models the data returned from the getburnedcoins command.
@@ -686,7 +686,8 @@ type Vin struct {
 	Vout          uint32     `json:"vout"`
 	Tree          int8       `json:"tree"`
 	Sequence      uint32     `json:"sequence"`
-	AmountIn      float64    `json:"amountin"`
+	AmountIn      float64    `json:"amountin,omitempty"`    // VAR only (omitted for SKA)
+	SKAAmountIn   string     `json:"skaamountin,omitempty"` // SKA only (atoms as string)
 	BlockHeight   uint32     `json:"blockheight"`
 	BlockIndex    uint32     `json:"blockindex"`
 	ScriptSig     *ScriptSig `json:"scriptSig"`
@@ -775,6 +776,32 @@ func (v *Vin) MarshalJSON() ([]byte, error) {
 		return json.Marshal(treasurySpendStruct)
 	}
 
+	// For SKA inputs, use SKAAmountIn (string) instead of AmountIn (float64)
+	// to avoid int64 overflow issues with large SKA amounts
+	if v.SKAAmountIn != "" {
+		skaTxStruct := struct {
+			Txid        string     `json:"txid"`
+			Vout        uint32     `json:"vout"`
+			Tree        int8       `json:"tree"`
+			Sequence    uint32     `json:"sequence"`
+			SKAAmountIn string     `json:"skaamountin"`
+			BlockHeight uint32     `json:"blockheight"`
+			BlockIndex  uint32     `json:"blockindex"`
+			ScriptSig   *ScriptSig `json:"scriptSig"`
+		}{
+			Txid:        v.Txid,
+			Vout:        v.Vout,
+			Tree:        v.Tree,
+			Sequence:    v.Sequence,
+			SKAAmountIn: v.SKAAmountIn,
+			BlockHeight: v.BlockHeight,
+			BlockIndex:  v.BlockIndex,
+			ScriptSig:   v.ScriptSig,
+		}
+		return json.Marshal(skaTxStruct)
+	}
+
+	// VAR inputs use AmountIn (float64)
 	txStruct := struct {
 		Txid        string     `json:"txid"`
 		Vout        uint32     `json:"vout"`
@@ -800,7 +827,8 @@ func (v *Vin) MarshalJSON() ([]byte, error) {
 // Vout models parts of the tx data.  It is defined separately since both
 // getrawtransaction and decoderawtransaction use the same structure.
 type Vout struct {
-	Value        float64            `json:"value"`
+	Value        float64            `json:"value,omitempty"`    // VAR only (omitted for SKA)
+	SKAValue     string             `json:"skavalue,omitempty"` // SKA only (atoms as string)
 	N            uint32             `json:"n"`
 	Version      uint16             `json:"version"`
 	CoinType     uint8              `json:"cointype"`

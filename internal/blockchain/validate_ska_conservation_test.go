@@ -6,6 +6,7 @@ package blockchain
 
 import (
 	"errors"
+	"math/big"
 	"strings"
 	"testing"
 
@@ -41,7 +42,8 @@ func TestSKACrossTypeSubsidizationPrevention(t *testing.T) {
 		},
 		TxOut: []*wire.TxOut{
 			{
-				Value:    50000, // Output for SKA-2 (different from input)
+				Value:    50000,             // Output for SKA-2 (different from input)
+				SKAValue: big.NewInt(50000), // SKA uses big.Int for amounts
 				CoinType: cointype.CoinType(2),
 				PkScript: []byte{0x00}, // Dummy script
 			},
@@ -54,7 +56,8 @@ func TestSKACrossTypeSubsidizationPrevention(t *testing.T) {
 
 	// Create a UTXO entry with coin type SKA-1 and value 100000
 	entry := &UtxoEntry{
-		amount:        100000,               // SKA-1 input value
+		amount:        100000,               // SKA-1 input value (legacy)
+		skaAmount:     big.NewInt(100000),   // SKA uses big.Int for amounts
 		coinType:      cointype.CoinType(1), // SKA-1 coin type
 		pkScript:      []byte{0x00},
 		blockHeight:   100,
@@ -112,7 +115,8 @@ func TestSKACrossTypeSubsidizationPrevention(t *testing.T) {
 		},
 		TxOut: []*wire.TxOut{
 			{
-				Value:    50000, // Output for SKA-1
+				Value:    50000,             // Output for SKA-1
+				SKAValue: big.NewInt(50000), // SKA uses big.Int for amounts
 				CoinType: cointype.CoinType(1),
 				PkScript: []byte{0x00},
 			},
@@ -122,7 +126,8 @@ func TestSKACrossTypeSubsidizationPrevention(t *testing.T) {
 	// Add SKA-1 UTXO for the second test
 	prevOut2 := wire.OutPoint{Hash: chainhash.Hash{2}, Index: 0}
 	entry2 := &UtxoEntry{
-		amount:        100000,               // SKA-1 input value
+		amount:        100000,               // SKA-1 input value (legacy)
+		skaAmount:     big.NewInt(100000),   // SKA uses big.Int for amounts
 		coinType:      cointype.CoinType(1), // SKA-1 coin type
 		pkScript:      []byte{0x00},
 		blockHeight:   100,

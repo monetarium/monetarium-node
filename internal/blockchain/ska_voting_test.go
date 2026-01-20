@@ -147,7 +147,8 @@ func TestSKA2EmissionTransactionValidation(t *testing.T) {
 			SignatureScript: []byte{0x01, 0x53, 0x4b, 0x41},
 		}},
 		TxOut: []*wire.TxOut{{
-			Value:    emissionAmount,
+			Value:    0,              // Not used for SKA
+			SKAValue: emissionAmount, // SKA uses big.Int for amounts
 			CoinType: 2,
 			Version:  0,
 			PkScript: testScript,
@@ -244,7 +245,8 @@ func TestSKA1EmissionWithoutVote(t *testing.T) {
 			SignatureScript: []byte{0x01, 0x53, 0x4b, 0x41},
 		}},
 		TxOut: []*wire.TxOut{{
-			Value:    emissionAmount,
+			Value:    0,              // Not used for SKA
+			SKAValue: emissionAmount, // SKA uses big.Int for amounts
 			CoinType: 1,
 			Version:  0,
 			PkScript: testScript,

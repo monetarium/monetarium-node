@@ -151,8 +151,11 @@ func (msg *MsgBlock) BtcDecode(r io.Reader, pver uint32) error {
 // all.  As of the time this comment was written, the encoded block is the same
 // in both instances, but there is a distinct difference and separating the two
 // allows the API to be flexible enough to deal with changes.
+//
+// This function uses the current protocol version (v13 SKABigIntVersion) which
+// puts CoinType first in TxOut serialization to support variable-length SKA amounts.
+// This is consistent with Serialize() which also uses ProtocolVersion.
 func (msg *MsgBlock) Deserialize(r io.Reader) error {
-	// Use current protocol version which includes dual-coin support.
 	return msg.BtcDecode(r, ProtocolVersion)
 }
 

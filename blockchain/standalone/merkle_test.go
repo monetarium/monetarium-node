@@ -14,17 +14,26 @@ import (
 )
 
 // parseTxForMerkle attempts to parse a transaction using protocol version fallback.
-// It tries legacy version first (CFilterV2Version) then current version (ProtocolVersion).
+// The test data is in legacy Decred format (no CoinType byte in TxOut). When parsed,
+// CoinType defaults to VAR (0). TxHash() then serializes with current ProtocolVersion
+// (v13) which includes CoinType, so the merkle roots reflect this computation.
 func parseTxForMerkle(txBytes []byte) (*wire.MsgTx, error) {
 	var tx wire.MsgTx
 
-	// Try legacy protocol version first for old transaction data
+	// Try legacy format first (no CoinType byte) - this is the format the test data
+	// was originally serialized with (original Decred format)
 	err := tx.BtcDecode(bytes.NewReader(txBytes), wire.CFilterV2Version)
 	if err != nil {
-		// Try current protocol version
-		err = tx.BtcDecode(bytes.NewReader(txBytes), wire.ProtocolVersion)
+		// Try DualCoinVersion (v12) which has CoinType after Value
+		tx = wire.MsgTx{}
+		err = tx.BtcDecode(bytes.NewReader(txBytes), wire.DualCoinVersion)
 		if err != nil {
-			return nil, err
+			// Try current protocol version as final fallback
+			tx = wire.MsgTx{}
+			err = tx.BtcDecode(bytes.NewReader(txBytes), wire.ProtocolVersion)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -171,7 +180,8 @@ func TestCalcTxTreeMerkleRoot(t *testing.T) {
 			"2155302177398d2296988ac000000000000000001d8bc2882000000000000000" +
 			"0ffffffff0800002f646372642f",
 		},
-		want: "5f19a6de57c3ebe8760f6931e8ce06b1ed911d1460aca5f9c85feddfbff15cb7",
+		// Updated for V13 wire format (CoinType first in TxOut)
+		want: "2ebd1929b59593c3ff202e744859dbfb94cbdb4904110bb834d84013140db14f",
 	}, {
 		name: "two transactions (mainnet block 1347)",
 		txns: []string{
@@ -193,7 +203,8 @@ func TestCalcTxTreeMerkleRoot(t *testing.T) {
 				"a31f45a12c01210353284744f576413877e35c1cbe90c84c129fe1c60650" +
 				"1181927e2e1649b3f3c4",
 		},
-		want: "41cca20b000101787c4f47a068fbebc3764c5886b734178e635a7b0665bf3afb",
+		// Updated for V13 wire format (CoinType first in TxOut)
+		want: "8aca5f2df392787b0374ff798332407fe4b49042e796752b4a23310042555c82",
 	}}
 
 	for _, test := range tests {
@@ -265,7 +276,8 @@ func TestCalcCombinedTxTreeMerkleRoot(t *testing.T) {
 			"1fcab70573aace5be1926ed6650121034c9b704a36fab21e12cbb508691c3159" +
 			"3f3fce4f3dd11fb0e8fac44c25c8600b",
 		},
-		want: "6846315bc5e53decca8b298f76eb04b79760db7245dd9843b173f2ec2857d9d7",
+		// Updated for V13 wire format (CoinType first in TxOut)
+		want: "cdbd243828750c20785a69cc57b291ad1682e60def4ac6734afe0a42a86f018b",
 	}, {
 		name: "two regular txns, two stake txns (from simnet testing)",
 		regularTxns: []string{
@@ -309,7 +321,8 @@ func TestCalcCombinedTxTreeMerkleRoot(t *testing.T) {
 				"46b669479da404b0f4d1323a746c123dcffb09012102d871b270e4764359" +
 				"7ff904da3d3b0c9a370fec94930d34002feaa3eb3ffc02dd",
 		},
-		want: "a081ae656d91baa0d785684a1ed1d430b19031c5980b8123ebdd3ee7c99b485f",
+		// Updated for V13 wire format (CoinType first in TxOut)
+		want: "18924d0fce28d5b69eca0ab46d6d9fe1427bec2807657cf90b8eb66ba351f6d0",
 	}}
 
 	for _, test := range tests {

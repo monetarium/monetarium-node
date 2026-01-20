@@ -10,31 +10,35 @@ import (
 )
 
 // GetTransactionCoinType determines the primary coin type of a transaction
-// based on the total value of outputs for each coin type.
+// based on the coin type of outputs. Since transactions cannot mix coin types
+// (all outputs must have the same coin type), we return the coin type of the
+// first non-null-data output.
 func GetTransactionCoinType(tx *dcrutil.Tx) cointype.CoinType {
 	msgTx := tx.MsgTx()
 	if len(msgTx.TxOut) == 0 {
 		return cointype.CoinTypeVAR // Default to VAR for transactions with no outputs
 	}
 
-	// Sum output values by coin type
-	coinTypeValues := make(map[cointype.CoinType]uint64)
+	// Find the first output with a value (skip OP_RETURN/null data outputs)
+	// All outputs in a transaction must have the same coin type, so we just
+	// need to find one with actual value to determine the type.
 	for _, txOut := range msgTx.TxOut {
-		coinTypeValues[txOut.CoinType] += uint64(txOut.Value)
-	}
-
-	// Find the coin type with the highest total value
-	var primaryCoinType cointype.CoinType = cointype.CoinTypeVAR
-	var maxValue uint64 = 0
-
-	for coinType, value := range coinTypeValues {
-		if value > maxValue {
-			maxValue = value
-			primaryCoinType = coinType
+		// For SKA outputs, Value=0 and SKAValue contains the actual amount
+		if txOut.CoinType.IsSKA() {
+			if txOut.SKAValue != nil && txOut.SKAValue.Sign() > 0 {
+				return txOut.CoinType
+			}
+		} else {
+			// VAR output - check Value field
+			if txOut.Value > 0 {
+				return txOut.CoinType
+			}
 		}
 	}
 
-	return primaryCoinType
+	// Fallback: return the coin type of the first output even if value is 0
+	// This handles edge cases like OP_RETURN-only transactions
+	return msgTx.TxOut[0].CoinType
 }
 
 // TransactionSizeTracker tracks transaction sizes by coin type for block space allocation.

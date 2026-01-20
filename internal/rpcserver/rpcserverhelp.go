@@ -123,7 +123,8 @@ var helpDescsEnUS = map[string]string{
 	"vin-tree":          "The tree of the transaction",
 	"vin-blockindex":    "The block idx of the origin transaction",
 	"vin-blockheight":   "The block height of the origin transaction",
-	"vin-amountin":      "The amount in",
+	"vin-amountin":      "The amount in coins (for VAR) or approximate value (for SKA)",
+	"vin-skaamountin":   "The SKA amount as a string (atoms) to preserve precision for large values",
 
 	// ScriptPubKeyResult help.
 	"scriptpubkeyresult-asm":       "Disassembly of the script",
@@ -135,10 +136,11 @@ var helpDescsEnUS = map[string]string{
 	"scriptpubkeyresult-version":   "The script version",
 
 	// Vout help.
-	"vout-value":        "The amount in VAR",
+	"vout-value":        "The amount in coins (for VAR) or approximate value (for SKA)",
+	"vout-skavalue":     "The SKA amount as a string (atoms) to preserve precision for large values",
 	"vout-n":            "The index of this transaction output",
 	"vout-version":      "The version of the public key script",
-	"vout-cointype":     "The coin type (0=VAR, 1=SKA)",
+	"vout-cointype":     "The coin type (0=VAR, 1-255=SKA)",
 	"vout-scriptPubKey": "The public key script used to pay coins as a JSON object",
 
 	// TxRawDecodeResult help.

@@ -5,6 +5,7 @@
 package chaincfg
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/cointype"
@@ -13,11 +14,12 @@ import (
 // TestSKACoinConfig tests the SKACoinConfig structure and its methods.
 func TestSKACoinConfig(t *testing.T) {
 	// Test SKACoinConfig structure
+	expectedMaxSupply := big.NewInt(1000000 * 1e8)
 	config := &SKACoinConfig{
 		CoinType:       5,
 		Name:           "Test-SKA-5",
 		Symbol:         "SKA-5",
-		MaxSupply:      1000000 * 1e8,
+		MaxSupply:      expectedMaxSupply,
 		EmissionHeight: 12345,
 		Active:         true,
 		Description:    "Test SKA coin type",
@@ -33,8 +35,8 @@ func TestSKACoinConfig(t *testing.T) {
 	if config.Symbol != "SKA-5" {
 		t.Errorf("Expected symbol 'SKA-5', got %s", config.Symbol)
 	}
-	if config.MaxSupply != int64(1000000*1e8) {
-		t.Errorf("Expected MaxSupply %d, got %d", int64(1000000*1e8), config.MaxSupply)
+	if config.MaxSupply.Cmp(expectedMaxSupply) != 0 {
+		t.Errorf("Expected MaxSupply %s, got %s", expectedMaxSupply.String(), config.MaxSupply.String())
 	}
 	if config.EmissionHeight != 12345 {
 		t.Errorf("Expected EmissionHeight 12345, got %d", config.EmissionHeight)
@@ -180,8 +182,10 @@ func TestMainNetParamsSKAConfigs(t *testing.T) {
 	if ska1Config.Symbol != "SKA-1" {
 		t.Errorf("SKA-1: Expected symbol 'SKA-1', got %s", ska1Config.Symbol)
 	}
-	if ska1Config.MaxSupply != int64(10e6*1e8) {
-		t.Errorf("SKA-1: Expected MaxSupply %d, got %d", int64(10e6*1e8), ska1Config.MaxSupply)
+	// SKA-1 mainnet: 900 trillion coins * 1e18 atoms/coin
+	expectedSKA1MaxSupply, _ := new(big.Int).SetString("900000000000000000000000000000000", 10)
+	if ska1Config.MaxSupply == nil || ska1Config.MaxSupply.Cmp(expectedSKA1MaxSupply) != 0 {
+		t.Errorf("SKA-1: Expected MaxSupply %s, got %v", expectedSKA1MaxSupply.String(), ska1Config.MaxSupply)
 	}
 	if ska1Config.EmissionHeight != 4096 {
 		t.Errorf("SKA-1: Expected EmissionHeight 4096, got %d", ska1Config.EmissionHeight)
@@ -204,8 +208,10 @@ func TestMainNetParamsSKAConfigs(t *testing.T) {
 	if ska2Config.Symbol != "SKA-2" {
 		t.Errorf("SKA-2: Expected symbol 'SKA-2', got %s", ska2Config.Symbol)
 	}
-	if ska2Config.MaxSupply != int64(5e6*1e8) {
-		t.Errorf("SKA-2: Expected MaxSupply %d, got %d", int64(5e6*1e8), ska2Config.MaxSupply)
+	// SKA-2 mainnet: 5 million coins * 1e18 atoms/coin
+	expectedSKA2MaxSupply, _ := new(big.Int).SetString("5000000000000000000000000", 10)
+	if ska2Config.MaxSupply == nil || ska2Config.MaxSupply.Cmp(expectedSKA2MaxSupply) != 0 {
+		t.Errorf("SKA-2: Expected MaxSupply %s, got %v", expectedSKA2MaxSupply.String(), ska2Config.MaxSupply)
 	}
 	if ska2Config.EmissionHeight != 150000 {
 		t.Errorf("SKA-2: Expected EmissionHeight 150000, got %d", ska2Config.EmissionHeight)

@@ -641,17 +641,21 @@ func SimNetParams() *Params {
 		seeders: nil, // NOTE: There must NOT be any seeds.
 
 		// SKA (Skarb) dual-coin system parameters for simnet testing
-		SKAMinRelayTxFee: 1e3, // 0.00001 SKA minimum fee
+		// 100 atoms/KB ensures safe staker fee distribution (minimum ~17 atoms for 177-byte tx)
+		SKAMinRelayTxFee: 100,
 
 		// SKA coin type configurations for simnet testing
+		// NOTE: Simnet uses same 900 trillion supply as mainnet for realistic testing.
+		// All amounts use big.Int via TxOut.SKAValue for large emissions.
 		SKACoins: map[cointype.CoinType]*SKACoinConfig{
 			1: {
 				CoinType:       1,
 				Name:           "Skarb-1",
 				Symbol:         "SKA-1",
-				MaxSupply:      1e6 * 1e8, // 1 million SKA-1 for testing
-				EmissionHeight: 150,       // After stake validation (144)
-				EmissionWindow: 100,       // 100-block emission window for testing
+				MaxSupply:      mustParseBigInt("900000000000000000000000000000000"), // 900T * 1e18 atoms (900 trillion SKA coins)
+				AtomsPerCoin:   mustParseBigInt("1000000000000000000"),               // 1e18
+				EmissionHeight: 150,                                                  // After stake validation (144)
+				EmissionWindow: 100,                                                  // 100-block emission window for testing
 				Active:         true,
 				Description:    "Primary SKA coin type for simnet testing",
 				// Governance-approved emission distribution for simnet testing
@@ -659,9 +663,9 @@ func SimNetParams() *Params {
 					"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", // Full amount to treasury for testing
 					// Priv key: PsUQzmmSVH2Ry6tGp9NygLRdLAXsRGio9EV4B23sqdYHFer3j7Fhb
 				},
-				EmissionAmounts: []int64{
-					1e6 * 1e8, // 1,000,000 SKA-1 to treasury
-				},
+				EmissionAmounts: bigIntSlice(
+					"900000000000000000000000000000000", // 900T * 1e18 atoms (900 trillion SKA coins) to treasury
+				),
 				// SIMNET TEST KEY - NOT FOR PRODUCTION USE
 				EmissionKey: mustParseHexPubKeySimnet("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"),
 			},
@@ -669,18 +673,19 @@ func SimNetParams() *Params {
 				CoinType:       2,
 				Name:           "Skarb-2",
 				Symbol:         "SKA-2",
-				MaxSupply:      5e5 * 1e8, // 500k SKA-2 for testing
-				EmissionHeight: 200,       // After vote activation and test script completion
-				EmissionWindow: 100,       // 100-block emission window for testing
-				Active:         false,     // Initially inactive, activated by stakeholder vote
+				MaxSupply:      mustParseBigInt("500000000000000000"),  // 5e17 atoms (0.5 SKA for testing)
+				AtomsPerCoin:   mustParseBigInt("1000000000000000000"), // 1e18
+				EmissionHeight: 200,                                    // After vote activation and test script completion
+				EmissionWindow: 100,                                    // 100-block emission window for testing
+				Active:         false,                                  // Initially inactive, activated by stakeholder vote
 				Description:    "Secondary SKA coin type requiring stakeholder vote activation for simnet testing",
 				// Governance-approved emission distribution for simnet testing
 				EmissionAddresses: []string{
 					"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", // Full amount to treasury
 				},
-				EmissionAmounts: []int64{
-					5e5 * 1e8, // 500,000 SKA-2 to treasury
-				},
+				EmissionAmounts: bigIntSlice(
+					"500000000000000000", // 5e17 atoms (0.5 SKA) to treasury
+				),
 				// SIMNET TEST KEY - NOT FOR PRODUCTION USE
 				EmissionKey: mustParseHexPubKeySimnet("02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"),
 			},

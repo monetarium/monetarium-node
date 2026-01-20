@@ -35,8 +35,8 @@ func main() {
 
 	// Migrate tx_valid.json and tx_invalid.json
 	txFiles := []string{
-		"../txscript/testdata/tx_valid.json",
-		"../txscript/testdata/tx_invalid.json",
+		"./txscript/testdata/tx_valid.json",
+		"./txscript/testdata/tx_invalid.json",
 	}
 
 	for _, file := range txFiles {
@@ -46,7 +46,7 @@ func main() {
 	}
 
 	// Migrate sighash.json
-	if err := migrateSigHashFile("../txscript/testdata/sighash.json"); err != nil {
+	if err := migrateSigHashFile("./txscript/testdata/sighash.json"); err != nil {
 		fmt.Printf("ERROR migrating sighash.json: %v\n", err)
 	}
 

@@ -209,6 +209,8 @@ func TestSKACoinTypeStringRepresentation(t *testing.T) {
 }
 
 // TestSKACoinTypeProperties tests that all SKA variants have consistent properties.
+// Note: SKA uses big.Int for amounts, so AtomsPerCoin(), MaxAtoms(), and MaxAmount()
+// return 0 for SKA types. Use cointype.AtomsPerSKACoin (big.Int) and per-config MaxSupply instead.
 func TestSKACoinTypeProperties(t *testing.T) {
 	testCoinTypes := []cointype.CoinType{
 		cointype.CoinType(1), // 1
@@ -218,30 +220,40 @@ func TestSKACoinTypeProperties(t *testing.T) {
 	}
 
 	for _, coinType := range testCoinTypes {
-		// Test AtomsPerCoin
+		// SKA uses big.Int, so int64 methods return 0
 		atomsPerCoin := coinType.AtomsPerCoin()
-		if atomsPerCoin != int64(cointype.AtomsPerSKA) {
-			t.Errorf("CoinType(%d).AtomsPerCoin() = %d, expected %d",
-				coinType, atomsPerCoin, int64(cointype.AtomsPerSKA))
+		if atomsPerCoin != 0 {
+			t.Errorf("CoinType(%d).AtomsPerCoin() = %d, expected 0 (SKA uses big.Int)",
+				coinType, atomsPerCoin)
 		}
 
-		// Test MaxAtoms
+		// SKA MaxAtoms is per-config, int64 method returns 0
 		maxAtoms := coinType.MaxAtoms()
-		if maxAtoms != int64(cointype.MaxSKAAtoms) {
-			t.Errorf("CoinType(%d).MaxAtoms() = %d, expected %d",
-				coinType, maxAtoms, int64(cointype.MaxSKAAtoms))
+		if maxAtoms != 0 {
+			t.Errorf("CoinType(%d).MaxAtoms() = %d, expected 0 (SKA uses per-config big.Int)",
+				coinType, maxAtoms)
 		}
 
-		// Test MaxAmount
+		// SKA MaxAmount is per-config, int64 method returns 0
 		maxAmount := coinType.MaxAmount()
-		if maxAmount != cointype.MaxSKAAmount {
-			t.Errorf("CoinType(%d).MaxAmount() = %d, expected %d",
-				coinType, maxAmount, cointype.MaxSKAAmount)
+		if maxAmount != 0 {
+			t.Errorf("CoinType(%d).MaxAmount() = %d, expected 0 (SKA uses per-config big.Int)",
+				coinType, maxAmount)
+		}
+
+		// Test UsesBigInt - SKA should use big.Int
+		if !coinType.UsesBigInt() {
+			t.Errorf("CoinType(%d).UsesBigInt() = false, expected true", coinType)
 		}
 
 		// Test IsValid
 		if !coinType.IsValid() {
 			t.Errorf("CoinType(%d).IsValid() = false, expected true", coinType)
+		}
+
+		// Test IsSKA
+		if !coinType.IsSKA() {
+			t.Errorf("CoinType(%d).IsSKA() = false, expected true", coinType)
 		}
 	}
 }

@@ -8,6 +8,7 @@ package standalone
 import (
 	"fmt"
 	"math"
+	"math/big"
 
 	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 	"github.com/monetarium/monetarium-node/cointype"
@@ -33,10 +34,9 @@ const (
 	atomsPerCoin = cointype.AtomsPerVAR
 	maxAtoms     = cointype.MaxVARAtoms
 
-	// Dual-coin support constants
-	// atomsPerSKA is the number of atoms in one SKA coin.
-	atomsPerSKA = cointype.AtomsPerSKA
-	maxSKAAtoms = cointype.MaxSKAAtoms
+	// NOTE: SKA amounts use big.Int (via TxOut.SKAValue) because 900 trillion
+	// coins with 1e18 atoms/coin exceeds int64 capacity. Max supply validation
+	// for SKA happens in context-aware code with chain params.
 )
 
 var (
@@ -55,15 +55,14 @@ func isValidCoinType(_ cointype.CoinType) bool {
 }
 
 // getMaxAtomsForCoinType returns the maximum atoms allowed for a given coin type.
+// For VAR, returns maxAtoms. For SKA, returns 0 (SKA uses big.Int, not int64).
 func getMaxAtomsForCoinType(coinType cointype.CoinType) int64 {
 	switch coinType {
 	case cointype.CoinTypeVAR:
 		return maxAtoms
 	default:
-		// All SKA coin types (1-255) have the same max atoms
-		if coinType >= 1 {
-			return maxSKAAtoms
-		}
+		// SKA uses big.Int for amounts. Return 0 to indicate int64 is not applicable.
+		// Callers should use TxOut.SKAValue (*big.Int) for SKA amounts.
 		return 0
 	}
 }
@@ -216,9 +215,11 @@ func CheckTransactionSanity(tx *wire.MsgTx, maxTxSize uint64) error {
 	// the total of all outputs must abide by the same restrictions.  All
 	// amounts in a transaction are in a unit value known as an atom.  One
 	// coin is a quantity of atoms as defined by the AtomsPerCoin constant.
-	var totalVARAtoms, totalSKAAtoms int64
-	for _, txOut := range tx.TxOut {
-		atoms := txOut.Value
+	var totalVARAtoms int64
+	totalSKAAtoms := new(big.Int) // SKA uses big.Int for amounts up to 900T * 1e18
+	zeroBI := new(big.Int)
+
+	for i, txOut := range tx.TxOut {
 		coinType := cointype.CoinType(uint8(txOut.CoinType))
 
 		// Validate coin type
@@ -227,24 +228,33 @@ func CheckTransactionSanity(tx *wire.MsgTx, maxTxSize uint64) error {
 			return ruleError(ErrBadTxOutValue, str)
 		}
 
-		// Validate amount is non-negative
-		if atoms < 0 {
-			str := fmt.Sprintf("transaction output has negative value of %v",
-				atoms)
-			return ruleError(ErrBadTxOutValue, str)
-		}
-
-		// Get max atoms for this coin type
-		maxAtomsForType := getMaxAtomsForCoinType(coinType)
-		if atoms > maxAtomsForType {
-			str := fmt.Sprintf("transaction output value of %v is higher than "+
-				"max allowed value of %v for coin type %d", atoms, maxAtomsForType, coinType)
+		// Validate that the correct value field is used for the coin type.
+		// This prevents ambiguous outputs that could be exploited.
+		// VAR: must use Value (int64), SKAValue must be nil
+		// SKA: must use SKAValue (big.Int), Value must be 0
+		if err := txOut.ValidateCoinTypeFields(); err != nil {
+			str := fmt.Sprintf("transaction output %d: %v", i, err)
 			return ruleError(ErrBadTxOutValue, str)
 		}
 
 		// Track totals by coin type
 		switch coinType {
 		case cointype.CoinTypeVAR:
+			atoms := txOut.Value
+
+			// Validate amount is non-negative
+			if atoms < 0 {
+				str := fmt.Sprintf("transaction output has negative value of %v", atoms)
+				return ruleError(ErrBadTxOutValue, str)
+			}
+
+			// Check against VAR max
+			if atoms > maxAtoms {
+				str := fmt.Sprintf("transaction output value of %v is higher than "+
+					"max allowed value of %v for VAR", atoms, maxAtoms)
+				return ruleError(ErrBadTxOutValue, str)
+			}
+
 			// Two's complement int64 overflow guarantees that any overflow is
 			// detected and reported.
 			totalVARAtoms += atoms
@@ -260,20 +270,26 @@ func CheckTransactionSanity(tx *wire.MsgTx, maxTxSize uint64) error {
 				return ruleError(ErrBadTxOutValue, str)
 			}
 		default:
-			// All SKA coin types (1-255) use the same validation
-			if coinType >= 1 {
-				totalSKAAtoms += atoms
-				if totalSKAAtoms < 0 {
-					str := fmt.Sprintf("total value of all SKA transaction outputs "+
-						"exceeds max allowed value of %v", maxSKAAtoms)
-					return ruleError(ErrBadTxOutValue, str)
-				}
-				if totalSKAAtoms > maxSKAAtoms {
-					str := fmt.Sprintf("total value of all SKA transaction outputs is %v "+
-						"which is higher than max allowed value of %v", totalSKAAtoms,
-						maxSKAAtoms)
-					return ruleError(ErrBadTxOutValue, str)
-				}
+			// All SKA coin types (1-255) use big.Int for amounts.
+			// SKAValue is guaranteed to be non-nil by ValidateCoinTypeFields above.
+			skaAmount := txOut.SKAValue
+
+			// Validate amount is non-negative
+			if skaAmount.Sign() < 0 {
+				str := fmt.Sprintf("transaction output has negative SKA value of %v", skaAmount)
+				return ruleError(ErrBadTxOutValue, str)
+			}
+
+			// Note: Per-SKA-type max supply validation requires chain params
+			// and happens in context-aware validation code.
+
+			// Track total SKA atoms
+			totalSKAAtoms.Add(totalSKAAtoms, skaAmount)
+
+			// Check for negative total (shouldn't happen with non-negative inputs)
+			if totalSKAAtoms.Cmp(zeroBI) < 0 {
+				str := "total value of all SKA transaction outputs is negative"
+				return ruleError(ErrBadTxOutValue, str)
 			}
 		}
 	}

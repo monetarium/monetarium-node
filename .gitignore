@@ -63,5 +63,15 @@ Session.vim
 testdata
 testlogs
 
-# Metadata
+# Internal
 STRUCTURE.md
+.call_count
+.circuit_breaker_history
+.circuit_breaker_state
+.exit_signals
+.last_output_length
+.last_reset
+.response_analysis
+progress.json
+specs/
+status.json

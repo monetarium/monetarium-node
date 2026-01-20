@@ -52,11 +52,12 @@ func TestBlock(t *testing.T) {
 	}
 
 	// Hashes for the transactions in Block100000.
+	// Updated for wire protocol with CoinType field in TxOut.
 	wantTxHashes := []string{
-		"7d4a0700bb0d5e75ff809552cdd4a9bf236ed44030cafb699fb10fbb683901ed",
-		"f0c93ddba7e9ddb58dd995a5817e047d1d6bb599a90cd4f0ee6c50c4e2d9fd61",
-		"0e2d8daa539220a7665f149ce65fa3b5ff8f9fb0ce69e2a7d1b9cbd4f44a3582",
-		"b53d733f6853db8a653d7aed621a2d7d1bc64e33ad1651beb494932304496f59",
+		"9237ddf4bc4d7648eae4bfadde336fffec0d1501af61d646ec8002e8702a411c",
+		"6b64c08293e451142205d22e52574c8c0b141da738385cc2584da445d1779834",
+		"1bbd28582e4e2f54e44241cb83739245998af2910fd472676ef6dea403884176",
+		"a29ab0c4610c3b3dd9f01a28a6b5f6ec0e96934619ea53c3de9ab09b0b59091e",
 	}
 
 	// Create a new block to nuke all cached data.
@@ -167,11 +168,12 @@ func TestBlock(t *testing.T) {
 	}
 
 	// Transaction offsets and length for the transaction in Block100000.
+	// V13 wire format adds SKAValueInLen byte per input, changing TxLen
 	wantTxLocs := []wire.TxLoc{
-		{TxStart: 181, TxLen: 160},
-		{TxStart: 341, TxLen: 287},
-		{TxStart: 628, TxLen: 285},
-		{TxStart: 913, TxLen: 250},
+		{TxStart: 181, TxLen: 161},
+		{TxStart: 342, TxLen: 288},
+		{TxStart: 630, TxLen: 286},
+		{TxStart: 916, TxLen: 251},
 	}
 
 	// Ensure the transaction location information is accurate.

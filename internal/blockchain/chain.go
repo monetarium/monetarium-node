@@ -1717,12 +1717,12 @@ func (b *BlockChain) HasSKAEmissionOccurred(coinType cointype.CoinType) bool {
 }
 
 // GetSKABurnedAmount returns the total amount burned for the specified SKA coin type.
-// Returns 0 if no burns have occurred for this coin type.
+// Returns nil if no burns have occurred for this coin type.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) GetSKABurnedAmount(coinType cointype.CoinType) int64 {
+func (b *BlockChain) GetSKABurnedAmount(coinType cointype.CoinType) *big.Int {
 	if b.skaBurnState == nil {
-		return 0
+		return nil
 	}
 	return b.skaBurnState.GetBurnedAmount(coinType)
 }
@@ -1731,9 +1731,9 @@ func (b *BlockChain) GetSKABurnedAmount(coinType cointype.CoinType) int64 {
 // Only coin types with non-zero burned amounts are included in the result.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) GetAllSKABurnedAmounts() map[cointype.CoinType]int64 {
+func (b *BlockChain) GetAllSKABurnedAmounts() map[cointype.CoinType]*big.Int {
 	if b.skaBurnState == nil {
-		return make(map[cointype.CoinType]int64)
+		return make(map[cointype.CoinType]*big.Int)
 	}
 	return b.skaBurnState.GetAllBurnedAmounts()
 }
@@ -2405,8 +2405,20 @@ func (q *ChainQueryerAdapter) FetchUtxoEntryAmount(outpoint wire.OutPoint) (int6
 		return 0, true, nil
 	}
 
+	// Get the appropriate amount based on coin type.
+	// VAR coins use entry.amount (int64), SKA coins use entry.skaAmount (*big.Int).
+	var amount int64
+	if entry.CoinType().IsSKA() {
+		skaAmount := entry.SKAAmount()
+		if skaAmount != nil {
+			amount = skaAmount.Int64()
+		}
+	} else {
+		amount = entry.Amount()
+	}
+
 	// Return the amount and spent=false for unspent UTXOs
-	return entry.Amount(), false, nil
+	return amount, false, nil
 }
 
 // FetchUtxoEntryDetails returns the amount, block height, and block index
@@ -2427,8 +2439,50 @@ func (q *ChainQueryerAdapter) FetchUtxoEntryDetails(outpoint wire.OutPoint) (int
 		return 0, 0, 0, true, nil
 	}
 
+	// Get the appropriate amount based on coin type.
+	// VAR coins use entry.amount (int64), SKA coins use entry.skaAmount (*big.Int).
+	var amount int64
+	if entry.CoinType().IsSKA() {
+		skaAmount := entry.SKAAmount()
+		if skaAmount != nil {
+			amount = skaAmount.Int64()
+		}
+	} else {
+		amount = entry.Amount()
+	}
+
 	// Return the amount, block height, block index, and spent=false for unspent UTXOs
-	return entry.Amount(), entry.BlockHeight(), entry.BlockIndex(), false, nil
+	return amount, entry.BlockHeight(), entry.BlockIndex(), false, nil
+}
+
+// FetchUtxoEntrySKADetails returns the SKA amount as *big.Int, block height, and block index
+// of the specified unspent transaction output from the point of view of the
+// main chain tip. This is used for SKA coin types where the amount can exceed int64 range.
+// Returns (nil, 0, 0, true) if the UTXO doesn't exist or is spent.
+// Returns (amount, height, index, false) if the UTXO exists and is unspent.
+//
+// This is part of the indexers.ChainQueryer interface.
+func (q *ChainQueryerAdapter) FetchUtxoEntrySKADetails(outpoint wire.OutPoint) (*big.Int, int64, uint32, bool, error) {
+	entry, err := q.FetchUtxoEntry(outpoint)
+	if err != nil {
+		return nil, 0, 0, true, err
+	}
+
+	// If entry is nil or is spent, return spent=true
+	if entry == nil || entry.IsSpent() {
+		return nil, 0, 0, true, nil
+	}
+
+	// Get the amount as *big.Int to avoid truncation
+	// For SKA coins, use SKAAmount directly; for VAR coins, convert Amount to big.Int
+	var amount *big.Int
+	if entry.CoinType().IsSKA() {
+		amount = entry.SKAAmount()
+	} else {
+		amount = big.NewInt(entry.Amount())
+	}
+
+	return amount, entry.BlockHeight(), entry.BlockIndex(), false, nil
 }
 
 // isTestNet3 returns whether or not the chain instance is for version 3 of the

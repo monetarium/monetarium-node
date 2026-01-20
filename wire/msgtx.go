@@ -9,11 +9,26 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
+	"math/big"
 	"strconv"
 
 	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 	"github.com/monetarium/monetarium-node/cointype"
 )
+
+// addInt64Safe adds two int64 values with overflow protection.
+// Returns the sum capped at math.MaxInt64 if positive overflow would occur,
+// or math.MinInt64 if negative overflow would occur.
+func addInt64Safe(a, b int64) int64 {
+	if b > 0 && a > math.MaxInt64-b {
+		return math.MaxInt64
+	}
+	if b < 0 && a < math.MinInt64-b {
+		return math.MinInt64
+	}
+	return a + b
+}
 
 // FeesByType represents transaction fees collected by coin type.
 // This map-based approach scales to handle all coin types (0-255) without
@@ -26,8 +41,9 @@ func NewFeesByType() FeesByType {
 }
 
 // Add adds a fee amount to the specified coin type.
+// Uses overflow-safe addition to prevent wraparound.
 func (f FeesByType) Add(coinType cointype.CoinType, amount int64) {
-	f[coinType] += amount
+	f[coinType] = addInt64Safe(f[coinType], amount)
 }
 
 // Get returns the total fees for the specified coin type.
@@ -36,10 +52,11 @@ func (f FeesByType) Get(coinType cointype.CoinType) int64 {
 }
 
 // Total returns the sum of all fees across all coin types.
+// Uses overflow-safe addition to prevent wraparound.
 func (f FeesByType) Total() int64 {
 	total := int64(0)
 	for _, amount := range f {
-		total += amount
+		total = addInt64Safe(total, amount)
 	}
 	return total
 }
@@ -56,9 +73,10 @@ func (f FeesByType) Types() []cointype.CoinType {
 }
 
 // Merge adds all fees from another FeesByType into this one.
+// Uses overflow-safe addition to prevent wraparound.
 func (f FeesByType) Merge(other FeesByType) {
 	for coinType, amount := range other {
-		f[coinType] += amount
+		f[coinType] = addInt64Safe(f[coinType], amount)
 	}
 }
 
@@ -72,6 +90,53 @@ func GetPrimaryCoinType(tx *MsgTx) cointype.CoinType {
 		}
 	}
 	return cointype.CoinTypeVAR
+}
+
+// CalcTxFee calculates the transaction fee for a transaction, handling both
+// VAR and SKA coin types correctly. For VAR transactions, it uses ValueIn/Value.
+// For SKA transactions, it uses SKAValueIn/SKAValue.
+// Returns the fee amount (as int64, safe for typical fees), the coin type,
+// and whether the calculation succeeded (false if SKA values overflow int64).
+func CalcTxFee(tx *MsgTx) (fee int64, coinType cointype.CoinType, ok bool) {
+	coinType = GetPrimaryCoinType(tx)
+
+	if coinType.IsSKA() {
+		// SKA transaction: sum SKAValueIn and SKAValue
+		// SKA transactions are required to use SKAValueIn/SKAValue fields
+		totalIn := new(big.Int)
+		for _, txIn := range tx.TxIn {
+			if txIn.SKAValueIn != nil {
+				totalIn.Add(totalIn, txIn.SKAValueIn)
+			}
+		}
+
+		totalOut := new(big.Int)
+		for _, txOut := range tx.TxOut {
+			if txOut.SKAValue != nil {
+				totalOut.Add(totalOut, txOut.SKAValue)
+			}
+		}
+
+		feeBI := new(big.Int).Sub(totalIn, totalOut)
+		if !feeBI.IsInt64() {
+			// Fee exceeds int64 - shouldn't happen for normal fees
+			return 0, coinType, false
+		}
+		return feeBI.Int64(), coinType, true
+	}
+
+	// VAR transaction: sum ValueIn and Value
+	var totalIn int64
+	for _, txIn := range tx.TxIn {
+		totalIn += txIn.ValueIn
+	}
+
+	var totalOut int64
+	for _, txOut := range tx.TxOut {
+		totalOut += txOut.Value
+	}
+
+	return totalIn - totalOut, coinType, true
 }
 
 // CalcFeeSplitByCoinType applies fee split to multi-coin fees based on
@@ -386,7 +451,8 @@ type TxIn struct {
 	Sequence         uint32
 
 	// Witness
-	ValueIn         int64
+	ValueIn         int64    // Value in atoms for VAR inputs
+	SKAValueIn      *big.Int // Value in atoms for SKA inputs (nil for VAR)
 	BlockHeight     uint32
 	BlockIndex      uint32
 	SignatureScript []byte
@@ -402,12 +468,20 @@ func (t *TxIn) SerializeSizePrefix() int {
 
 // SerializeSizeWitness returns the number of bytes it would take to serialize the
 // transaction input for a witness.
+// V13 format: [ValueIn:8][SKAValueInLen:1][SKAValueIn:N][BlockHeight:4][BlockIndex:4][SigScript:var]
 func (t *TxIn) SerializeSizeWitness() int {
-	// ValueIn (8 bytes) + BlockHeight (4 bytes) + BlockIndex (4 bytes) +
-	// serialized varint size for the length of SignatureScript +
-	// SignatureScript bytes.
-	return 8 + 4 + 4 + VarIntSerializeSize(uint64(len(t.SignatureScript))) +
+	// ValueIn (8 bytes) + SKAValueInLen (1 byte) + BlockHeight (4 bytes) +
+	// BlockIndex (4 bytes) + serialized varint size for the length of
+	// SignatureScript + SignatureScript bytes.
+	base := 8 + 1 + 4 + 4 + VarIntSerializeSize(uint64(len(t.SignatureScript))) +
 		len(t.SignatureScript)
+
+	// Add SKAValueIn bytes if present
+	if t.SKAValueIn != nil && t.SKAValueIn.Sign() > 0 {
+		base += len(t.SKAValueIn.Bytes())
+	}
+
+	return base
 }
 
 // NewTxIn returns a new Decred transaction input with the provided
@@ -426,8 +500,9 @@ func NewTxIn(prevOut *OutPoint, valueIn int64, signatureScript []byte) *TxIn {
 
 // TxOut defines a Decred transaction output.
 type TxOut struct {
-	Value    int64
-	CoinType cointype.CoinType
+	Value    int64             // Value in atoms for VAR (always used for VAR)
+	SKAValue *big.Int          // Value in atoms for SKA (nil for VAR outputs)
+	CoinType cointype.CoinType // Coin type (VAR=0, SKA=1-255)
 	Version  uint16
 	PkScript []byte
 }
@@ -435,9 +510,20 @@ type TxOut struct {
 // SerializeSize returns the number of bytes it would take to serialize the
 // transaction output.
 func (t *TxOut) SerializeSize() int {
-	// Value 8 bytes + CoinType 1 byte + Version 2 bytes + serialized varint size for
+	// CoinType 1 byte + Version 2 bytes + serialized varint size for
 	// the length of PkScript + PkScript bytes.
-	return 8 + 1 + 2 + VarIntSerializeSize(uint64(len(t.PkScript))) + len(t.PkScript)
+	base := 1 + 2 + VarIntSerializeSize(uint64(len(t.PkScript))) + len(t.PkScript)
+
+	// VAR: fixed 8-byte int64 value
+	// SKA: 1-byte length prefix + variable-length big.Int bytes
+	if t.CoinType.IsSKA() && t.SKAValue != nil {
+		// SKA format: [CoinType:1][ValLen:1][Value:N bytes][Version:2][PkScript:var]
+		valueBytes := t.SKAValue.Bytes()
+		return base + 1 + len(valueBytes) // 1 byte for length prefix
+	}
+
+	// VAR format: [CoinType:1][Value:8 bytes][Version:2][PkScript:var]
+	return base + 8
 }
 
 // NewTxOut returns a new Decred transaction output with the provided
@@ -449,6 +535,7 @@ func NewTxOut(value int64, pkScript []byte) *TxOut {
 
 // NewTxOutWithCoinType returns a new Decred transaction output with the provided
 // transaction value, coin type, and public key script.
+// For VAR outputs, uses int64 value. For SKA outputs, use NewTxOutSKA instead.
 func NewTxOutWithCoinType(value int64, coinType cointype.CoinType, pkScript []byte) *TxOut {
 	return &TxOut{
 		Value:    value,
@@ -456,6 +543,77 @@ func NewTxOutWithCoinType(value int64, coinType cointype.CoinType, pkScript []by
 		Version:  DefaultPkScriptVersion,
 		PkScript: pkScript,
 	}
+}
+
+// NewTxOutSKA returns a new SKA transaction output with the provided
+// big.Int value, SKA coin type, and public key script.
+// The value is copied to ensure immutability.
+func NewTxOutSKA(value *big.Int, coinType cointype.CoinType, pkScript []byte) *TxOut {
+	var skaValue *big.Int
+	if value != nil {
+		skaValue = new(big.Int).Set(value)
+	}
+	return &TxOut{
+		Value:    0, // Not used for SKA
+		SKAValue: skaValue,
+		CoinType: coinType,
+		Version:  DefaultPkScriptVersion,
+		PkScript: pkScript,
+	}
+}
+
+// GetValue returns the output value as int64.
+// For VAR outputs, returns Value directly.
+// For SKA outputs, returns the int64 representation if it fits, otherwise 0.
+// Use GetSKAValue for SKA outputs that may exceed int64.
+func (t *TxOut) GetValue() int64 {
+	if t.CoinType.IsSKA() && t.SKAValue != nil {
+		if t.SKAValue.IsInt64() {
+			return t.SKAValue.Int64()
+		}
+		return 0 // Overflow - caller should use GetSKAValue
+	}
+	return t.Value
+}
+
+// GetSKAValue returns the output value as *big.Int.
+// For SKA outputs, returns a copy of SKAValue.
+// For VAR outputs, converts Value to *big.Int.
+func (t *TxOut) GetSKAValue() *big.Int {
+	if t.CoinType.IsSKA() && t.SKAValue != nil {
+		return new(big.Int).Set(t.SKAValue)
+	}
+	return big.NewInt(t.Value)
+}
+
+// ValidateCoinTypeFields checks that the TxOut uses the correct value field
+// for its coin type. This prevents ambiguous outputs that could be exploited.
+//
+// Rules:
+//   - VAR outputs: Must use Value (int64), SKAValue must be nil
+//   - SKA outputs: Must use SKAValue (big.Int), Value must be 0
+//
+// Returns an error describing the violation, or nil if valid.
+func (t *TxOut) ValidateCoinTypeFields() error {
+	if t.CoinType.IsVAR() {
+		// VAR outputs must not have SKAValue set
+		if t.SKAValue != nil {
+			return fmt.Errorf("VAR output has SKAValue set (must be nil)")
+		}
+		return nil
+	}
+
+	// SKA outputs must use SKAValue, not Value
+	if t.Value != 0 {
+		return fmt.Errorf("SKA output has Value=%d (must be 0, use SKAValue)", t.Value)
+	}
+	if t.SKAValue == nil {
+		return fmt.Errorf("SKA output has nil SKAValue (must be set)")
+	}
+	if t.SKAValue.Sign() < 0 {
+		return fmt.Errorf("SKA output has negative SKAValue: %s", t.SKAValue.String())
+	}
+	return nil
 }
 
 // MsgTx implements the Message interface and represents a Decred tx message.
@@ -617,12 +775,19 @@ func (msg *MsgTx) Copy() *MsgTx {
 			copy(newScript, oldScript[:oldScriptLen])
 		}
 
+		// Deep copy SKAValueIn if present
+		var newSKAValueIn *big.Int
+		if oldTxIn.SKAValueIn != nil {
+			newSKAValueIn = new(big.Int).Set(oldTxIn.SKAValueIn)
+		}
+
 		// Create new txIn with the deep copied data and append it to
 		// new Tx.
 		newTxIn := TxIn{
 			PreviousOutPoint: newOutPoint,
 			Sequence:         oldTxIn.Sequence,
 			ValueIn:          oldTxIn.ValueIn,
+			SKAValueIn:       newSKAValueIn,
 			BlockHeight:      oldTxIn.BlockHeight,
 			BlockIndex:       oldTxIn.BlockIndex,
 			SignatureScript:  newScript,
@@ -641,10 +806,17 @@ func (msg *MsgTx) Copy() *MsgTx {
 			copy(newScript, oldScript[:oldScriptLen])
 		}
 
+		// Deep copy SKAValue if present
+		var newSKAValue *big.Int
+		if oldTxOut.SKAValue != nil {
+			newSKAValue = new(big.Int).Set(oldTxOut.SKAValue)
+		}
+
 		// Create new txOut with the deep copied data and append it to
 		// new Tx.
 		newTxOut := TxOut{
 			Value:    oldTxOut.Value,
+			SKAValue: newSKAValue,
 			CoinType: oldTxOut.CoinType,
 			Version:  oldTxOut.Version,
 			PkScript: newScript,
@@ -879,6 +1051,7 @@ func (msg *MsgTx) decodeWitness(r io.Reader, pver uint32, isFull bool) (uint64, 
 			totalScriptSize += uint64(len(ti.SignatureScript))
 
 			msg.TxIn[i].ValueIn = ti.ValueIn
+			msg.TxIn[i].SKAValueIn = ti.SKAValueIn // V13: Copy SKA value for dual-coin support
 			msg.TxIn[i].BlockHeight = ti.BlockHeight
 			msg.TxIn[i].BlockIndex = ti.BlockIndex
 			msg.TxIn[i].SignatureScript = ti.SignatureScript
@@ -979,8 +1152,11 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32) error {
 // encoded transaction is the same in both instances, but there is a distinct
 // difference and separating the two allows the API to be flexible enough to
 // deal with changes.
+//
+// This function uses the current protocol version (v13 SKABigIntVersion) which
+// puts CoinType first in TxOut serialization to support variable-length SKA amounts.
+// This is consistent with Serialize() which also uses ProtocolVersion.
 func (msg *MsgTx) Deserialize(r io.Reader) error {
-	// Use current protocol version which includes dual-coin support.
 	return msg.BtcDecode(r, ProtocolVersion)
 }
 
@@ -1100,8 +1276,8 @@ func (msg *MsgTx) BtcEncode(w io.Writer, pver uint32) error {
 // difference and separating the two allows the API to be flexible enough to
 // deal with changes.
 func (msg *MsgTx) Serialize(w io.Writer) error {
-	// Use current protocol version for serialization to include dual-coin support.
-	// This ensures CoinType field is included in the serialized output.
+	// Use current protocol version which includes dual-coin support with
+	// CoinType first in TxOut serialization.
 	return msg.BtcEncode(w, ProtocolVersion)
 }
 
@@ -1220,13 +1396,26 @@ func (msg *MsgTx) PkScriptLocs() []int {
 	}
 
 	// Calculate and set the appropriate offset for each public key script.
+	// The offset depends on the coin type (VAR vs SKA) as they have different
+	// wire formats in protocol version 13+.
 	pkScriptLocs := make([]int, numTxOut)
 	for i, txOut := range msg.TxOut {
 		// The offset of the script in the transaction output is:
+		// CoinType 1 byte + value size (varies) + version 2 bytes +
+		// serialized varint size for the length of PkScript.
 		//
-		// Value 8 bytes + CoinType 1 byte + version 2 bytes + serialized varint size
-		// for the length of PkScript.
-		n += 8 + 1 + 2 + VarIntSerializeSize(uint64(len(txOut.PkScript)))
+		// For VAR: CoinType(1) + Value(8) + Version(2) + VarInt + PkScript
+		// For SKA: CoinType(1) + ValLen(1) + Value(N) + Version(2) + VarInt + PkScript
+		var valueSize int
+		if txOut.CoinType.IsSKA() && txOut.SKAValue != nil {
+			// SKA: 1 byte length prefix + variable bytes
+			valueBytes := txOut.SKAValue.Bytes()
+			valueSize = 1 + len(valueBytes)
+		} else {
+			// VAR: fixed 8 bytes
+			valueSize = 8
+		}
+		n += 1 + valueSize + 2 + VarIntSerializeSize(uint64(len(txOut.PkScript)))
 		pkScriptLocs[i] = n
 		n += len(txOut.PkScript)
 	}
@@ -1307,12 +1496,67 @@ func readTxInPrefix(r io.Reader, pver uint32, serType TxSerializeType, version u
 // readTxInWitness reads the next sequence of bytes from r as a transaction input
 // (TxIn) in the transaction witness.
 func readTxInWitness(r io.Reader, pver uint32, version uint16, ti *TxIn) error {
+	// SKABigIntVersion introduces SKAValueIn support for inputs
+	if pver >= SKABigIntVersion {
+		return readTxInWitnessV13(r, pver, version, ti)
+	}
+
 	// ValueIn.
 	valueIn, err := binarySerializer.Uint64(r, littleEndian)
 	if err != nil {
 		return err
 	}
 	ti.ValueIn = int64(valueIn)
+
+	// BlockHeight.
+	ti.BlockHeight, err = binarySerializer.Uint32(r, littleEndian)
+	if err != nil {
+		return err
+	}
+
+	// BlockIndex.
+	ti.BlockIndex, err = binarySerializer.Uint32(r, littleEndian)
+	if err != nil {
+		return err
+	}
+
+	// Signature script.
+	ti.SignatureScript, err = readScript(r, pver, MaxMessagePayload,
+		"transaction input signature script")
+	return err
+}
+
+// readTxInWitnessV13 reads a TxIn witness using the SKABigIntVersion (v13) wire format.
+// Format:
+//
+//	[ValueIn:8 bytes][SKAValueInLen:1 byte][SKAValueIn:N bytes][BlockHeight:4][BlockIndex:4][SigScript:var]
+//
+// SKAValueInLen is 0 for VAR inputs or inputs without SKA value set.
+func readTxInWitnessV13(r io.Reader, pver uint32, version uint16, ti *TxIn) error {
+	// ValueIn (always present for fraud proofs)
+	valueIn, err := binarySerializer.Uint64(r, littleEndian)
+	if err != nil {
+		return err
+	}
+	ti.ValueIn = int64(valueIn)
+
+	// SKAValueIn length (0 = no SKA value)
+	skaValueLen, err := binarySerializer.Uint8(r)
+	if err != nil {
+		return err
+	}
+
+	if skaValueLen > 0 {
+		// Read SKAValueIn bytes
+		valueBytes := make([]byte, skaValueLen)
+		_, err = io.ReadFull(r, valueBytes)
+		if err != nil {
+			return err
+		}
+		ti.SKAValueIn = new(big.Int).SetBytes(valueBytes)
+	} else {
+		ti.SKAValueIn = nil
+	}
 
 	// BlockHeight.
 	ti.BlockHeight, err = binarySerializer.Uint32(r, littleEndian)
@@ -1346,6 +1590,11 @@ func writeTxInPrefix(w io.Writer, pver uint32, version uint16, ti *TxIn) error {
 // writeTxInWitness encodes ti to the Decred protocol encoding for a transaction
 // input (TxIn) witness to w.
 func writeTxInWitness(w io.Writer, pver uint32, version uint16, ti *TxIn) error {
+	// SKABigIntVersion introduces SKAValueIn support for inputs
+	if pver >= SKABigIntVersion {
+		return writeTxInWitnessV13(w, pver, version, ti)
+	}
+
 	// ValueIn.
 	err := binarySerializer.PutUint64(w, littleEndian, uint64(ti.ValueIn))
 	if err != nil {
@@ -1368,9 +1617,73 @@ func writeTxInWitness(w io.Writer, pver uint32, version uint16, ti *TxIn) error 
 	return WriteVarBytes(w, pver, ti.SignatureScript)
 }
 
+// writeTxInWitnessV13 writes a TxIn witness using the SKABigIntVersion (v13) wire format.
+// Format:
+//
+//	[ValueIn:8 bytes][SKAValueInLen:1 byte][SKAValueIn:N bytes][BlockHeight:4][BlockIndex:4][SigScript:var]
+//
+// SKAValueInLen is 0 for VAR inputs or inputs without SKA value set.
+func writeTxInWitnessV13(w io.Writer, pver uint32, version uint16, ti *TxIn) error {
+	// ValueIn (always present for fraud proofs)
+	err := binarySerializer.PutUint64(w, littleEndian, uint64(ti.ValueIn))
+	if err != nil {
+		return err
+	}
+
+	// SKAValueIn - write length prefix + bytes (or 0 for no SKA value)
+	var skaValueBytes []byte
+	if ti.SKAValueIn != nil && ti.SKAValueIn.Sign() > 0 {
+		skaValueBytes = ti.SKAValueIn.Bytes()
+	}
+
+	if len(skaValueBytes) == 0 {
+		// No SKA value: write length 0
+		err = binarySerializer.PutUint8(w, 0)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Write length prefix + big-endian bytes
+		if len(skaValueBytes) > 255 {
+			return messageError("writeTxInWitnessV13", ErrVarBytesTooLong,
+				"SKA value exceeds maximum length of 255 bytes")
+		}
+		err = binarySerializer.PutUint8(w, uint8(len(skaValueBytes)))
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(skaValueBytes)
+		if err != nil {
+			return err
+		}
+	}
+
+	// BlockHeight.
+	err = binarySerializer.PutUint32(w, littleEndian, ti.BlockHeight)
+	if err != nil {
+		return err
+	}
+
+	// BlockIndex.
+	err = binarySerializer.PutUint32(w, littleEndian, ti.BlockIndex)
+	if err != nil {
+		return err
+	}
+
+	// Write the signature script.
+	return WriteVarBytes(w, pver, ti.SignatureScript)
+}
+
 // readTxOut reads the next sequence of bytes from r as a transaction output
 // (TxOut).
 func readTxOut(r io.Reader, pver uint32, version uint16, to *TxOut) error {
+	// SKABigIntVersion introduces a new wire format where CoinType comes first
+	// to determine the value format.
+	if pver >= SKABigIntVersion {
+		return readTxOutV13(r, pver, version, to)
+	}
+
+	// Legacy format: Value first, then CoinType
 	value, err := binarySerializer.Uint64(r, littleEndian)
 	if err != nil {
 		return err
@@ -1399,9 +1712,72 @@ func readTxOut(r io.Reader, pver uint32, version uint16, to *TxOut) error {
 	return err
 }
 
+// readTxOutV13 reads a TxOut using the SKABigIntVersion (v13) wire format.
+// Format:
+//
+//	VAR: [CoinType:1][Value:8 bytes][Version:2][PkScript:var]
+//	SKA: [CoinType:1][ValLen:1][Value:N bytes][Version:2][PkScript:var]
+func readTxOutV13(r io.Reader, pver uint32, version uint16, to *TxOut) error {
+	// Read CoinType first to determine value format
+	coinType, err := binarySerializer.Uint8(r)
+	if err != nil {
+		return err
+	}
+	to.CoinType = cointype.CoinType(coinType)
+
+	// Read value based on coin type
+	if to.CoinType.IsSKA() {
+		// SKA: variable-length big.Int with 1-byte length prefix
+		valueLen, err := binarySerializer.Uint8(r)
+		if err != nil {
+			return err
+		}
+
+		if valueLen == 0 {
+			// Zero value
+			to.SKAValue = new(big.Int)
+		} else {
+			// Read the value bytes
+			valueBytes := make([]byte, valueLen)
+			_, err = io.ReadFull(r, valueBytes)
+			if err != nil {
+				return err
+			}
+			to.SKAValue = new(big.Int).SetBytes(valueBytes)
+		}
+		to.Value = 0 // Not used for SKA
+	} else {
+		// VAR: fixed 8-byte int64 little-endian
+		value, err := binarySerializer.Uint64(r, littleEndian)
+		if err != nil {
+			return err
+		}
+		to.Value = int64(value)
+		to.SKAValue = nil
+	}
+
+	// Version
+	to.Version, err = binarySerializer.Uint16(r, littleEndian)
+	if err != nil {
+		return err
+	}
+
+	// PkScript
+	to.PkScript, err = readScript(r, pver, MaxMessagePayload,
+		"transaction output public key script")
+	return err
+}
+
 // writeTxOut encodes to into the Decred protocol encoding for a transaction
 // output (TxOut) to w.
 func writeTxOut(w io.Writer, pver uint32, version uint16, to *TxOut) error {
+	// SKABigIntVersion introduces a new wire format where CoinType comes first
+	// to determine the value format.
+	if pver >= SKABigIntVersion {
+		return writeTxOutV13(w, pver, version, to)
+	}
+
+	// Legacy format: Value first, then CoinType
 	err := binarySerializer.PutUint64(w, littleEndian, uint64(to.Value))
 	if err != nil {
 		return err
@@ -1420,6 +1796,67 @@ func writeTxOut(w io.Writer, pver uint32, version uint16, to *TxOut) error {
 		return err
 	}
 
+	return WriteVarBytes(w, pver, to.PkScript)
+}
+
+// writeTxOutV13 writes a TxOut using the SKABigIntVersion (v13) wire format.
+// Format:
+//
+//	VAR: [CoinType:1][Value:8 bytes][Version:2][PkScript:var]
+//	SKA: [CoinType:1][ValLen:1][Value:N bytes][Version:2][PkScript:var]
+func writeTxOutV13(w io.Writer, pver uint32, version uint16, to *TxOut) error {
+	// Write CoinType first
+	err := binarySerializer.PutUint8(w, uint8(to.CoinType))
+	if err != nil {
+		return err
+	}
+
+	// Write value based on coin type
+	if to.CoinType.IsSKA() {
+		// SKA: variable-length big.Int with 1-byte length prefix
+		// SKA outputs are required to use SKAValue (validated by CheckTransactionSanity)
+		var valueBytes []byte
+		if to.SKAValue != nil && to.SKAValue.Sign() > 0 {
+			valueBytes = to.SKAValue.Bytes()
+		}
+		// valueBytes is nil/empty for zero value (e.g., OP_RETURN outputs)
+
+		if len(valueBytes) == 0 {
+			// Zero value: just write length 0
+			err = binarySerializer.PutUint8(w, 0)
+			if err != nil {
+				return err
+			}
+		} else {
+			// Write length prefix + big-endian bytes
+			if len(valueBytes) > 255 {
+				return messageError("writeTxOutV13", ErrVarBytesTooLong,
+					"SKA value exceeds maximum length of 255 bytes")
+			}
+			err = binarySerializer.PutUint8(w, uint8(len(valueBytes)))
+			if err != nil {
+				return err
+			}
+			_, err = w.Write(valueBytes)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		// VAR: fixed 8-byte int64 little-endian
+		err = binarySerializer.PutUint64(w, littleEndian, uint64(to.Value))
+		if err != nil {
+			return err
+		}
+	}
+
+	// Version
+	err = binarySerializer.PutUint16(w, littleEndian, to.Version)
+	if err != nil {
+		return err
+	}
+
+	// PkScript
 	return WriteVarBytes(w, pver, to.PkScript)
 }
 

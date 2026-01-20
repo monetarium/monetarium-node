@@ -5,6 +5,7 @@
 package rpcserver
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/chaincfg"
@@ -144,8 +145,8 @@ func TestSKAChainParameterConsistency(t *testing.T) {
 				}
 
 				// Verify max supply is positive
-				if config.MaxSupply <= 0 {
-					t.Errorf("Max supply should be positive: %d", config.MaxSupply)
+				if config.MaxSupply == nil || config.MaxSupply.Sign() <= 0 {
+					t.Errorf("Max supply should be positive: %v", config.MaxSupply)
 				}
 
 				// Verify name is not empty
@@ -199,13 +200,15 @@ func TestSKAChainParameterConsistency(t *testing.T) {
 				}
 
 				// Verify total emission matches max supply
-				var totalEmission int64
+				totalEmission := new(big.Int)
 				for _, amount := range config.EmissionAmounts {
-					totalEmission += amount
+					if amount != nil {
+						totalEmission.Add(totalEmission, amount)
+					}
 				}
-				if totalEmission != config.MaxSupply {
-					t.Errorf("Total emission (%d) should match max supply (%d)",
-						totalEmission, config.MaxSupply)
+				if config.MaxSupply != nil && totalEmission.Cmp(config.MaxSupply) != 0 {
+					t.Errorf("Total emission (%s) should match max supply (%s)",
+						totalEmission.String(), config.MaxSupply.String())
 				}
 			})
 		}

@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"math/big"
 	"testing"
 	"time"
 
@@ -33,8 +34,8 @@ func TestEmissionAuthorizationBasic(t *testing.T) {
 				EmissionAddresses: []string{
 					"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", // Treasury
 				},
-				EmissionAmounts: []int64{
-					1000000, // 1M atoms to treasury
+				EmissionAmounts: []*big.Int{
+					big.NewInt(1000000), // 1M atoms to treasury
 				},
 			},
 		},
@@ -56,7 +57,7 @@ func TestEmissionAuthorizationBasic(t *testing.T) {
 		Signature:   nil, // Will be set after signing
 		Nonce:       1,
 		CoinType:    1,
-		Amount:      1000000,
+		Amount:      big.NewInt(1000000),
 		Height:      100,
 		Timestamp:   time.Now().Unix(),
 	}
@@ -67,7 +68,7 @@ func TestEmissionAuthorizationBasic(t *testing.T) {
 	testScript = append(testScript, bytes.Repeat([]byte{0x01}, 20)...) // 20-byte hash
 	testScript = append(testScript, 0x88, 0xac)                        // OP_EQUALVERIFY OP_CHECKSIG
 
-	amounts := []int64{1000000}
+	amounts := []*big.Int{big.NewInt(1000000)}
 
 	// Create emission transaction
 	tx := &wire.MsgTx{
@@ -88,9 +89,10 @@ func TestEmissionAuthorizationBasic(t *testing.T) {
 		Sequence:        0xffffffff,
 	})
 
-	// Add output with test script
+	// Add output with test script (SKA uses SKAValue for big.Int amounts)
 	tx.TxOut = append(tx.TxOut, &wire.TxOut{
-		Value:    amounts[0],
+		Value:    0,
+		SKAValue: amounts[0],
 		CoinType: auth.CoinType,
 		Version:  0,
 		PkScript: testScript,
@@ -181,7 +183,7 @@ func TestEmissionAuthorizationScript(t *testing.T) {
 		Signature:   []byte{1, 2, 3, 4, 5}, // Dummy signature for testing
 		Nonce:       12345,
 		CoinType:    1,
-		Amount:      1000000,
+		Amount:      big.NewInt(1000000),
 		Height:      100,
 		Timestamp:   time.Now().Unix(),
 	}
@@ -230,8 +232,8 @@ func TestUnauthorizedEmissionPrevention(t *testing.T) {
 				EmissionAddresses: []string{
 					"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", // Treasury
 				},
-				EmissionAmounts: []int64{
-					1000000, // 1M atoms to treasury
+				EmissionAmounts: []*big.Int{
+					big.NewInt(1000000), // 1M atoms to treasury
 				},
 				// EmissionKey: nil, // No key configured for this test
 			},

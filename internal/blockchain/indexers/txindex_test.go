@@ -7,6 +7,7 @@ package indexers
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sync"
 	"testing"
 	"time"
@@ -266,6 +267,13 @@ func (tc *testChain) FetchUtxoEntryDetails(outpoint wire.OutPoint) (int64, int64
 	// Mock implementation: Return zero values and spent=true for all queries.
 	// This is sufficient for the indexer tests which don't rely on actual UTXO data.
 	return 0, 0, 0, true, nil
+}
+
+// FetchUtxoEntrySKADetails implements the ChainQueryer interface.
+func (tc *testChain) FetchUtxoEntrySKADetails(outpoint wire.OutPoint) (*big.Int, int64, uint32, bool, error) {
+	// Mock implementation: Return nil amount and spent=true for all queries.
+	// This is sufficient for the indexer tests which don't rely on actual UTXO data.
+	return nil, 0, 0, true, nil
 }
 
 // notifyAndWait sends the provided notification and waits for done signal

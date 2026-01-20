@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"math/big"
 	"sort"
 	"sync"
 	"time"
@@ -841,25 +842,26 @@ func createSSFeeTxBatched(coinType cointype.CoinType, totalFee int64,
 
 		// Step 3: Look up existing UTXO for augmentation (if index provided)
 		var existingOutpoint *wire.OutPoint
-		var existingValue int64
+		var existingValue *big.Int // Use *big.Int to avoid overflow for SKA
 		var existingBlockHeight int64
 		var existingBlockIndex uint32
 
 		if ssfeeIndex != nil {
-			outpoint, value, blockHeight, blockIndex, err := ssfeeIndex.LookupUTXO(coinType, group.hash160)
+			// isMiner=false for staker SSFee
+			outpoint, value, blockHeight, blockIndex, err := ssfeeIndex.LookupUTXO(false, coinType, group.hash160)
 			if err != nil {
 				// Log but don't fail - fall back to null input
 				log.Debugf("Failed to query SSFeeIndex for UTXO lookup: %v", err)
-			} else if outpoint != nil && value > 0 {
+			} else if outpoint != nil && value != nil && value.Sign() > 0 {
 				// Check if UTXO is already in-flight (used in a pending template)
 				if generator != nil && generator.isSSFeeUTXOInFlight(*outpoint, nextBlockHeight) {
 					log.Debugf("SSFee UTXO %v is in-flight for height %d - skipping", outpoint, nextBlockHeight)
 					outpoint = nil
-					value = 0
+					value = nil
 				}
 			}
 
-			if outpoint != nil && value > 0 {
+			if outpoint != nil && value != nil && value.Sign() > 0 {
 				// CRITICAL: Verify UTXO is still available (not spent in mempool/current block)
 				var entry *blockchain.UtxoEntry
 				var isSpent bool
@@ -897,7 +899,7 @@ func createSSFeeTxBatched(coinType cointype.CoinType, totalFee int64,
 					existingValue = value
 					existingBlockHeight = blockHeight
 					existingBlockIndex = blockIndex
-					log.Debugf("Found augmentable UTXO %v (value=%d, height=%d, index=%d) for consolidation address %x",
+					log.Debugf("Found augmentable UTXO %v (value=%v, height=%d, index=%d) for consolidation address %x",
 						outpoint, value, blockHeight, blockIndex, group.hash160)
 				}
 			} else if outpoint == nil {
@@ -911,15 +913,21 @@ func createSSFeeTxBatched(coinType cointype.CoinType, totalFee int64,
 		tx.Version = wire.TxVersionTreasury // Version 3+ required for coin type
 
 		// Add input: either null input or existing UTXO
-		if existingOutpoint != nil && existingValue > 0 {
+		if existingOutpoint != nil && existingValue != nil && existingValue.Sign() > 0 {
 			// Augment existing UTXO
-			tx.AddTxIn(&wire.TxIn{
+			txIn := &wire.TxIn{
 				PreviousOutPoint: *existingOutpoint,
 				Sequence:         wire.MaxTxInSequenceNum,
 				BlockHeight:      uint32(existingBlockHeight),
 				BlockIndex:       existingBlockIndex,
-				ValueIn:          existingValue,
-			})
+			}
+			// SKA uses SKAValueIn (bigint), VAR uses ValueIn (int64)
+			if coinType.IsSKA() {
+				txIn.SKAValueIn = new(big.Int).Set(existingValue)
+			} else {
+				txIn.ValueIn = existingValue.Int64()
+			}
+			tx.AddTxIn(txIn)
 		} else {
 			// Create null input (new UTXO)
 			tx.AddTxIn(&wire.TxIn{
@@ -938,26 +946,39 @@ func createSSFeeTxBatched(coinType cointype.CoinType, totalFee int64,
 		// Use first voter in group to determine the sequence
 		voterSeq := uint16(group.voterIndices[0])
 		ssfeeMarker := stake.CreateStakerSSFeeMarker(nextBlockHeight, voterSeq)
-		tx.AddTxOut(&wire.TxOut{
-			Value:    0,
+		// OP_RETURN output: Value=0 for VAR, SKAValue=0 for SKA
+		opReturnOut := &wire.TxOut{
 			Version:  0,
 			CoinType: coinType,
 			PkScript: ssfeeMarker,
-		})
+		}
+		if coinType.IsSKA() {
+			opReturnOut.SKAValue = new(big.Int) // Zero value for SKA OP_RETURN
+		}
+		tx.AddTxOut(opReturnOut)
 
 		// Add payment output to consolidation address (output[1] - standard SSFee format)
-		outputValue := groupFee
-		if existingValue > 0 {
-			// Augmenting: new value = existing value + fee
-			outputValue = existingValue + groupFee
-		}
-
-		tx.AddTxOut(&wire.TxOut{
-			Value:    outputValue,
+		// For SKA, set SKAValue directly so wire serialization works correctly
+		txOut := &wire.TxOut{
 			Version:  0,
 			PkScript: recipientPkScript,
 			CoinType: coinType,
-		})
+		}
+		if coinType.IsSKA() {
+			// Use big.Int arithmetic for SKA to avoid int64 overflow on accumulated values
+			skaOutputValue := big.NewInt(groupFee)
+			if existingValue != nil && existingValue.Sign() > 0 {
+				skaOutputValue.Add(skaOutputValue, existingValue)
+			}
+			txOut.SKAValue = skaOutputValue
+		} else {
+			outputValue := groupFee
+			if existingValue != nil && existingValue.Sign() > 0 {
+				outputValue = existingValue.Int64() + groupFee
+			}
+			txOut.Value = outputValue
+		}
+		tx.AddTxOut(txOut)
 
 		retTx := dcrutil.NewTx(tx)
 		retTx.SetTree(wire.TxTreeStake)
@@ -1036,25 +1057,26 @@ func createMinerSSFeeTx(coinType cointype.CoinType, totalFee int64,
 
 	// Try to find existing UTXO to augment using SSFeeIndex (prevent dust accumulation)
 	var inputOutpoint *wire.OutPoint
-	var augmentValue int64
+	var augmentValue *big.Int // Use *big.Int to avoid overflow for SKA
 	var existingBlockHeight int64
 	var existingBlockIndex uint32
 
 	if ssfeeIndex != nil && minerHash160 != nil {
-		outpoint, value, blockHeight, blockIndex, err := ssfeeIndex.LookupUTXO(coinType, minerHash160)
+		// isMiner=true for miner SSFee
+		outpoint, value, blockHeight, blockIndex, err := ssfeeIndex.LookupUTXO(true, coinType, minerHash160)
 		if err != nil {
 			// Log but don't fail - fall back to null input
 			log.Debugf("Failed to query SSFeeIndex for miner UTXO lookup: %v", err)
-		} else if outpoint != nil && value > 0 {
+		} else if outpoint != nil && value != nil && value.Sign() > 0 {
 			// Check if UTXO is already in-flight (used in a pending template)
 			if generator != nil && generator.isSSFeeUTXOInFlight(*outpoint, nextBlockHeight) {
 				log.Debugf("Miner SSFee UTXO %v is in-flight for height %d - skipping", outpoint, nextBlockHeight)
 				outpoint = nil
-				value = 0
+				value = nil
 			}
 		}
 
-		if outpoint != nil && value > 0 {
+		if outpoint != nil && value != nil && value.Sign() > 0 {
 			// CRITICAL: Verify UTXO is still available (not spent in mempool/current block)
 			var entry *blockchain.UtxoEntry
 			var isSpent bool
@@ -1092,7 +1114,7 @@ func createMinerSSFeeTx(coinType cointype.CoinType, totalFee int64,
 				augmentValue = value
 				existingBlockHeight = blockHeight
 				existingBlockIndex = blockIndex
-				log.Debugf("Found augmentable miner SSFee UTXO %v (value=%d, height=%d, index=%d) for coin type %d",
+				log.Debugf("Found augmentable miner SSFee UTXO %v (value=%v, height=%d, index=%d) for coin type %d",
 					outpoint, value, blockHeight, blockIndex, coinType)
 			}
 		} else if outpoint == nil {
@@ -1107,46 +1129,74 @@ func createMinerSSFeeTx(coinType cointype.CoinType, totalFee int64,
 
 	// Add input: either real UTXO (augmentation) or null input (creation)
 	// SignatureScript must be explicitly empty (not nil) for validation
-	if inputOutpoint != nil {
+	if inputOutpoint != nil && augmentValue != nil && augmentValue.Sign() > 0 {
 		// UTXO augmentation: use real input with fraud proof data
-		tx.AddTxIn(&wire.TxIn{
+		txIn := &wire.TxIn{
 			PreviousOutPoint: *inputOutpoint,
 			Sequence:         wire.MaxTxInSequenceNum,
 			BlockHeight:      uint32(existingBlockHeight),
 			BlockIndex:       existingBlockIndex,
-			ValueIn:          augmentValue,
 			SignatureScript:  []byte{}, // Anyone-can-spend (OP_SSGEN output)
-		})
+		}
+		// SKA uses SKAValueIn (bigint), VAR uses ValueIn (int64)
+		if coinType.IsSKA() {
+			txIn.SKAValueIn = new(big.Int).Set(augmentValue)
+		} else {
+			txIn.ValueIn = augmentValue.Int64()
+		}
+		tx.AddTxIn(txIn)
 	} else {
 		// Fallback: create new UTXO with null input (like coinbase/treasurybase)
-		tx.AddTxIn(&wire.TxIn{
+		txIn := &wire.TxIn{
 			PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
 				wire.MaxPrevOutIndex, wire.TxTreeRegular),
 			Sequence:        wire.MaxTxInSequenceNum,
 			BlockHeight:     wire.NullBlockHeight,
 			BlockIndex:      wire.NullBlockIndex,
-			ValueIn:         totalFee,
 			SignatureScript: []byte{},
-		})
+		}
+		// SKA uses SKAValueIn (bigint), VAR uses ValueIn (int64)
+		if coinType.IsSKA() {
+			txIn.SKAValueIn = big.NewInt(totalFee)
+		} else {
+			txIn.ValueIn = totalFee
+		}
+		tx.AddTxIn(txIn)
 	}
 
-	// Calculate output value: fee + existing UTXO value (if augmenting)
-	outputValue := totalFee + augmentValue
-
 	// Add OP_RETURN output for unique hash (output[0] - consistent with voter SSFee)
-	tx.AddTxOut(&wire.TxOut{
-		Value:    0,
+	// OP_RETURN output: Value=0 for VAR, SKAValue=0 for SKA
+	opReturnOut := &wire.TxOut{
 		CoinType: coinType,
 		PkScript: opReturnScript,
-	})
+	}
+	if coinType.IsSKA() {
+		opReturnOut.SKAValue = new(big.Int) // Zero value for SKA OP_RETURN
+	}
+	tx.AddTxOut(opReturnOut)
 
 	// Create payment output to miner (output[1] - consistent with voter SSFee)
-	tx.AddTxOut(&wire.TxOut{
-		Value:    outputValue,
+	// For SKA, set SKAValue directly so wire serialization works correctly
+	minerTxOut := &wire.TxOut{
 		CoinType: coinType,
 		Version:  scriptVersion,
 		PkScript: payScript,
-	})
+	}
+	if coinType.IsSKA() {
+		// Use big.Int arithmetic for SKA to avoid int64 overflow on accumulated values
+		skaOutputValue := big.NewInt(totalFee)
+		if augmentValue != nil && augmentValue.Sign() > 0 {
+			skaOutputValue.Add(skaOutputValue, augmentValue)
+		}
+		minerTxOut.SKAValue = skaOutputValue
+	} else {
+		outputValue := totalFee
+		if augmentValue != nil && augmentValue.Sign() > 0 {
+			outputValue = totalFee + augmentValue.Int64()
+		}
+		minerTxOut.Value = outputValue
+	}
+	tx.AddTxOut(minerTxOut)
 
 	retTx := dcrutil.NewTx(tx)
 	retTx.SetTree(wire.TxTreeStake)
@@ -1254,6 +1304,7 @@ func (g *BlkTmplGenerator) maybeInsertStakeTx(stx *dcrutil.Tx, treeValid bool, i
 			break
 		} else {
 			txIn.ValueIn = entry.Amount()
+			txIn.SKAValueIn = entry.SKAAmount() // For SKA UTXOs
 			txIn.BlockHeight = uint32(entry.BlockHeight())
 			txIn.BlockIndex = entry.BlockIndex()
 		}
@@ -3079,6 +3130,7 @@ nextPriorityQueueItem:
 				txIn.BlockIndex = wire.NullBlockIndex
 			} else {
 				txIn.ValueIn = entry.Amount()
+				txIn.SKAValueIn = entry.SKAAmount() // For SKA UTXOs
 				txIn.BlockHeight = uint32(entry.BlockHeight())
 				txIn.BlockIndex = entry.BlockIndex()
 			}
@@ -3103,8 +3155,9 @@ nextPriorityQueueItem:
 				// The input is in the block, set it accordingly.
 				if idx != -1 {
 					originIdx := txIn.PreviousOutPoint.Index
-					amt := blockTxnsRegular[idx].MsgTx().TxOut[originIdx].Value
-					txIn.ValueIn = amt
+					originTxOut := blockTxnsRegular[idx].MsgTx().TxOut[originIdx]
+					txIn.ValueIn = originTxOut.Value
+					txIn.SKAValueIn = originTxOut.SKAValue // For SKA outputs
 					txIn.BlockHeight = uint32(nextBlockHeight)
 					txIn.BlockIndex = uint32(idx)
 				} else {
