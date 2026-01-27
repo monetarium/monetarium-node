@@ -2956,12 +2956,22 @@ nextPriorityQueueItem:
 	// Fees are distributed fully among actual voters since we know the
 	// exact voter count at block template time. This differs from subsidies
 	// where wallets create vote transactions before knowing the final count.
+	// Track miner's VAR fee share for coinbase (captured early to prevent loss)
+	var minerVARFeeForCoinbase int64
+
 	if nextBlockHeight >= stakeValidationHeight {
 		// Get subsidy proportions for fee splitting
 		work, stake, _, _ := standalone.GetSubsidyProportions(subsidySplitVariant)
 
 		// Calculate fee split between miners and stakers
 		minerFees, stakerFees := wire.CalcFeeSplitByCoinType(totalFees, work, stake)
+
+		// Capture miner's VAR fee immediately to ensure it's not lost
+		// This value will be added to coinbase output later
+		minerVARFeeForCoinbase = minerFees.Get(cointype.CoinTypeVAR)
+		if minerVARFeeForCoinbase > 0 {
+			log.Debugf("Block %d: miner VAR fee share = %d atoms", nextBlockHeight, minerVARFeeForCoinbase)
+		}
 
 		// Create SSFee transactions for staker fees if there are voters
 		if voters > 0 {
@@ -3044,11 +3054,11 @@ nextPriorityQueueItem:
 
 		}
 
-		// Now update totalFees to only include VAR miner fees for the coinbase
+		// Update totalFees to only include VAR miner fees for the coinbase
 		// All non-VAR fees have been distributed via SSFee transactions
-		varFeesOnly := wire.NewFeesByType()
-		varFeesOnly.Add(cointype.CoinTypeVAR, minerFees.Get(cointype.CoinTypeVAR))
-		totalFees = varFeesOnly
+		// Note: minerVARFeeForCoinbase was captured at the start of this block
+		totalFees = wire.NewFeesByType()
+		totalFees.Add(cointype.CoinTypeVAR, minerVARFeeForCoinbase)
 	}
 
 	txSigOpCounts = append(txSigOpCounts, numCoinbaseSigOps)
@@ -3070,7 +3080,8 @@ nextPriorityQueueItem:
 		if varFees > 0 {
 			coinbaseTx.MsgTx().TxOut[powOutputIdx].Value += varFees
 		}
-		txFees[0] = -totalFees.Total()
+		// Use varFees directly for accounting consistency - this is exactly what was added to coinbase
+		txFees[0] = -varFees
 	}
 
 	// Calculate the required difficulty for the block.  The timestamp
