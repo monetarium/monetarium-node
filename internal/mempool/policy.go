@@ -7,6 +7,7 @@ package mempool
 
 import (
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/monetarium/monetarium-node/blockchain/stake"
@@ -262,7 +263,17 @@ func isDust(txOut *wire.TxOut, minRelayTxFee dcrutil.Amount) bool {
 		return false
 	}
 
-	// Unspendable outputs are considered dust.
+	// SKA outputs use SKAValue (big.Int), not Value (int64).
+	// Minimum 30 atoms required for SKA outputs to not be considered dust.
+	if txOut.CoinType.IsSKA() {
+		minSKADustAmount := big.NewInt(30)
+		if txOut.SKAValue == nil || txOut.SKAValue.Cmp(minSKADustAmount) < 0 {
+			return true
+		}
+		return false
+	}
+
+	// VAR outputs: Unspendable outputs are considered dust.
 	if txscript.IsUnspendable(txOut.Value, txOut.PkScript) {
 		return true
 	}

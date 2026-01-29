@@ -8,6 +8,7 @@ package mempool
 import (
 	"bytes"
 	"errors"
+	"math/big"
 	"testing"
 	"time"
 
@@ -305,6 +306,48 @@ func TestDust(t *testing.T) {
 			// SKA burn script with small value should NOT be dust.
 			"SKA burn script with small value is not dust",
 			wire.TxOut{Value: 1, Version: 0, PkScript: stdscript.NewSKABurnScriptV0(255), CoinType: cointype.CoinType(255)},
+			1e4,
+			false,
+		},
+		{
+			// SKA output with 30 atoms (minimum) should NOT be dust.
+			"SKA output with 30 atoms is not dust",
+			wire.TxOut{Value: 0, Version: 0, PkScript: pkScript, CoinType: cointype.CoinType(1), SKAValue: big.NewInt(30)},
+			1e4,
+			false,
+		},
+		{
+			// SKA output with 31 atoms should NOT be dust.
+			"SKA output with 31 atoms is not dust",
+			wire.TxOut{Value: 0, Version: 0, PkScript: pkScript, CoinType: cointype.CoinType(1), SKAValue: big.NewInt(31)},
+			1e4,
+			false,
+		},
+		{
+			// SKA output with 29 atoms (below minimum) should be dust.
+			"SKA output with 29 atoms is dust",
+			wire.TxOut{Value: 0, Version: 0, PkScript: pkScript, CoinType: cointype.CoinType(1), SKAValue: big.NewInt(29)},
+			1e4,
+			true,
+		},
+		{
+			// SKA output with zero SKAValue should be dust.
+			"SKA output with zero SKAValue is dust",
+			wire.TxOut{Value: 0, Version: 0, PkScript: pkScript, CoinType: cointype.CoinType(1), SKAValue: big.NewInt(0)},
+			1e4,
+			true,
+		},
+		{
+			// SKA output with nil SKAValue should be dust.
+			"SKA output with nil SKAValue is dust",
+			wire.TxOut{Value: 0, Version: 0, PkScript: pkScript, CoinType: cointype.CoinType(1), SKAValue: nil},
+			1e4,
+			true,
+		},
+		{
+			// SKA output with large value should NOT be dust.
+			"SKA output with large value is not dust",
+			wire.TxOut{Value: 0, Version: 0, PkScript: pkScript, CoinType: cointype.CoinType(1), SKAValue: big.NewInt(1000000)},
 			1e4,
 			false,
 		},
