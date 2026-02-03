@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"errors"
+	"math/big"
 	"net"
 	"time"
 
@@ -647,15 +648,22 @@ func (r *rpcCoinTypeFeeCalculator) GetFeeStats(coinType cointype.CoinType) (*rpc
 		return nil, err
 	}
 
-	// Convert from fees.CoinTypeFeeStats to rpcserver.CoinTypeFeeStats
+	// Helper to convert *big.Int to string safely
+	bigToStr := func(b *big.Int) string {
+		if b == nil {
+			return "0"
+		}
+		return b.String()
+	}
+
 	return &rpcserver.CoinTypeFeeStats{
 		CoinType:             stats.CoinType,
-		MinRelayFee:          stats.MinRelayFee,
+		MinRelayFee:          bigToStr(stats.MinRelayFee),
 		DynamicFeeMultiplier: stats.DynamicFeeMultiplier,
-		MaxFeeRate:           stats.MaxFeeRate,
-		FastFee:              stats.FastFee,
-		NormalFee:            stats.NormalFee,
-		SlowFee:              stats.SlowFee,
+		MaxFeeRate:           bigToStr(stats.MaxFeeRate),
+		FastFee:              bigToStr(stats.FastFee),
+		NormalFee:            bigToStr(stats.NormalFee),
+		SlowFee:              bigToStr(stats.SlowFee),
 		PendingTxCount:       stats.PendingTxCount,
 		PendingTxSize:        stats.PendingTxSize,
 		BlockSpaceUsed:       stats.BlockSpaceUsed,
@@ -664,6 +672,7 @@ func (r *rpcCoinTypeFeeCalculator) GetFeeStats(coinType cointype.CoinType) (*rpc
 }
 
 // EstimateFeeRate returns the current fee rate estimate for the given coin type.
-func (r *rpcCoinTypeFeeCalculator) EstimateFeeRate(coinType cointype.CoinType, targetConfirmations int) (dcrutil.Amount, error) {
+// Returns *big.Int to support both VAR and SKA. For VAR, use .Int64() to convert.
+func (r *rpcCoinTypeFeeCalculator) EstimateFeeRate(coinType cointype.CoinType, targetConfirmations int) (*big.Int, error) {
 	return r.calc.EstimateFeeRate(coinType, targetConfirmations)
 }

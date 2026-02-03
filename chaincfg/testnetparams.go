@@ -562,22 +562,20 @@ func TestNet3Params() *Params {
 		// HTTP seeders disabled - Monetarium testnet uses manual peer connections
 		seeders: []string{},
 
-		// SKA (Skarb) dual-coin system parameters for testnet
-		// 100 atoms/KB ensures safe staker fee distribution (minimum ~17 atoms for 177-byte tx)
-		SKAMinRelayTxFee: 100,
-
 		// SKA coin type configurations (fast testing values)
 		SKACoins: map[cointype.CoinType]*SKACoinConfig{
 			1: {
-				CoinType:       1,
-				Name:           "Skarb-1",
-				Symbol:         "SKA-1",
-				EmissionHeight: 800,                                                  // After stake validation (768)
-				EmissionWindow: 4096,                                                 // 4096 block window for testing
-				MaxSupply:      mustParseBigInt("900000000000000000000000000000000"), // 900 trillion * 1e18 atoms
-				AtomsPerCoin:   mustParseBigInt("1000000000000000000"),               // 1e18
-				Active:         true,
-				Description:    "Primary asset-backed SKA coin type for testnet",
+				CoinType:         1,
+				Name:             "Skarb-1",
+				Symbol:           "SKA-1",
+				EmissionHeight:   800,                                                  // After stake validation (768)
+				EmissionWindow:   4096,                                                 // 4096 block window for testing
+				MaxSupply:        mustParseBigInt("900000000000000000000000000000000"), // 900 trillion * 1e18 atoms
+				AtomsPerCoin:     mustParseBigInt("1000000000000000000"),               // 1e18
+				Active:           true,
+				Description:      "Primary asset-backed SKA coin type for testnet",
+				MinRelayTxFee:    mustParseBigInt("4000000000000000000"), // 4 SKA per KB (4e18 atoms/KB)
+				MaxFeeMultiplier: 2500,                                   // Max fee is 2500x min fee
 				EmissionAddresses: []string{
 					"TsXsf3yJokKWxbNboXtABCUaLk61R4RLAAn", // REPLACE with real testnet address
 				},
@@ -588,15 +586,17 @@ func TestNet3Params() *Params {
 				EmissionKey: mustParseHexPubKeyTestnet("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"),
 			},
 			2: {
-				CoinType:       2,
-				Name:           "Skarb-2",
-				Symbol:         "SKA-2",
-				MaxSupply:      mustParseBigInt("5000000000000000000000000"), // 5 million * 1e18 atoms
-				AtomsPerCoin:   mustParseBigInt("1000000000000000000"),       // 1e18
-				EmissionHeight: 1000,                                         // After stake validation (768)
-				EmissionWindow: 100,                                          // 100 block window for testing
-				Active:         false,
-				Description:    "Secondary SKA coin type for testnet testing",
+				CoinType:         2,
+				Name:             "Skarb-2",
+				Symbol:           "SKA-2",
+				MaxSupply:        mustParseBigInt("5000000000000000000000000"), // 5 million * 1e18 atoms
+				AtomsPerCoin:     mustParseBigInt("1000000000000000000"),       // 1e18
+				EmissionHeight:   1000,                                         // After stake validation (768)
+				EmissionWindow:   100,                                          // 100 block window for testing
+				Active:           false,
+				Description:      "Secondary SKA coin type for testnet testing",
+				MinRelayTxFee:    mustParseBigInt("4000000000000000000"), // 4 SKA per KB (4e18 atoms/KB)
+				MaxFeeMultiplier: 2500,                                   // Max fee is 2500x min fee
 				EmissionAddresses: []string{
 					"TsXsf3yJokKWxbNboXtABCUaLk61R4RLAAn",
 				},

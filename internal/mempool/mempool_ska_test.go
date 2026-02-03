@@ -5,6 +5,7 @@
 package mempool
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/chaincfg"
@@ -139,31 +140,31 @@ func TestSKATransactionValidation(t *testing.T) {
 // TestSKAFeeCalculation tests fee calculation for SKA transactions.
 func TestSKAFeeCalculation(t *testing.T) {
 	params := chaincfg.SimNetParams()
-	minRelayTxFee := DefaultMinRelayTxFee
+	minRelayTxFee := big.NewInt(int64(DefaultMinRelayTxFee))
 
 	tests := []struct {
 		name           string
 		serializedSize int64
 		coinType       cointype.CoinType
-		expectMinFee   int64
+		expectMinFee   *big.Int
 	}{
 		{
 			name:           "VAR transaction fee",
 			serializedSize: 250, // 250 bytes
 			coinType:       cointype.CoinTypeVAR,
-			expectMinFee:   2500, // (250 * 10000) / 1000 = 2500 atoms
+			expectMinFee:   big.NewInt(2500), // (250 * 10000) / 1000 = 2500 atoms
 		},
 		{
 			name:           "SKA transaction fee",
 			serializedSize: 250, // 250 bytes
 			coinType:       cointype.CoinType(1),
-			expectMinFee:   25, // SKA uses 100 atoms/KB, so (250 * 100) / 1000 = 25
+			expectMinFee:   big.NewInt(1000000000000000000), // SKA uses 4e18 atoms/KB, so (250 * 4e18) / 1000 = 1e18
 		},
 		{
 			name:           "Large transaction fee",
 			serializedSize: 1000, // 1000 bytes
 			coinType:       cointype.CoinTypeVAR,
-			expectMinFee:   10000, // (1000 * 10000) / 1000 = 10000 atoms
+			expectMinFee:   big.NewInt(10000), // (1000 * 10000) / 1000 = 10000 atoms
 		},
 	}
 
@@ -172,8 +173,8 @@ func TestSKAFeeCalculation(t *testing.T) {
 			minFee := calcMinRequiredTxRelayFeeForCoinType(test.serializedSize,
 				test.coinType, minRelayTxFee, params)
 
-			if minFee != test.expectMinFee {
-				t.Errorf("Expected minimum fee %d, got %d", test.expectMinFee, minFee)
+			if minFee.Cmp(test.expectMinFee) != 0 {
+				t.Errorf("Expected minimum fee %v, got %v", test.expectMinFee, minFee)
 			}
 		})
 	}

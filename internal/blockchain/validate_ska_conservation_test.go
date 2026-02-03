@@ -157,8 +157,8 @@ func TestSKACrossTypeSubsidizationPrevention(t *testing.T) {
 	}
 
 	// Fee should be 50000 (100000 input - 50000 output)
-	expectedFee := int64(50000)
-	if fee != expectedFee {
-		t.Fatalf("Expected fee %d for same-type SKA transaction, got %d", expectedFee, fee)
+	expectedFee := big.NewInt(50000)
+	if fee.Cmp(expectedFee) != 0 {
+		t.Fatalf("Expected fee %s for same-type SKA transaction, got %s", expectedFee, fee)
 	}
 }

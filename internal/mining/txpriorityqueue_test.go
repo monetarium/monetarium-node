@@ -7,6 +7,7 @@ package mining
 
 import (
 	"container/heap"
+	"math/big"
 	"math/rand"
 	"testing"
 
@@ -22,19 +23,19 @@ func TestStakeTxFeePrioHeap(t *testing.T) {
 	// Create some fake priority items that exercise the expected sort
 	// edge conditions.
 	testItems := []*txPrioItem{
-		{feePerKB: 5678, txType: stake.TxTypeRegular, priority: 3},
-		{feePerKB: 5678, txType: stake.TxTypeRegular, priority: 1},
-		{feePerKB: 5678, txType: stake.TxTypeRegular, priority: 1}, // Duplicate fee and prio
-		{feePerKB: 5678, txType: stake.TxTypeRegular, priority: 5},
-		{feePerKB: 5678, txType: stake.TxTypeRegular, priority: 2},
-		{feePerKB: 1234, txType: stake.TxTypeRegular, priority: 3},
-		{feePerKB: 1234, txType: stake.TxTypeRegular, priority: 1},
-		{feePerKB: 1234, txType: stake.TxTypeRegular, priority: 5},
-		{feePerKB: 1234, txType: stake.TxTypeRegular, priority: 5}, // Duplicate fee and prio
-		{feePerKB: 1234, txType: stake.TxTypeRegular, priority: 2},
-		{feePerKB: 10000, txType: stake.TxTypeRegular, priority: 0}, // Higher fee, lower prio
-		{feePerKB: 0, txType: stake.TxTypeRegular, priority: 10000}, // Higher prio, lower fee
-		{txType: stake.TxTypeSSRtx, autoRevocation: true},
+		{feePerKB: big.NewInt(5678), txType: stake.TxTypeRegular, priority: 3},
+		{feePerKB: big.NewInt(5678), txType: stake.TxTypeRegular, priority: 1},
+		{feePerKB: big.NewInt(5678), txType: stake.TxTypeRegular, priority: 1}, // Duplicate fee and prio
+		{feePerKB: big.NewInt(5678), txType: stake.TxTypeRegular, priority: 5},
+		{feePerKB: big.NewInt(5678), txType: stake.TxTypeRegular, priority: 2},
+		{feePerKB: big.NewInt(1234), txType: stake.TxTypeRegular, priority: 3},
+		{feePerKB: big.NewInt(1234), txType: stake.TxTypeRegular, priority: 1},
+		{feePerKB: big.NewInt(1234), txType: stake.TxTypeRegular, priority: 5},
+		{feePerKB: big.NewInt(1234), txType: stake.TxTypeRegular, priority: 5}, // Duplicate fee and prio
+		{feePerKB: big.NewInt(1234), txType: stake.TxTypeRegular, priority: 2},
+		{feePerKB: big.NewInt(10000), txType: stake.TxTypeRegular, priority: 0}, // Higher fee, lower prio
+		{feePerKB: big.NewInt(0), txType: stake.TxTypeRegular, priority: 10000}, // Higher prio, lower fee
+		{feePerKB: big.NewInt(0), txType: stake.TxTypeSSRtx, autoRevocation: true},
 	}
 
 	// Add random data in addition to the edge conditions already manually
@@ -42,11 +43,11 @@ func TestStakeTxFeePrioHeap(t *testing.T) {
 	for i := len(testItems); i < numTestItems; i++ {
 		randType := stake.TxType(rand.Intn(4))
 		randPrio := rand.Float64() * 100
-		randFeePerKB := rand.Float64() * 10
+		randFeePerKB := int64(rand.Float64() * 10000) // Use int64 for random fee
 		testItems = append(testItems, &txPrioItem{
 			txDesc:   nil,
 			txType:   randType,
-			feePerKB: randFeePerKB,
+			feePerKB: big.NewInt(randFeePerKB),
 			priority: randPrio,
 		})
 	}
@@ -60,13 +61,13 @@ func TestStakeTxFeePrioHeap(t *testing.T) {
 		txDesc:   nil,
 		txType:   stake.TxTypeSSGen,
 		priority: 10000.0,
-		feePerKB: 10000.0,
+		feePerKB: big.NewInt(10000),
 	}
 	for i := 0; i < numTestItems; i++ {
 		prioItem := heap.Pop(ph)
 		txpi, ok := prioItem.(*txPrioItem)
 		if ok {
-			if txpi.feePerKB > last.feePerKB &&
+			if txpi.feePerKB.Cmp(last.feePerKB) > 0 &&
 				compareStakePriority(txpi, last) >= 0 {
 				t.Errorf("bad pop: %v fee per KB was more than last of %v "+
 					"while the txtype was %v but last was %v",

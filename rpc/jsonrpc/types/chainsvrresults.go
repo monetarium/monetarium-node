@@ -27,22 +27,25 @@ type DecodeScriptResult struct {
 }
 
 // EstimateSmartFeeResult models the data returned from the estimatesmartfee
-// command.
+// command. FeeRate is returned as a string (atoms) to support both VAR and SKA
+// with full precision.
 type EstimateSmartFeeResult struct {
-	FeeRate float64  `json:"feerate"`
+	FeeRate string   `json:"feerate"` // Fee rate in atoms as string
 	Errors  []string `json:"errors,omitempty"`
 	Blocks  int64    `json:"blocks"`
 }
 
 // GetFeeResult models the data returned from the getfeestimatesbycointype
-// command.
+// command. Fee values are returned as strings (atoms) to support both VAR and SKA
+// with full precision.
 type GetFeeResult struct {
 	CoinType             uint8    `json:"cointype"`
-	MinRelayFee          float64  `json:"minrelayfee"`
+	MinRelayFee          string   `json:"minrelayfee"` // Atoms as string
 	DynamicFeeMultiplier float64  `json:"dynamicfeemultiplier"`
-	FastFee              float64  `json:"fastfee"`   // ~1 block (90th percentile)
-	NormalFee            float64  `json:"normalfee"` // ~3 blocks (50th percentile)
-	SlowFee              float64  `json:"slowfee"`   // ~6 blocks (10th percentile)
+	MaxFeeRate           string   `json:"maxfeerate"` // Max fee (100x for VAR, emission for SKA)
+	FastFee              string   `json:"fastfee"`    // ~1 block (90th percentile), atoms as string
+	NormalFee            string   `json:"normalfee"`  // ~3 blocks (50th percentile), atoms as string
+	SlowFee              string   `json:"slowfee"`    // ~6 blocks (10th percentile), atoms as string
 	PendingTxCount       int      `json:"pendingtxcount"`
 	PendingTxSize        int64    `json:"pendingtxsize"`
 	BlockSpaceUsed       float64  `json:"blockspaceused"`
@@ -59,20 +62,21 @@ type GetMempoolFeesInfoResult struct {
 }
 
 // MempoolCoinTypeFeeInfo contains detailed mempool fee information for a specific coin type.
+// Fee values are returned as strings (atoms) to support both VAR and SKA with full precision.
 type MempoolCoinTypeFeeInfo struct {
 	CoinType        uint8   `json:"cointype"`
 	Name            string  `json:"name"`            // E.g., "VAR", "SKA-1", "SKA-2"
 	TxCount         int     `json:"txcount"`         // Number of transactions in mempool
 	TotalSize       int64   `json:"totalsize"`       // Total size of transactions (bytes)
 	AverageSize     float64 `json:"averagesize"`     // Average transaction size
-	MinFee          float64 `json:"minfee"`          // Minimum fee rate (DCR/KB)
-	MaxFee          float64 `json:"maxfee"`          // Maximum fee rate (DCR/KB)
-	AverageFee      float64 `json:"averagefee"`      // Average fee rate (DCR/KB)
-	MedianFee       float64 `json:"medianfee"`       // Median fee rate (DCR/KB)
-	P25Fee          float64 `json:"p25fee"`          // 25th percentile fee rate
-	P75Fee          float64 `json:"p75fee"`          // 75th percentile fee rate
-	P90Fee          float64 `json:"p90fee"`          // 90th percentile fee rate
-	TotalFees       float64 `json:"totalfees"`       // Total fees for all transactions (DCR)
+	MinFee          string  `json:"minfee"`          // Minimum fee rate (atoms as string)
+	MaxFee          string  `json:"maxfee"`          // Maximum fee rate (atoms as string)
+	AverageFee      string  `json:"averagefee"`      // Average fee rate (atoms as string)
+	MedianFee       string  `json:"medianfee"`       // Median fee rate (atoms as string)
+	P25Fee          string  `json:"p25fee"`          // 25th percentile fee rate (atoms as string)
+	P75Fee          string  `json:"p75fee"`          // 75th percentile fee rate (atoms as string)
+	P90Fee          string  `json:"p90fee"`          // 90th percentile fee rate (atoms as string)
+	TotalFees       string  `json:"totalfees"`       // Total fees for all transactions (atoms as string)
 	OldestTxTime    int64   `json:"oldesttxtime"`    // Unix timestamp of oldest transaction
 	NewestTxTime    int64   `json:"newesttxtime"`    // Unix timestamp of newest transaction
 	UtilizationRate float64 `json:"utilizationrate"` // Percentage of allocated block space used
@@ -391,7 +395,8 @@ type GetPeerInfoResult struct {
 // getrawmempool returns an array of transaction hashes.
 type GetRawMempoolVerboseResult struct {
 	Size   int32   `json:"size"`
-	Fee    float64 `json:"fee"`
+	Fee    float64 `json:"fee"`              // VAR fee in coins (0 for SKA transactions)
+	SKAFee string  `json:"skafee,omitempty"` // SKA fee in atoms as string (only for SKA transactions)
 	Time   int64   `json:"time"`
 	Height int64   `json:"height"`
 	// Deprecated: This will be removed in the next major version bump.

@@ -40,9 +40,9 @@ func TestChainParamsSKAConfiguration(t *testing.T) {
 				minRelayFee        int64
 			}{
 				ska1EmissionAmount: expectedAmount,
-				ska1EmissionHeight: 150,  // Simnet emission height (after stake validation at 144)
-				ska1Active:         true, // Active in simnet
-				minRelayFee:        100,  // 100 atoms/KB for safe staker fee distribution
+				ska1EmissionHeight: 150,                 // Simnet emission height (after stake validation at 144)
+				ska1Active:         true,                // Active in simnet
+				minRelayFee:        4000000000000000000, // 4 SKA per KB (4e18 atoms/KB)
 			},
 		},
 		{
@@ -55,9 +55,9 @@ func TestChainParamsSKAConfiguration(t *testing.T) {
 				minRelayFee        int64
 			}{
 				ska1EmissionAmount: expectedAmount,
-				ska1EmissionHeight: 4096, // Aligned with StakeValidationHeight
-				ska1Active:         true, // Active on mainnet
-				minRelayFee:        100,  // 100 atoms/KB for safe staker fee distribution
+				ska1EmissionHeight: 4096,                // Aligned with StakeValidationHeight
+				ska1Active:         true,                // Active on mainnet
+				minRelayFee:        4000000000000000000, // 4 SKA per KB (4e18 atoms/KB)
 			},
 		},
 	}
@@ -94,9 +94,15 @@ func TestChainParamsSKAConfiguration(t *testing.T) {
 					test.expected.ska1Active, ska1Config.Active)
 			}
 
-			if test.params.SKAMinRelayTxFee != test.expected.minRelayFee {
-				t.Errorf("SKAMinRelayTxFee: expected %d, got %d",
-					test.expected.minRelayFee, test.params.SKAMinRelayTxFee)
+			// Check MinRelayTxFee from SKA-1 config (now per-coin)
+			expectedMinRelayFee := big.NewInt(test.expected.minRelayFee)
+			if ska1Config.MinRelayTxFee == nil || ska1Config.MinRelayTxFee.Cmp(expectedMinRelayFee) != 0 {
+				actual := "nil"
+				if ska1Config.MinRelayTxFee != nil {
+					actual = ska1Config.MinRelayTxFee.String()
+				}
+				t.Errorf("SKA-1 MinRelayTxFee: expected %s, got %s",
+					expectedMinRelayFee.String(), actual)
 			}
 		})
 	}

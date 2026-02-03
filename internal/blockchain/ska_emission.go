@@ -586,8 +586,8 @@ func extractEmissionAuthorization(sigScript []byte) (*chaincfg.SKAEmissionAuth, 
 
 	// Check authorization version
 	authVersion := sigScript[offset]
-	if authVersion != 0x02 && authVersion != 0x03 {
-		return nil, fmt.Errorf("unsupported authorization version: %d (supported: 2, 3)", authVersion)
+	if authVersion != 0x03 {
+		return nil, fmt.Errorf("unsupported authorization version: %d (supported: 3)", authVersion)
 	}
 	offset++
 
@@ -605,34 +605,18 @@ func extractEmissionAuthorization(sigScript []byte) (*chaincfg.SKAEmissionAuth, 
 	coinType := cointype.CoinType(sigScript[offset])
 	offset++
 
-	// Extract amount based on version
-	var amount *big.Int
-	if authVersion == 0x02 {
-		// V2: Fixed 8-byte int64 amount (little-endian)
-		if len(sigScript) < offset+8 {
-			return nil, fmt.Errorf("insufficient data for amount at offset %d, have %d bytes, need %d", offset, len(sigScript), offset+8)
-		}
-		// Check if this looks like a public key instead of an amount (starts with 0x02 or 0x03)
-		if sigScript[offset] == 0x02 || sigScript[offset] == 0x03 {
-			return nil, fmt.Errorf("script format error: expected amount at offset %d but found what appears to be a compressed public key", offset)
-		}
-		amountInt64 := int64(binary.LittleEndian.Uint64(sigScript[offset : offset+8]))
-		amount = big.NewInt(amountInt64)
-		offset += 8
-	} else {
-		// V3: Variable-length big.Int amount (length-prefixed, big-endian)
-		if len(sigScript) < offset+1 {
-			return nil, fmt.Errorf("insufficient data for amount length")
-		}
-		amountLen := int(sigScript[offset])
-		offset++
-
-		if len(sigScript) < offset+amountLen {
-			return nil, fmt.Errorf("insufficient data for amount: need %d bytes, have %d", amountLen, len(sigScript)-offset)
-		}
-		amount = new(big.Int).SetBytes(sigScript[offset : offset+amountLen])
-		offset += amountLen
+	// Extract amount (variable-length big.Int, length-prefixed, big-endian)
+	if len(sigScript) < offset+1 {
+		return nil, fmt.Errorf("insufficient data for amount length")
 	}
+	amountLen := int(sigScript[offset])
+	offset++
+
+	if len(sigScript) < offset+amountLen {
+		return nil, fmt.Errorf("insufficient data for amount: need %d bytes, have %d", amountLen, len(sigScript)-offset)
+	}
+	amount := new(big.Int).SetBytes(sigScript[offset : offset+amountLen])
+	offset += amountLen
 
 	// Extract height (8 bytes)
 	if len(sigScript) < offset+8 {

@@ -574,22 +574,20 @@ func MainNetParams() *Params {
 		// To add peers, use --connect=<ip>:9108 or --addpeer=<ip>:9108
 		seeders: []string{},
 
-		// SKA (Skarb) dual-coin system parameters for mainnet
-		// 100 atoms/KB ensures safe staker fee distribution (minimum ~17 atoms for 177-byte tx)
-		SKAMinRelayTxFee: 100,
-
 		// SKA coin type configurations for multiple coin support
 		SKACoins: map[cointype.CoinType]*SKACoinConfig{
 			1: {
-				CoinType:       1,
-				Name:           "Skarb-1",
-				Symbol:         "SKA-1",                                              // 10 million SKA-1
-				EmissionHeight: 4096,                                                 // Aligned with StakeValidationHeight
-				EmissionWindow: 4320,                                                 // 30-day emission window (~144 blocks/day * 30)
-				MaxSupply:      mustParseBigInt("900000000000000000000000000000000"), // 900 trillion * 1e18 atoms
-				AtomsPerCoin:   mustParseBigInt("1000000000000000000"),               // 1e18
-				Active:         true,
-				Description:    "Primary asset-backed SKA coin type for mainnet",
+				CoinType:         1,
+				Name:             "Skarb-1",
+				Symbol:           "SKA-1",
+				EmissionHeight:   4096,                                                 // Aligned with StakeValidationHeight
+				EmissionWindow:   4320,                                                 // 30-day emission window (~144 blocks/day * 30)
+				MaxSupply:        mustParseBigInt("900000000000000000000000000000000"), // 900 trillion * 1e18 atoms
+				AtomsPerCoin:     mustParseBigInt("1000000000000000000"),               // 1e18
+				Active:           true,
+				Description:      "Primary asset-backed SKA coin type for mainnet",
+				MinRelayTxFee:    mustParseBigInt("4000000000000000000"), // 4 SKA per KB (4e18 atoms/KB)
+				MaxFeeMultiplier: 2500,                                   // Max fee is 2500x min fee
 				// Governance-approved emission distribution (TO BE REPLACED WITH REAL ADDRESSES)
 				EmissionAddresses: []string{
 					"MsMz7mvUPBu5GDFexM2W8KiFxEeToFAC4Wv",
@@ -602,15 +600,17 @@ func MainNetParams() *Params {
 				EmissionKey: mustParseHexPubKey("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"),
 			},
 			2: {
-				CoinType:       2,
-				Name:           "Skarb-2",
-				Symbol:         "SKA-2",
-				MaxSupply:      mustParseBigInt("5000000000000000000000000"), // 5 million * 1e18 atoms
-				AtomsPerCoin:   mustParseBigInt("1000000000000000000"),       // 1e18
-				EmissionHeight: 150000,                                       // Future emission height
-				EmissionWindow: 4320,                                         // 30-day emission window (~144 blocks/day * 30)
-				Active:         false,                                        // Inactive until governance vote
-				Description:    "Secondary SKA coin type for proof of concept testing",
+				CoinType:         2,
+				Name:             "Skarb-2",
+				Symbol:           "SKA-2",
+				MaxSupply:        mustParseBigInt("5000000000000000000000000"), // 5 million * 1e18 atoms
+				AtomsPerCoin:     mustParseBigInt("1000000000000000000"),       // 1e18
+				EmissionHeight:   150000,                                       // Future emission height
+				EmissionWindow:   4320,                                         // 30-day emission window (~144 blocks/day * 30)
+				Active:           false,                                        // Inactive until governance vote
+				Description:      "Secondary SKA coin type for proof of concept testing",
+				MinRelayTxFee:    mustParseBigInt("4000000000000000000"), // 4 SKA per KB (4e18 atoms/KB)
+				MaxFeeMultiplier: 2500,                                   // Max fee is 2500x min fee
 				// Governance-approved emission distribution (TO BE REPLACED WITH REAL ADDRESSES)
 				EmissionAddresses: []string{
 					"MsMz7mvUPBu5GDFexM2W8KiFxEeToFAC4Wv", // Full amount to treasury

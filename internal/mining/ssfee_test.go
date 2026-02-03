@@ -5,6 +5,7 @@
 package mining
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/blockchain/stake"
@@ -76,7 +77,7 @@ func TestCreateSSFeeTxBatched(t *testing.T) {
 	tests := []struct {
 		name           string
 		coinType       cointype.CoinType
-		totalFee       int64
+		totalFee       *big.Int
 		voters         []*dcrutil.Tx
 		height         int64
 		expectError    bool
@@ -87,7 +88,7 @@ func TestCreateSSFeeTxBatched(t *testing.T) {
 		{
 			name:         "valid SKA-1 fee distribution - same address",
 			coinType:     1,
-			totalFee:     3000,
+			totalFee:     big.NewInt(3000),
 			voters:       votersSameAddr,
 			height:       100,
 			expectError:  false,
@@ -96,7 +97,7 @@ func TestCreateSSFeeTxBatched(t *testing.T) {
 		{
 			name:         "valid SKA-1 fee distribution - different addresses",
 			coinType:     1,
-			totalFee:     3000,
+			totalFee:     big.NewInt(3000),
 			voters:       votersDiffAddr,
 			height:       100,
 			expectError:  false,
@@ -105,7 +106,7 @@ func TestCreateSSFeeTxBatched(t *testing.T) {
 		{
 			name:         "valid SKA-2 fee distribution",
 			coinType:     2,
-			totalFee:     6000,
+			totalFee:     big.NewInt(6000),
 			voters:       votersDiffAddr,
 			height:       200,
 			expectError:  false,
@@ -114,7 +115,7 @@ func TestCreateSSFeeTxBatched(t *testing.T) {
 		{
 			name:         "valid VAR fee distribution",
 			coinType:     cointype.CoinTypeVAR,
-			totalFee:     1000,
+			totalFee:     big.NewInt(1000),
 			voters:       votersDiffAddr,
 			height:       100,
 			expectError:  false,
@@ -123,25 +124,25 @@ func TestCreateSSFeeTxBatched(t *testing.T) {
 		{
 			name:           "no voters",
 			coinType:       1,
-			totalFee:       1000,
+			totalFee:       big.NewInt(1000),
 			voters:         []*dcrutil.Tx{},
 			height:         100,
 			expectError:    false, // Batched returns nil, nil for no voters
 			expectNilEmpty: true,
 		},
 		{
-			name:         "zero total fee",
-			coinType:     1,
-			totalFee:     0,
-			voters:       votersDiffAddr,
-			height:       100,
-			expectError:  false,
-			expectedTxns: 0, // Zero fee results in no transactions
+			name:           "zero total fee",
+			coinType:       1,
+			totalFee:       big.NewInt(0),
+			voters:         votersDiffAddr,
+			height:         100,
+			expectError:    false,
+			expectNilEmpty: true, // Zero fee results in nil/empty
 		},
 		{
 			name:         "remainder distribution test",
 			coinType:     1,
-			totalFee:     10, // 10 atoms to 3 voters = 3 each + 1 remainder to first sorted
+			totalFee:     big.NewInt(10), // 10 atoms to 3 voters = 3 each + 1 remainder to first sorted
 			voters:       votersDiffAddr,
 			height:       100,
 			expectError:  false,
@@ -228,8 +229,8 @@ func TestCreateSSFeeTxBatched(t *testing.T) {
 			}
 
 			// Verify total distributed across all transactions equals input fee
-			if totalDistributed != test.totalFee {
-				t.Errorf("Total distributed %d != total fee %d",
+			if totalDistributed != test.totalFee.Int64() {
+				t.Errorf("Total distributed %d != total fee %v",
 					totalDistributed, test.totalFee)
 			}
 		})
@@ -249,8 +250,8 @@ func TestSSFeeMultipleCoinTypes(t *testing.T) {
 
 	// Test creating SSFee for multiple coin types
 	// These are the staker portions (50% of total fees per coin type)
-	coinTypes := []cointype.CoinType{1, 2, 3} // SKA-1, SKA-2, SKA-3
-	fees := []int64{2000, 4000, 6000}         // Staker portions after 50/50 split
+	coinTypes := []cointype.CoinType{1, 2, 3}                                // SKA-1, SKA-2, SKA-3
+	fees := []*big.Int{big.NewInt(2000), big.NewInt(4000), big.NewInt(6000)} // Staker portions after 50/50 split
 
 	allSSFeeTxns := make([][]*dcrutil.Tx, 0)
 	for i, coinType := range coinTypes {
@@ -286,8 +287,8 @@ func TestSSFeeMultipleCoinTypes(t *testing.T) {
 		}
 
 		// Check fee distribution across all SSFee transactions for this coin type
-		if totalDistributed != fees[i] {
-			t.Errorf("SSFee group %d distributed wrong amount: got %d, want %d",
+		if totalDistributed != fees[i].Int64() {
+			t.Errorf("SSFee group %d distributed wrong amount: got %d, want %v",
 				i, totalDistributed, fees[i])
 		}
 	}
@@ -317,7 +318,7 @@ func TestSSFeeEdgeCases(t *testing.T) {
 		// Missing consolidation address output
 		voters := []*dcrutil.Tx{dcrutil.NewTx(voteTx)}
 
-		_, err := createSSFeeTxBatched(1, 1000, voters, 100, nil, nil, nil, nil)
+		_, err := createSSFeeTxBatched(1, big.NewInt(1000), voters, 100, nil, nil, nil, nil)
 		if err == nil {
 			t.Errorf("Expected error for missing consolidation address")
 		}
@@ -337,7 +338,7 @@ func TestSSFeeEdgeCases(t *testing.T) {
 		}
 
 		// 100 atoms / 3 voters = 33 each + 1 remainder
-		ssFeeTxns, err := createSSFeeTxBatched(1, 100, voters, 100, nil, nil, nil, nil)
+		ssFeeTxns, err := createSSFeeTxBatched(1, big.NewInt(100), voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -368,7 +369,7 @@ func TestSSFeeEdgeCases(t *testing.T) {
 			voters[i] = createMockVoteWithConsolidation(1000, hash)
 		}
 
-		ssFeeTxns, err := createSSFeeTxBatched(1, 5000, voters, 100, nil, nil, nil, nil)
+		ssFeeTxns, err := createSSFeeTxBatched(1, big.NewInt(5000), voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -405,7 +406,7 @@ func TestSSFeeEdgeCases(t *testing.T) {
 		// 3000 total fee / 3 votes = 1000 per vote
 		// Group 1 (sameHash, 2 votes): 2000
 		// Group 2 (diffHash, 1 vote): 1000
-		ssFeeTxns, err := createSSFeeTxBatched(1, 3000, voters, 100, nil, nil, nil, nil)
+		ssFeeTxns, err := createSSFeeTxBatched(1, big.NewInt(3000), voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -469,7 +470,7 @@ func TestCreateSSFeeTxBatchedUTXOAugmentation(t *testing.T) {
 	}
 
 	t.Run("no ssfeeIndex - creates new UTXOs", func(t *testing.T) {
-		ssFeeTxns, err := createSSFeeTxBatched(1, 3000, voters, 100, nil, nil, nil, nil)
+		ssFeeTxns, err := createSSFeeTxBatched(1, big.NewInt(3000), voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -501,14 +502,14 @@ func TestCreateSSFeeTxBatchedUTXOAugmentation(t *testing.T) {
 
 	t.Run("multiple rounds accumulate fees", func(t *testing.T) {
 		// Round 1: Create initial SSFee transactions
-		round1Txns, err := createSSFeeTxBatched(1, 3000, voters, 100, nil, nil, nil, nil)
+		round1Txns, err := createSSFeeTxBatched(1, big.NewInt(3000), voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Round 1 error: %v", err)
 		}
 
 		// Round 2: Create more SSFee transactions (simulating next block)
 		// In real scenario with SSFeeIndex, round2 would augment round1 outputs
-		round2Txns, err := createSSFeeTxBatched(1, 3000, voters, 101, nil, nil, nil, nil)
+		round2Txns, err := createSSFeeTxBatched(1, big.NewInt(3000), voters, 101, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Round 2 error: %v", err)
 		}
@@ -527,13 +528,13 @@ func TestCreateSSFeeTxBatchedUTXOAugmentation(t *testing.T) {
 
 	t.Run("different coin types don't interfere", func(t *testing.T) {
 		// Create SSFee for SKA-1
-		ska1Txns, err := createSSFeeTxBatched(1, 3000, voters, 100, nil, nil, nil, nil)
+		ska1Txns, err := createSSFeeTxBatched(1, big.NewInt(3000), voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("SKA-1 error: %v", err)
 		}
 
 		// Create SSFee for SKA-2
-		ska2Txns, err := createSSFeeTxBatched(2, 6000, voters, 100, nil, nil, nil, nil)
+		ska2Txns, err := createSSFeeTxBatched(2, big.NewInt(6000), voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("SKA-2 error: %v", err)
 		}
@@ -566,7 +567,7 @@ func TestCreateSSFeeTxBatchedUTXOAugmentation(t *testing.T) {
 	})
 
 	t.Run("each transaction has unique OP_RETURN", func(t *testing.T) {
-		ssFeeTxns, err := createSSFeeTxBatched(1, 3000, voters, 100, nil, nil, nil, nil)
+		ssFeeTxns, err := createSSFeeTxBatched(1, big.NewInt(3000), voters, 100, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}

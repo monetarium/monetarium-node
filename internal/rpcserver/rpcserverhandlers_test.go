@@ -3051,7 +3051,7 @@ func TestHandleEstimateSmartFee(t *testing.T) {
 	validFeeEstimator := defaultMockFeeEstimator()
 	validFeeEstimator.estimateFeeAmt = 123456789
 	result := &types.EstimateSmartFeeResult{
-		FeeRate: float64(1.23456789),
+		FeeRate: "123456789", // Atoms as string
 	}
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleEstimateSmartFee: ok with mode",

@@ -294,6 +294,14 @@ type SKACoinConfig struct {
 	// for this specific SKA coin type. Only transactions signed by the corresponding
 	// private key are valid emissions.
 	EmissionKey *secp256k1.PublicKey
+
+	// MinRelayTxFee is the minimum fee rate for this SKA coin type (atoms/KB).
+	// Uses *big.Int to support fees > 9.22 SKA without int64 overflow.
+	MinRelayTxFee *big.Int
+
+	// MaxFeeMultiplier is the multiplier applied to MinRelayTxFee to determine
+	// the maximum allowed fee for transactions of this coin type. Default is 2500.
+	MaxFeeMultiplier int64
 }
 
 // IsActive returns true if this SKA coin type is active.
@@ -744,13 +752,10 @@ type Params struct {
 	// SKA (Skarb) dual-coin system parameters
 	// -------------------------------------------------------------------------
 
-	// SKAMinRelayTxFee is the minimum fee rate for SKA transactions to be
-	// relayed by the network. This is separate from VAR transaction fees.
-	SKAMinRelayTxFee int64
-
 	// SKACoins is a map of coin type to configuration for all supported
 	// SKA coin types in this network. This allows dynamic management of
-	// multiple SKA coin types.
+	// multiple SKA coin types. Fee configuration (MinRelayTxFee, MaxFeeMultiplier)
+	// is now per-coin-type within SKACoinConfig.
 	SKACoins map[cointype.CoinType]*SKACoinConfig
 
 	// InitialSKATypes defines which SKA coin types should be active at

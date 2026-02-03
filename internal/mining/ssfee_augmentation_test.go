@@ -5,6 +5,7 @@
 package mining
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/chaincfg"
@@ -23,7 +24,7 @@ func TestSSFeeAugmentation_VAR_NullInput(t *testing.T) {
 	voters := []*dcrutil.Tx{voter}
 
 	// Create SSFee without SSFeeIndex (null-input mode)
-	ssFeeTxns, err := createSSFeeTxBatched(cointype.CoinTypeVAR, 1000, voters, 100, nil, nil, nil, nil)
+	ssFeeTxns, err := createSSFeeTxBatched(cointype.CoinTypeVAR, big.NewInt(1000), voters, 100, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to create VAR SSFee: %v", err)
 	}
@@ -74,23 +75,23 @@ func TestSSFeeAugmentation_SKA_Staker_NullInput(t *testing.T) {
 	testCases := []struct {
 		name     string
 		coinType cointype.CoinType
-		fee      int64
+		fee      *big.Int
 	}{
 		{
 			name:     "SKA-1 staker null-input",
 			coinType: cointype.CoinType(1),
-			fee:      1500,
+			fee:      big.NewInt(1500),
 		},
 		{
 			name:     "SKA-2 staker null-input",
 			coinType: cointype.CoinType(2),
-			fee:      2500,
+			fee:      big.NewInt(2500),
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			voter := createMockVoterWithConsolidationAddr(t, tc.coinType, tc.fee, makeTestHash160(0xBB))
+			voter := createMockVoterWithConsolidationAddr(t, tc.coinType, tc.fee.Int64(), makeTestHash160(0xBB))
 			voters := []*dcrutil.Tx{voter}
 
 			ssFeeTxns, err := createSSFeeTxBatched(tc.coinType, tc.fee, voters, 200, nil, nil, nil, nil)
@@ -115,8 +116,8 @@ func TestSSFeeAugmentation_SKA_Staker_NullInput(t *testing.T) {
 			if tx.TxOut[1].SKAValue != nil {
 				outputValue = tx.TxOut[1].SKAValue.Int64()
 			}
-			if outputValue != tc.fee {
-				t.Errorf("Expected output %d, got %d", tc.fee, outputValue)
+			if outputValue != tc.fee.Int64() {
+				t.Errorf("Expected output %v, got %d", tc.fee, outputValue)
 			}
 			if tx.TxOut[1].CoinType != tc.coinType {
 				t.Errorf("Expected coin type %d, got %d", tc.coinType, tx.TxOut[1].CoinType)
@@ -141,17 +142,17 @@ func TestSSFeeAugmentation_SKA_Miner_NullInput(t *testing.T) {
 	testCases := []struct {
 		name     string
 		coinType cointype.CoinType
-		fee      int64
+		fee      *big.Int
 	}{
 		{
 			name:     "SKA-1 miner null-input",
 			coinType: cointype.CoinType(1),
-			fee:      3000,
+			fee:      big.NewInt(3000),
 		},
 		{
 			name:     "SKA-2 miner null-input",
 			coinType: cointype.CoinType(2),
-			fee:      4000,
+			fee:      big.NewInt(4000),
 		},
 	}
 
@@ -186,8 +187,8 @@ func TestSSFeeAugmentation_SKA_Miner_NullInput(t *testing.T) {
 			if tx.TxOut[1].SKAValue != nil {
 				outputValue = tx.TxOut[1].SKAValue.Int64()
 			}
-			if outputValue != tc.fee {
-				t.Errorf("Expected output %d, got %d", tc.fee, outputValue)
+			if outputValue != tc.fee.Int64() {
+				t.Errorf("Expected output %v, got %d", tc.fee, outputValue)
 			}
 			if tx.TxOut[1].CoinType != tc.coinType {
 				t.Errorf("Expected coin type %d, got %d", tc.coinType, tx.TxOut[1].CoinType)
@@ -245,13 +246,13 @@ func TestSSFeeAugmentation_MultipleRounds(t *testing.T) {
 	voters := []*dcrutil.Tx{voter}
 
 	// Round 1: Create initial SSFee (null input)
-	round1Txns, err := createSSFeeTxBatched(cointype.CoinType(1), 1000, voters, 100, nil, nil, nil, nil)
+	round1Txns, err := createSSFeeTxBatched(cointype.CoinType(1), big.NewInt(1000), voters, 100, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Round 1 failed: %v", err)
 	}
 
 	// Round 2: Create another SSFee (also null input without SSFeeIndex)
-	round2Txns, err := createSSFeeTxBatched(cointype.CoinType(1), 1000, voters, 101, nil, nil, nil, nil)
+	round2Txns, err := createSSFeeTxBatched(cointype.CoinType(1), big.NewInt(1000), voters, 101, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Round 2 failed: %v", err)
 	}

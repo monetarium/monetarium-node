@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
 	mrand "math/rand"
 	"os"
 	"path/filepath"
@@ -2957,8 +2958,8 @@ func TestDualCoinTransactionValidation(t *testing.T) {
 					t.Errorf("Expected test to pass but got error: %v", err)
 					return
 				}
-				if fee != test.expectedFee {
-					t.Errorf("Expected fee %d, got %d", test.expectedFee, fee)
+				if fee.Cmp(big.NewInt(test.expectedFee)) != 0 {
+					t.Errorf("Expected fee %d, got %s", test.expectedFee, fee)
 				}
 			} else {
 				if err == nil {

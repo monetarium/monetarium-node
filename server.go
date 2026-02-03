@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"net"
 	"net/netip"
 	"os"
@@ -4157,7 +4158,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 				view *blockchain.UtxoViewpoint, checkFraudProof bool,
 				prevHeader *wire.BlockHeader, isTreasuryEnabled,
 				isAutoRevocationsEnabled bool,
-				subsidySplitVariant standalone.SubsidySplitVariant) (int64, error) {
+				subsidySplitVariant standalone.SubsidySplitVariant) (*big.Int, error) {
 
 				return blockchain.CheckTransactionInputs(s.subsidyCache, tx, txHeight,
 					view, checkFraudProof, s.chainParams, prevHeader, isTreasuryEnabled,

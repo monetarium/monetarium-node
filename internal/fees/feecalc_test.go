@@ -5,6 +5,7 @@
 package fees
 
 import (
+	"math/big"
 	"testing"
 	"time"
 
@@ -87,7 +88,7 @@ func TestCalculateMinFee(t *testing.T) {
 			name:           "SKA transaction 250 bytes",
 			serializedSize: 250,
 			coinType:       cointype.CoinType(1), // SKA-1
-			expectedMin:    25,                   // SKA fee rate 100/KB: (250 * 100) / 1000 = 25 atoms
+			expectedMin:    1000000000000000000,  // SKA fee rate 4e18/KB: (250 * 4e18) / 1000 = 1e18 atoms
 		},
 		{
 			name:           "Large VAR transaction 1000 bytes",
@@ -99,7 +100,7 @@ func TestCalculateMinFee(t *testing.T) {
 			name:           "Large SKA transaction 1000 bytes",
 			serializedSize: 1000,
 			coinType:       cointype.CoinType(1), // SKA-1
-			expectedMin:    100,                  // SKA fee rate 100/KB: (1000 * 100) / 1000 = 100 atoms
+			expectedMin:    4000000000000000000,  // SKA fee rate 4e18/KB: (1000 * 4e18) / 1000 = 4e18 atoms
 		},
 		{
 			name:           "Unknown coin type defaults to VAR",
@@ -112,8 +113,9 @@ func TestCalculateMinFee(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			minFee := calc.CalculateMinFee(test.serializedSize, test.coinType)
-			if minFee != test.expectedMin {
-				t.Errorf("Expected minimum fee %d, got %d", test.expectedMin, minFee)
+			expectedBig := big.NewInt(test.expectedMin)
+			if minFee.Cmp(expectedBig) != 0 {
+				t.Errorf("Expected minimum fee %s, got %s", expectedBig.String(), minFee.String())
 			}
 		})
 	}
@@ -174,14 +176,14 @@ func TestEstimateFeeRate(t *testing.T) {
 				return
 			}
 
-			if feeRate <= 0 {
+			if feeRate.Sign() <= 0 {
 				t.Error("Expected positive fee rate")
 			}
 
 			// Next block should have higher fee than normal confirmation
 			if test.targetConfirmations == 1 {
 				normalRate, _ := calc.EstimateFeeRate(test.coinType, 6)
-				if feeRate <= normalRate {
+				if feeRate.Cmp(normalRate) <= 0 {
 					t.Error("Next block fee should be higher than normal confirmation fee")
 				}
 			}
@@ -248,21 +250,21 @@ func TestRecordTransactionFee(t *testing.T) {
 	}
 
 	// Check that fee rates are calculated
-	if stats.FastFee == 0 {
+	if stats.FastFee == nil || stats.FastFee.Sign() == 0 {
 		t.Error("Expected non-zero fast fee")
 	}
-	if stats.NormalFee == 0 {
+	if stats.NormalFee == nil || stats.NormalFee.Sign() == 0 {
 		t.Error("Expected non-zero normal fee")
 	}
-	if stats.SlowFee == 0 {
+	if stats.SlowFee == nil || stats.SlowFee.Sign() == 0 {
 		t.Error("Expected non-zero slow fee")
 	}
 
 	// Fast fee should be >= normal fee >= slow fee
-	if stats.FastFee < stats.NormalFee {
+	if stats.FastFee.Cmp(stats.NormalFee) < 0 {
 		t.Error("Fast fee should be >= normal fee")
 	}
-	if stats.NormalFee < stats.SlowFee {
+	if stats.NormalFee.Cmp(stats.SlowFee) < 0 {
 		t.Error("Normal fee should be >= slow fee")
 	}
 }
@@ -302,7 +304,7 @@ func TestValidateTransactionFees(t *testing.T) {
 		},
 		{
 			name:           "SKA sufficient fee",
-			txFee:          50,
+			txFee:          2000000000000000000, // 2 SKA - above min fee of 1 SKA for 250 bytes
 			serializedSize: 250,
 			coinType:       cointype.CoinType(1), // SKA-1
 			allowHighFees:  false,
@@ -310,9 +312,9 @@ func TestValidateTransactionFees(t *testing.T) {
 		},
 		{
 			name:           "SKA insufficient fee",
-			txFee:          5,
+			txFee:          100000000000000000, // 0.1 SKA - below min fee of 1 SKA for 250 bytes
 			serializedSize: 250,
-			coinType:       cointype.CoinType(1), // SKA-1 - min fee is (250*50)/1000=12 atoms
+			coinType:       cointype.CoinType(1), // SKA-1 - min fee is (250*4e18)/1000=1e18 atoms
 			allowHighFees:  false,
 			expectError:    true,
 			errorContains:  "insufficient fee",
@@ -327,7 +329,7 @@ func TestValidateTransactionFees(t *testing.T) {
 		},
 		{
 			name:           "VAR excessive fee rejected",
-			txFee:          1000000, // Very high fee
+			txFee:          2000000, // Very high fee (exceeds max of 1000000)
 			serializedSize: 250,
 			coinType:       cointype.CoinTypeVAR,
 			allowHighFees:  false,
@@ -338,7 +340,7 @@ func TestValidateTransactionFees(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := calc.ValidateTransactionFees(test.txFee, test.serializedSize,
+			err := calc.ValidateTransactionFees(big.NewInt(test.txFee), test.serializedSize,
 				test.coinType, test.allowHighFees)
 
 			if test.expectError {
@@ -373,7 +375,7 @@ func TestDynamicFeeAdjustment(t *testing.T) {
 
 	// Fee should increase
 	highUtilFee := calc.CalculateMinFee(250, cointype.CoinTypeVAR)
-	if highUtilFee <= baselineFee {
+	if highUtilFee.Cmp(baselineFee) <= 0 {
 		t.Error("Expected fee to increase with high utilization")
 	}
 
@@ -385,7 +387,7 @@ func TestDynamicFeeAdjustment(t *testing.T) {
 	calc.UpdateUtilization(cointype.CoinTypeVAR, 5, 1000, 0.1) // Update again
 
 	lowUtilFee := calc.CalculateMinFee(250, cointype.CoinTypeVAR)
-	if lowUtilFee >= highUtilFee {
+	if lowUtilFee.Cmp(highUtilFee) >= 0 {
 		t.Error("Expected fee to decrease with low utilization")
 	}
 }
@@ -413,11 +415,11 @@ func TestFeeStatsConsistency(t *testing.T) {
 		t.Errorf("Dynamic fee multiplier %f is out of reasonable range", stats.DynamicFeeMultiplier)
 	}
 
-	if stats.MinRelayFee <= 0 {
+	if stats.MinRelayFee == nil || stats.MinRelayFee.Sign() <= 0 {
 		t.Error("Min relay fee should be positive")
 	}
 
-	if stats.MaxFeeRate <= stats.MinRelayFee {
+	if stats.MaxFeeRate == nil || stats.MaxFeeRate.Cmp(stats.MinRelayFee) <= 0 {
 		t.Error("Max fee rate should be greater than min relay fee")
 	}
 
@@ -429,29 +431,32 @@ func TestFeeStatsConsistency(t *testing.T) {
 // TestSKASpecificFeeBehavior tests SKA-specific fee behavior
 func TestSKASpecificFeeBehavior(t *testing.T) {
 	params := chaincfg.SimNetParams()
-	params.SKAMinRelayTxFee = 500 // Set custom SKA fee rate
+	// Set custom SKA fee rate in per-coin config
+	if config, ok := params.SKACoins[cointype.CoinType(1)]; ok {
+		config.MinRelayTxFee = big.NewInt(500) // Custom SKA fee rate
+	}
 	defaultMinRelayFee := dcrutil.Amount(1e4)
 
 	calc := NewCoinTypeFeeCalculator(params, defaultMinRelayFee)
 
 	// SKA should use custom fee rate
 	skaFee := calc.CalculateMinFee(1000, cointype.CoinType(1)) // 1KB transaction, SKA-1
-	expectedSKAFee := int64(500)                               // Should use params.SKAMinRelayTxFee
+	expectedSKAFee := big.NewInt(500)                          // Should use SKACoinConfig.MinRelayTxFee
 
-	if skaFee != expectedSKAFee {
-		t.Errorf("Expected SKA fee %d, got %d", expectedSKAFee, skaFee)
+	if skaFee.Cmp(expectedSKAFee) != 0 {
+		t.Errorf("Expected SKA fee %s, got %s", expectedSKAFee.String(), skaFee.String())
 	}
 
 	// VAR should still use default
 	varFee := calc.CalculateMinFee(1000, cointype.CoinTypeVAR)
-	expectedVARFee := int64(10000) // Should use defaultMinRelayFee
+	expectedVARFee := big.NewInt(10000) // Should use defaultMinRelayFee
 
-	if varFee != expectedVARFee {
-		t.Errorf("Expected VAR fee %d, got %d", expectedVARFee, varFee)
+	if varFee.Cmp(expectedVARFee) != 0 {
+		t.Errorf("Expected VAR fee %s, got %s", expectedVARFee.String(), varFee.String())
 	}
 
 	// SKA fees should be lower than VAR fees for same transaction size
-	if skaFee >= varFee {
+	if skaFee.Cmp(varFee) >= 0 {
 		t.Error("SKA fees should be lower than VAR fees")
 	}
 }
@@ -519,16 +524,24 @@ func TestInitializeActiveSKACoinsFromConfig(t *testing.T) {
 			t.Errorf("Active SKA coin type %d should be initialized with utilization stats", coinType)
 		}
 
-		// Verify the fee rate uses expected SKA defaults
+		// Verify the fee rate uses expected SKA defaults from per-coin config
 		feeRate := calc.feeRates[coinType]
-		expectedSKAMinFee := defaultMinRelayFee / 10 // SKA should be 10x lower than VAR
-		if params.SKAMinRelayTxFee > 0 {
-			expectedSKAMinFee = dcrutil.Amount(params.SKAMinRelayTxFee)
+
+		// SKA uses SKAMinRelayFee (big.Int), not MinRelayFee (int64)
+		// MinRelayFee should be 0 for SKA since it's not used
+		if feeRate.MinRelayFee != 0 {
+			t.Errorf("SKA coin type %d expected MinRelayFee 0 (unused), got %d",
+				coinType, feeRate.MinRelayFee)
 		}
 
-		if feeRate.MinRelayFee != expectedSKAMinFee {
-			t.Errorf("SKA coin type %d expected min relay fee %d, got %d",
-				coinType, expectedSKAMinFee, feeRate.MinRelayFee)
+		// Verify SKAMinRelayFee is properly set from config
+		if config, ok := params.SKACoins[coinType]; ok && config.MinRelayTxFee != nil && config.MinRelayTxFee.Sign() > 0 {
+			if feeRate.SKAMinRelayFee == nil || feeRate.SKAMinRelayFee.Cmp(config.MinRelayTxFee) != 0 {
+				t.Errorf("SKA coin type %d expected SKAMinRelayFee %s, got %s",
+					coinType, config.MinRelayTxFee.String(), feeRate.SKAMinRelayFee.String())
+			}
+		} else if feeRate.SKAMinRelayFee == nil {
+			t.Errorf("SKA coin type %d should have SKAMinRelayFee set", coinType)
 		}
 
 		if feeRate.DynamicFeeMultiplier != 1.0 {
@@ -536,9 +549,15 @@ func TestInitializeActiveSKACoinsFromConfig(t *testing.T) {
 				coinType, feeRate.DynamicFeeMultiplier)
 		}
 
-		if feeRate.MaxFeeRate != expectedSKAMinFee*100 {
-			t.Errorf("SKA coin type %d expected max fee rate %d, got %d",
-				coinType, expectedSKAMinFee*100, feeRate.MaxFeeRate)
+		// MaxFeeRate (int64) is not used for SKA - SKAMaxFeeRate (big.Int) is used instead
+		if feeRate.MaxFeeRate != 0 {
+			t.Errorf("SKA coin type %d expected max fee rate 0 (unused), got %d",
+				coinType, feeRate.MaxFeeRate)
+		}
+
+		// Verify SKAMaxFeeRate is properly set (2500x min fee)
+		if feeRate.SKAMaxFeeRate == nil {
+			t.Errorf("SKA coin type %d should have SKAMaxFeeRate set", coinType)
 		}
 	}
 

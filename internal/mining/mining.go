@@ -112,11 +112,12 @@ type Config struct {
 
 	// CheckTransactionInputs defines the function to use to perform a series of
 	// checks on the inputs to a transaction to ensure they are valid.
+	// Returns the transaction fee as *big.Int to support SKA fees.
 	CheckTransactionInputs func(tx *dcrutil.Tx, txHeight int64,
 		view *blockchain.UtxoViewpoint, checkFraudProof bool,
 		prevHeader *wire.BlockHeader, isTreasuryEnabled,
 		isAutoRevocationsEnabled bool,
-		subsidySplitVariant standalone.SubsidySplitVariant) (int64, error)
+		subsidySplitVariant standalone.SubsidySplitVariant) (*big.Int, error)
 
 	// CheckTSpendHasVotes defines the function to use to check whether the given
 	// tspend has enough votes to be included in a block AFTER the specified block.
@@ -246,7 +247,12 @@ type TxDesc struct {
 	Height int64
 
 	// Fee is the total fee the transaction associated with the entry pays.
+	// For VAR transactions, use this field.
 	Fee int64
+
+	// SKAFee is the total fee for SKA transactions, which can exceed int64.
+	// If set, this takes precedence over Fee for SKA coin types.
+	SKAFee *big.Int
 
 	// TotalSigOps is the total signature operations for this transaction.
 	TotalSigOps int
@@ -442,7 +448,8 @@ type BlockTemplate struct {
 	// template pays in base units.  Since the first transaction is the
 	// coinbase, the first entry (offset 0) will contain the negative of the
 	// sum of the fees of all other transactions.
-	Fees []int64
+	// Uses *big.Int to support SKA fees which can exceed int64.
+	Fees []*big.Int
 
 	// SigOpCounts contains the number of signature operations each
 	// transaction in the generated template performs.
@@ -762,14 +769,14 @@ func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, nextBlockHeight
 // Returns:
 //   - Array of batched SSFee transactions (one per unique consolidation address)
 //   - Error if extraction or transaction creation fails
-func createSSFeeTxBatched(coinType cointype.CoinType, totalFee int64,
+func createSSFeeTxBatched(coinType cointype.CoinType, totalFee *big.Int,
 	voters []*dcrutil.Tx, nextBlockHeight int64,
 	ssfeeIndex *indexers.SSFeeIndex,
 	blockUtxos *blockchain.UtxoViewpoint,
 	fetchUtxoEntry func(wire.OutPoint) (*blockchain.UtxoEntry, error),
 	generator *BlkTmplGenerator) ([]*dcrutil.Tx, error) {
 
-	if len(voters) == 0 {
+	if len(voters) == 0 || totalFee == nil || totalFee.Sign() <= 0 {
 		return nil, nil
 	}
 
@@ -808,10 +815,11 @@ func createSSFeeTxBatched(coinType cointype.CoinType, totalFee int64,
 	// Use equal-per-vote distribution (not stake-weighted)
 	ssFeeTxns := make([]*dcrutil.Tx, 0, len(groups))
 
-	// Calculate equal fee per voter
-	numVotes := int64(len(voters))
-	feePerVoter := totalFee / numVotes
-	remainder := totalFee - (feePerVoter * numVotes)
+	// Calculate equal fee per voter using big.Int arithmetic
+	numVotes := big.NewInt(int64(len(voters)))
+	feePerVoter := new(big.Int).Div(totalFee, numVotes)
+	distributed := new(big.Int).Mul(feePerVoter, numVotes)
+	remainder := new(big.Int).Sub(totalFee, distributed)
 
 	// Sort group keys for deterministic remainder assignment
 	sortedKeys := make([]string, 0, len(groups))
@@ -823,13 +831,13 @@ func createSSFeeTxBatched(coinType cointype.CoinType, totalFee int64,
 	for i, key := range sortedKeys {
 		group := groups[key]
 		// Calculate this group's fee (equal per voter in group)
-		groupFee := feePerVoter * int64(len(group.voterIndices))
+		groupFee := new(big.Int).Mul(feePerVoter, big.NewInt(int64(len(group.voterIndices))))
 		// First sorted group gets remainder for deterministic results
-		if i == 0 && remainder > 0 {
-			groupFee += remainder
+		if i == 0 && remainder.Sign() > 0 {
+			groupFee.Add(groupFee, remainder)
 		}
 
-		if groupFee <= 0 {
+		if groupFee.Sign() <= 0 {
 			// Skip groups with zero fee (can happen due to rounding)
 			continue
 		}
@@ -958,25 +966,22 @@ func createSSFeeTxBatched(coinType cointype.CoinType, totalFee int64,
 		tx.AddTxOut(opReturnOut)
 
 		// Add payment output to consolidation address (output[1] - standard SSFee format)
-		// For SKA, set SKAValue directly so wire serialization works correctly
+		// Calculate output value using big.Int arithmetic (works for both VAR and SKA)
+		outputValue := new(big.Int).Set(groupFee)
+		if existingValue != nil && existingValue.Sign() > 0 {
+			outputValue.Add(outputValue, existingValue)
+		}
+
 		txOut := &wire.TxOut{
 			Version:  0,
 			PkScript: recipientPkScript,
 			CoinType: coinType,
 		}
 		if coinType.IsSKA() {
-			// Use big.Int arithmetic for SKA to avoid int64 overflow on accumulated values
-			skaOutputValue := big.NewInt(groupFee)
-			if existingValue != nil && existingValue.Sign() > 0 {
-				skaOutputValue.Add(skaOutputValue, existingValue)
-			}
-			txOut.SKAValue = skaOutputValue
+			txOut.SKAValue = outputValue
 		} else {
-			outputValue := groupFee
-			if existingValue != nil && existingValue.Sign() > 0 {
-				outputValue = existingValue.Int64() + groupFee
-			}
-			txOut.Value = outputValue
+			// VAR values fit in int64
+			txOut.Value = outputValue.Int64()
 		}
 		tx.AddTxOut(txOut)
 
@@ -1008,7 +1013,7 @@ func createSSFeeTxBatched(coinType cointype.CoinType, totalFee int64,
 // this function will use that UTXO as input and create an output with value = utxo_value + fee.
 // This prevents dust accumulation by consolidating fees into existing UTXOs.
 // If no matching UTXO exists, falls back to null input (creates new UTXO).
-func createMinerSSFeeTx(coinType cointype.CoinType, totalFee int64,
+func createMinerSSFeeTx(coinType cointype.CoinType, totalFee *big.Int,
 	minerAddress stdaddr.Address, nextBlockHeight int64,
 	ssfeeIndex *indexers.SSFeeIndex,
 	blockUtxos *blockchain.UtxoViewpoint,
@@ -1021,8 +1026,8 @@ func createMinerSSFeeTx(coinType cointype.CoinType, totalFee int64,
 	}
 
 	// Validate fee amount
-	if totalFee <= 0 {
-		return nil, fmt.Errorf("invalid fee amount: %d", totalFee)
+	if totalFee == nil || totalFee.Sign() <= 0 {
+		return nil, fmt.Errorf("invalid fee amount: %v", totalFee)
 	}
 
 	// Create OP_RETURN output for unique hash
@@ -1157,9 +1162,9 @@ func createMinerSSFeeTx(coinType cointype.CoinType, totalFee int64,
 		}
 		// SKA uses SKAValueIn (bigint), VAR uses ValueIn (int64)
 		if coinType.IsSKA() {
-			txIn.SKAValueIn = big.NewInt(totalFee)
+			txIn.SKAValueIn = new(big.Int).Set(totalFee)
 		} else {
-			txIn.ValueIn = totalFee
+			txIn.ValueIn = totalFee.Int64()
 		}
 		tx.AddTxIn(txIn)
 	}
@@ -1176,25 +1181,22 @@ func createMinerSSFeeTx(coinType cointype.CoinType, totalFee int64,
 	tx.AddTxOut(opReturnOut)
 
 	// Create payment output to miner (output[1] - consistent with voter SSFee)
-	// For SKA, set SKAValue directly so wire serialization works correctly
+	// Calculate output value using big.Int arithmetic (works for both VAR and SKA)
+	outputValue := new(big.Int).Set(totalFee)
+	if augmentValue != nil && augmentValue.Sign() > 0 {
+		outputValue.Add(outputValue, augmentValue)
+	}
+
 	minerTxOut := &wire.TxOut{
 		CoinType: coinType,
 		Version:  scriptVersion,
 		PkScript: payScript,
 	}
 	if coinType.IsSKA() {
-		// Use big.Int arithmetic for SKA to avoid int64 overflow on accumulated values
-		skaOutputValue := big.NewInt(totalFee)
-		if augmentValue != nil && augmentValue.Sign() > 0 {
-			skaOutputValue.Add(skaOutputValue, augmentValue)
-		}
-		minerTxOut.SKAValue = skaOutputValue
+		minerTxOut.SKAValue = outputValue
 	} else {
-		outputValue := totalFee
-		if augmentValue != nil && augmentValue.Sign() > 0 {
-			outputValue = totalFee + augmentValue.Int64()
-		}
-		minerTxOut.Value = outputValue
+		// VAR values fit in int64
+		minerTxOut.Value = outputValue.Int64()
 	}
 	tx.AddTxOut(minerTxOut)
 
@@ -1391,7 +1393,7 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64,
 
 		bt := &BlockTemplate{
 			Block:           &block,
-			Fees:            []int64{0},
+			Fees:            []*big.Int{big.NewInt(0)},
 			SigOpCounts:     []int64{0},
 			Height:          int64(tipHeader.Height),
 			ValidPayAddress: miningAddress != nil,
@@ -1641,27 +1643,39 @@ func (g *BlkTmplGenerator) markSSFeeUTXOInFlight(outpoint wire.OutPoint, blockHe
 }
 
 // calcFeePerKb returns an adjusted fee per kilobyte taking the provided
-// transaction and its ancestors into account.
-func calcFeePerKb(txDesc *TxDesc, ancestorStats *TxAncestorStats) float64 {
-	txSize := txDesc.Tx.MsgTx().SerializeSize()
-	if ancestorStats.Fees < 0 || ancestorStats.SizeBytes < 0 {
-		return (float64(txDesc.Fee) * float64(kilobyte)) / float64(txSize)
+// transaction and its ancestors into account. Returns *big.Int (atoms per KB)
+// to support both VAR and SKA transactions with full precision.
+func calcFeePerKb(txDesc *TxDesc, ancestorStats *TxAncestorStats) *big.Int {
+	txSize := int64(txDesc.Tx.MsgTx().SerializeSize())
+
+	// Get fee as big.Int (use SKAFee if available, otherwise Fee)
+	var fee *big.Int
+	if txDesc.SKAFee != nil {
+		fee = new(big.Int).Set(txDesc.SKAFee)
+	} else {
+		fee = big.NewInt(txDesc.Fee)
 	}
-	return (float64(txDesc.Fee+ancestorStats.Fees) * float64(kilobyte)) /
-		float64(int64(txSize)+ancestorStats.SizeBytes)
+
+	// Add ancestor fees if valid
+	if ancestorStats.Fees >= 0 && ancestorStats.SizeBytes >= 0 {
+		fee = fee.Add(fee, big.NewInt(ancestorStats.Fees))
+		txSize += ancestorStats.SizeBytes
+	}
+
+	// Calculate fee per KB: (fee * 1000) / size
+	result := new(big.Int).Mul(fee, big.NewInt(kilobyte))
+	result.Div(result, big.NewInt(txSize))
+	return result
 }
 
 // calcCoinTypeAwareFeePerKb returns a coin-type-adjusted fee per kilobyte that
 // takes into account the economic dynamics and network conditions specific to
-// the transaction's coin type. This enables intelligent prioritization where
-// each coin type can have its own fee market.
+// the transaction's coin type. Returns *big.Int (atoms per KB) for full precision.
 func calcCoinTypeAwareFeePerKb(txDesc *TxDesc, ancestorStats *TxAncestorStats,
-	coinType cointype.CoinType, feeCalc *fees.CoinTypeFeeCalculator) float64 {
+	coinType cointype.CoinType, feeCalc *fees.CoinTypeFeeCalculator) *big.Int {
 
 	// Get base fee rate using standard calculation
 	baseFeeRate := calcFeePerKb(txDesc, ancestorStats)
-
-	// Get coin-type-specific fee estimation for comparison and adjustment
 
 	// Get the estimated fee rate for this coin type with fast confirmation (1 block)
 	estimatedRate, err := feeCalc.EstimateFeeRate(coinType, 1)
@@ -1670,21 +1684,17 @@ func calcCoinTypeAwareFeePerKb(txDesc *TxDesc, ancestorStats *TxAncestorStats,
 		return baseFeeRate
 	}
 
-	// Calculate the coin-type-specific minimum fee rate
-	estimatedFeePerKb := float64(estimatedRate)
-
 	// Use the higher of actual fee rate or coin-type minimum for prioritization
 	// This ensures that transactions paying coin-type-appropriate fees get priority
-	// while still allowing higher-fee transactions to jump ahead within their coin type
-	if baseFeeRate >= estimatedFeePerKb {
+	if baseFeeRate.Cmp(estimatedRate) >= 0 {
 		// Transaction is paying above coin-type minimum, use actual rate
 		return baseFeeRate
-	} else {
-		// Transaction is paying below coin-type expectations,
-		// but still give it proportional priority within its tier
-		adjustmentFactor := baseFeeRate / estimatedFeePerKb
-		return estimatedFeePerKb * adjustmentFactor
 	}
+
+	// Transaction is paying below coin-type expectations.
+	// The adjustment (baseFeeRate * estimatedRate / estimatedRate) equals baseFeeRate,
+	// so just return the base rate - proportional priority within its tier.
+	return baseFeeRate
 }
 
 // NewBlockTemplate returns a new block template that is ready to be solved
@@ -1892,11 +1902,11 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress stdaddr.Address) (*Bloc
 	// a transaction as it is selected for inclusion in the final block.
 	// However, since the total fees aren't known yet, use a dummy value for
 	// the coinbase fee which will be updated later.
-	txFees := make([]int64, 0, len(sourceTxns))
-	txFeesMap := make(map[chainhash.Hash]int64)
+	txFees := make([]*big.Int, 0, len(sourceTxns))
+	txFeesMap := make(map[chainhash.Hash]*big.Int) // Use big.Int to support SKA fees
 	txSigOpCounts := make([]int64, 0, len(sourceTxns))
 	txSigOpCountsMap := make(map[chainhash.Hash]int64)
-	txFees = append(txFees, -1) // Updated once known
+	txFees = append(txFees, big.NewInt(-1)) // Updated once known
 
 	log.Debugf("Considering %d transactions for inclusion to new block",
 		len(sourceTxns))
@@ -2333,12 +2343,13 @@ nextPriorityQueueItem:
 			prioItem.feePerKB = calcFeePerKb(prioItem.txDesc, ancestorStats)
 		}
 
-		feeDecreased := oldFee > prioItem.feePerKB
+		// Check if fee decreased (handle nil oldFee for auto-revocations etc)
+		feeDecreased := oldFee != nil && prioItem.feePerKB != nil && oldFee.Cmp(prioItem.feePerKB) > 0
 		if feeDecreased && ancestorStats.NumAncestors == 0 {
 			// If the fee decreased due to ancestors being included in the
 			// template and the transaction has no parents, then enqueue it one
 			// more time with an accurate feePerKb.
-			log.Debugf("Requeuing tx %s for fee recalc: %.2f -> %.2f (no ancestors)", tx.Hash(), oldFee, prioItem.feePerKB)
+			log.Debugf("Requeuing tx %s for fee recalc: %s -> %s (no ancestors)", tx.Hash(), oldFee, prioItem.feePerKB)
 			heap.Push(priorityQueue, prioItem)
 			prioritizedTxns[*tx.Hash()] = struct{}{}
 			continue
@@ -2351,7 +2362,7 @@ nextPriorityQueueItem:
 			// ancestors that have already been included in the block template.
 			// The transaction will be added back to the priority queue when all
 			// parent transactions are included in the template.
-			log.Debugf("Skipping tx %s: fee decreased %.2f -> %.2f (has %d ancestors)", tx.Hash(), oldFee, prioItem.feePerKB, ancestorStats.NumAncestors)
+			log.Debugf("Skipping tx %s: fee decreased %s -> %s (has %d ancestors)", tx.Hash(), oldFee, prioItem.feePerKB, ancestorStats.NumAncestors)
 			continue
 		}
 
@@ -2438,21 +2449,28 @@ nextPriorityQueueItem:
 		// Note: isSKAEmission already declared above for blockspace check
 		if tx.Tree() != wire.TxTreeStake && !isSKAEmission {
 			// Use coin-type-specific minimum relay fee
-			var minStaticFee float64
+			var minStaticFeeBig *big.Int
 			if prioItem.coinType == cointype.CoinTypeVAR {
-				minStaticFee = float64(g.cfg.Policy.TxMinFreeFee)
+				minStaticFeeBig = big.NewInt(int64(g.cfg.Policy.TxMinFreeFee))
 			} else {
-				// SKA and other coin types use chain-specific fee rate
-				minStaticFee = float64(g.cfg.ChainParams.SKAMinRelayTxFee)
+				// SKA coin types: look up fee from per-coin config
+				if config, ok := g.cfg.ChainParams.SKACoins[prioItem.coinType]; ok && config.MinRelayTxFee != nil && config.MinRelayTxFee.Sign() > 0 {
+					minStaticFeeBig = config.MinRelayTxFee
+				} else {
+					// Fallback default: 4 SKA per KB
+					minStaticFeeBig = big.NewInt(4000000000000000000)
+				}
 			}
 			// Apply 10% tolerance to account for integer division rounding in fee calculation.
 			// Wallet calculates: fee = (feePerKB * txSize) / 1000 (truncates)
 			// Miner recalculates: feePerKB = (fee * 1000) / txSize (can be slightly lower)
 			// Example: 50 atoms/KB, 211 bytes → 10 atoms fee → 47.39 atoms/KB recalculated
-			minStaticFeeWithTolerance := minStaticFee * 0.90
-			if prioItem.feePerKB < minStaticFeeWithTolerance {
-				log.Debugf("Skipping tx %s with feePerKB %.2f < minimum %.2f (tolerance: %.2f)",
-					tx.Hash(), prioItem.feePerKB, minStaticFee, minStaticFeeWithTolerance)
+			// minStaticFeeWithTolerance = minStaticFee * 90 / 100
+			minStaticFeeWithTolerance := new(big.Int).Mul(minStaticFeeBig, big.NewInt(90))
+			minStaticFeeWithTolerance.Div(minStaticFeeWithTolerance, big.NewInt(100))
+			if prioItem.feePerKB.Cmp(minStaticFeeWithTolerance) < 0 {
+				log.Debugf("Skipping tx %s with feePerKB %s < minimum %s (tolerance: %s)",
+					tx.Hash(), prioItem.feePerKB, minStaticFeeBig, minStaticFeeWithTolerance)
 				skipForLowFee = true
 			}
 		}
@@ -2538,8 +2556,14 @@ nextPriorityQueueItem:
 			if g.cfg.FeeCalculator != nil && bundledTxDesc.Type != stake.TxTypeSSGen && bundledTxDesc.Type != stake.TxTypeSSRtx {
 				bundledCoinType := blockalloc.GetTransactionCoinType(bundledTx)
 				bundledSize := int64(bundledTx.MsgTx().SerializeSize())
-				g.cfg.FeeCalculator.RecordTransactionFee(bundledCoinType,
-					bundledTxDesc.Fee, bundledSize, true)
+				// Use SKAFee for SKA transactions
+				if bundledCoinType.IsSKA() && bundledTxDesc.SKAFee != nil {
+					g.cfg.FeeCalculator.RecordTransactionFeeBig(bundledCoinType,
+						bundledTxDesc.SKAFee, bundledSize, true)
+				} else {
+					g.cfg.FeeCalculator.RecordTransactionFee(bundledCoinType,
+						bundledTxDesc.Fee, bundledSize, true)
+				}
 			}
 
 			// Accumulate the SStxs in the block, because only a certain number
@@ -2556,7 +2580,12 @@ nextPriorityQueueItem:
 			}
 
 			templateTxnMap[*bundledTxHash] = struct{}{}
-			txFeesMap[*bundledTxHash] = bundledTxDesc.Fee
+			// Store fee as big.Int (use SKAFee for SKA, Fee for VAR)
+			if blockalloc.GetTransactionCoinType(bundledTx).IsSKA() && bundledTxDesc.SKAFee != nil {
+				txFeesMap[*bundledTxHash] = new(big.Int).Set(bundledTxDesc.SKAFee)
+			} else {
+				txFeesMap[*bundledTxHash] = big.NewInt(bundledTxDesc.Fee)
+			}
 			txSigOpCountsMap[*bundledTxHash] = bundledTxSigOps
 
 			bundledPrioItem := prioItemMap[*bundledTxHash]
@@ -2885,10 +2914,10 @@ nextPriorityQueueItem:
 		false, isTreasuryEnabled))
 	blockSize += uint32(coinbaseTx.MsgTx().SerializeSize())
 	blockSigOps += numCoinbaseSigOps
-	txFeesMap[*coinbaseTx.Hash()] = 0
+	txFeesMap[*coinbaseTx.Hash()] = big.NewInt(0)
 	txSigOpCountsMap[*coinbaseTx.Hash()] = numCoinbaseSigOps
 	if treasuryBase != nil {
-		txFeesMap[*treasuryBase.Hash()] = 0
+		txFeesMap[*treasuryBase.Hash()] = big.NewInt(0)
 		n := int64(g.cfg.CountSigOps(treasuryBase, true, false, isTreasuryEnabled))
 		txSigOpCountsMap[*treasuryBase.Hash()] = n
 	}
@@ -2920,7 +2949,7 @@ nextPriorityQueueItem:
 
 		// Determine coin type for this transaction and add fees by type
 		coinType := blockalloc.GetTransactionCoinType(tx)
-		totalFees.Add(coinType, fee)
+		totalFees.AddBig(coinType, fee)
 		txFees = append(txFees, fee)
 
 		tsos, ok := txSigOpCountsMap[*tx.Hash()]
@@ -2940,7 +2969,7 @@ nextPriorityQueueItem:
 
 		// Determine coin type for this transaction and add fees by type
 		coinType := blockalloc.GetTransactionCoinType(tx)
-		totalFees.Add(coinType, fee)
+		totalFees.AddBig(coinType, fee)
 		txFees = append(txFees, fee)
 
 		tsos, ok := txSigOpCountsMap[*tx.Hash()]
@@ -2975,12 +3004,8 @@ nextPriorityQueueItem:
 
 		// Create SSFee transactions for staker fees if there are voters
 		if voters > 0 {
-			// Create SSFee transactions for each coin type with staker fees
-			for coinType, stakerFee := range stakerFees {
-				if stakerFee <= 0 {
-					continue
-				}
-
+			// Helper function to create staker SSFee transactions for a coin type
+			createStakerSSFee := func(coinType cointype.CoinType, stakerFee *big.Int) error {
 				// Create batched SSFee transactions for this coin type (one per consolidation address)
 				// Use SSFeeIndex for UTXO augmentation if available
 				// Note: Both VAR and non-VAR staker fees use SSFee (only VAR miner fees go to coinbase)
@@ -2989,7 +3014,7 @@ nextPriorityQueueItem:
 				if err != nil {
 					// Critical error: staker fees cannot be distributed
 					// This is a serious issue as fees would be lost if we continue
-					return nil, fmt.Errorf("failed to create staker SSFee txs for coin type %d (amount: %d): %w",
+					return fmt.Errorf("failed to create staker SSFee txs for coin type %d (amount: %v): %w",
 						coinType, stakerFee, err)
 				}
 
@@ -3002,7 +3027,7 @@ nextPriorityQueueItem:
 					blockSize += uint32(ssFeeTx.MsgTx().SerializeSize())
 
 					// Track for fee accounting (SSFee has no input fees)
-					txFeesMap[*ssFeeTx.Hash()] = 0
+					txFeesMap[*ssFeeTx.Hash()] = big.NewInt(0)
 					txSigOpCountsMap[*ssFeeTx.Hash()] = 0
 
 					// Update the UTXO view with SSFee transaction outputs so they are
@@ -3012,18 +3037,27 @@ nextPriorityQueueItem:
 
 				log.Debugf("Created %d SSFee txs for coin type %d, distributing %d total to %d voters",
 					len(voterSSFeeTxns), coinType, stakerFee, voters)
+				return nil
+			}
+
+			// Process all staker fees (all stored as *big.Int)
+			for coinType, stakerFee := range stakerFees {
+				if stakerFee == nil || stakerFee.Sign() <= 0 {
+					continue
+				}
+				if err := createStakerSSFee(coinType, stakerFee); err != nil {
+					return nil, err
+				}
 			}
 		}
 
-		// Create miner SSFee transactions for non-VAR miner fees
+		// Create miner SSFee transactions for non-VAR (SKA) miner fees
 		// This distributes non-VAR fees to miners through SSFee transactions
 		// instead of adding them to the coinbase, maintaining coin type separation
+		// Note: VAR miner fees go to coinbase, only SKA miner fees use SSFee
 		for coinType, minerFee := range minerFees {
-			if coinType == cointype.CoinTypeVAR {
-				// VAR fees go to coinbase, not SSFee
-				continue
-			}
-			if minerFee <= 0 {
+			// Skip VAR - VAR miner fees go to coinbase
+			if coinType.IsVAR() || minerFee == nil || minerFee.Sign() <= 0 {
 				continue
 			}
 
@@ -3033,7 +3067,7 @@ nextPriorityQueueItem:
 			if err != nil {
 				// Critical error: miner fees cannot be distributed
 				// This is a serious issue as fees would be lost if we continue
-				return nil, fmt.Errorf("failed to create miner SSFee tx for coin type %d (amount: %d): %w",
+				return nil, fmt.Errorf("failed to create miner SSFee tx for coin type %d (amount: %v): %w",
 					coinType, minerFee, err)
 			}
 
@@ -3045,7 +3079,7 @@ nextPriorityQueueItem:
 			blockSize += uint32(minerSSFeeTx.MsgTx().SerializeSize())
 
 			// Track for fee accounting (SSFee has no input fees)
-			txFeesMap[*minerSSFeeTx.Hash()] = 0
+			txFeesMap[*minerSSFeeTx.Hash()] = big.NewInt(0)
 			txSigOpCountsMap[*minerSSFeeTx.Hash()] = 0
 
 			// Update the UTXO view with miner SSFee transaction outputs so they are
@@ -3081,7 +3115,7 @@ nextPriorityQueueItem:
 			coinbaseTx.MsgTx().TxOut[powOutputIdx].Value += varFees
 		}
 		// Use varFees directly for accounting consistency - this is exactly what was added to coinbase
-		txFees[0] = -varFees
+		txFees[0] = big.NewInt(-varFees)
 	}
 
 	// Calculate the required difficulty for the block.  The timestamp
@@ -3274,10 +3308,10 @@ nextPriorityQueueItem:
 	}
 
 	log.Debugf("Created new block template (%d transactions, %d stake "+
-		"transactions (%d SSFee), %d treasury transactions, %d in fees, %d signature "+
+		"transactions (%d SSFee), %d treasury transactions, %d VAR fees, %d signature "+
 		"operations, %d bytes, target difficulty %064x, stake difficulty %v)",
 		len(msgBlock.Transactions), len(msgBlock.STransactions),
-		len(ssFeeTxns), totalTreasuryOps, totalFees.Total(), blockSigOps, blockSize,
+		len(ssFeeTxns), totalTreasuryOps, totalFees.Get(cointype.CoinTypeVAR), blockSigOps, blockSize,
 		standalone.CompactToBig(msgBlock.Header.Bits),
 		dcrutil.Amount(msgBlock.Header.SBits).ToCoin())
 

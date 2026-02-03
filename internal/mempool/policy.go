@@ -75,56 +75,43 @@ const (
 
 // calcMinRequiredTxRelayFee returns the minimum transaction fee required for a
 // transaction with the passed serialized size to be accepted into the memory
-// pool and relayed.
-func calcMinRequiredTxRelayFee(serializedSize int64, minRelayTxFee dcrutil.Amount) int64 {
-	// Calculate the minimum fee for a transaction to be allowed into the
-	// mempool and relayed by scaling the base fee (which is the minimum
-	// free transaction relay fee).  minTxRelayFee is in Atom/KB, so
-	// multiply by serializedSize (which is in bytes) and divide by 1000 to
-	// get minimum Atoms.
-	minFee := (serializedSize * int64(minRelayTxFee)) / 1000
-
-	if minFee == 0 && minRelayTxFee > 0 {
-		minFee = int64(minRelayTxFee)
+// pool and relayed. Returns a *big.Int to support both VAR and SKA fee calculations.
+func calcMinRequiredTxRelayFee(serializedSize int64, minRelayTxFee *big.Int) *big.Int {
+	if minRelayTxFee == nil || minRelayTxFee.Sign() <= 0 {
+		return big.NewInt(0)
 	}
 
-	// Set the minimum fee to the maximum possible value if the calculated
-	// fee is not in the valid range for monetary amounts.
-	if minFee < 0 || minFee > int64(cointype.MaxVARAmount) {
-		minFee = int64(cointype.MaxVARAmount)
+	// Calculate the minimum fee for a transaction to be allowed into the
+	// mempool and relayed by scaling the base fee (which is the minimum
+	// free transaction relay fee). minTxRelayFee is in Atom/KB, so
+	// multiply by serializedSize (which is in bytes) and divide by 1000 to
+	// get minimum Atoms.
+	sizeBig := big.NewInt(serializedSize)
+	minFee := new(big.Int).Mul(sizeBig, minRelayTxFee)
+	minFee.Div(minFee, big.NewInt(1000))
+
+	// Ensure minimum fee is at least the base fee rate for small transactions
+	if minFee.Sign() == 0 {
+		minFee = new(big.Int).Set(minRelayTxFee)
 	}
 
 	return minFee
 }
 
-// calcMinRequiredSKATxRelayFee returns the minimum SKA transaction fee required for a
-// transaction with the passed serialized size to be accepted into the memory
-// pool and relayed. SKA transactions may have different fee requirements.
-func calcMinRequiredSKATxRelayFee(serializedSize int64, minRelayTxFee dcrutil.Amount) int64 {
-	// For now, SKA transactions use the same fee calculation as VAR transactions.
-	// This could be modified in the future to have different fee structures.
-	return calcMinRequiredTxRelayFee(serializedSize, minRelayTxFee)
-}
-
 // calcMinRequiredTxRelayFeeForCoinType returns the minimum transaction fee for the
-// specified coin type.
+// specified coin type. Returns a *big.Int to support both VAR and SKA fee calculations.
 func calcMinRequiredTxRelayFeeForCoinType(serializedSize int64, coinType cointype.CoinType,
-	minRelayTxFee dcrutil.Amount, chainParams *chaincfg.Params) int64 {
-	switch coinType {
-	case cointype.CoinTypeVAR:
-		return calcMinRequiredTxRelayFee(serializedSize, minRelayTxFee)
-	default:
-		// Handle all SKA coin types (1-255)
-		if coinType.IsSKA() {
-			// Use SKA-specific minimum relay fee if available, otherwise use VAR fee
-			if chainParams.SKAMinRelayTxFee > 0 {
-				return calcMinRequiredSKATxRelayFee(serializedSize, dcrutil.Amount(chainParams.SKAMinRelayTxFee))
-			}
-			return calcMinRequiredSKATxRelayFee(serializedSize, minRelayTxFee)
+	minRelayTxFee *big.Int, chainParams *chaincfg.Params) *big.Int {
+
+	// For SKA coin types, look up coin-specific fee configuration
+	if coinType.IsSKA() {
+		if config, ok := chainParams.SKACoins[coinType]; ok && config.MinRelayTxFee != nil && config.MinRelayTxFee.Sign() > 0 {
+			return calcMinRequiredTxRelayFee(serializedSize, config.MinRelayTxFee)
 		}
-		// Default to VAR fee calculation for unknown coin types
-		return calcMinRequiredTxRelayFee(serializedSize, minRelayTxFee)
 	}
+
+	// Default to provided minRelayTxFee for VAR and unknown coin types
+	return calcMinRequiredTxRelayFee(serializedSize, minRelayTxFee)
 }
 
 // checkInputsStandard performs a series of checks on a transaction's inputs
@@ -266,8 +253,7 @@ func isDust(txOut *wire.TxOut, minRelayTxFee dcrutil.Amount) bool {
 	// SKA outputs use SKAValue (big.Int), not Value (int64).
 	// Minimum 30 atoms required for SKA outputs to not be considered dust.
 	if txOut.CoinType.IsSKA() {
-		minSKADustAmount := big.NewInt(30)
-		if txOut.SKAValue == nil || txOut.SKAValue.Cmp(minSKADustAmount) < 0 {
+		if txOut.SKAValue == nil || txOut.SKAValue.Cmp(cointype.MinSKADustAmount) < 0 {
 			return true
 		}
 		return false

@@ -5,9 +5,10 @@
 package mining
 
 import (
+	"math/big"
+
 	"github.com/monetarium/monetarium-node/chaincfg"
 	"github.com/monetarium/monetarium-node/cointype"
-	"github.com/monetarium/monetarium-node/dcrutil"
 	"github.com/monetarium/monetarium-node/internal/blockalloc"
 	"github.com/monetarium/monetarium-node/internal/fees"
 )
@@ -86,7 +87,7 @@ func (bsa *BlockSpaceAllocator) RecordTransactionFee(coinType cointype.CoinType,
 }
 
 // ValidateTransactionFees validates fees for a transaction using the integrated fee calculator.
-func (bsa *BlockSpaceAllocator) ValidateTransactionFees(txFee int64, serializedSize int64,
+func (bsa *BlockSpaceAllocator) ValidateTransactionFees(txFee *big.Int, serializedSize int64,
 	coinType cointype.CoinType, allowHighFees bool) error {
 	if bsa.feeCalculator != nil {
 		return bsa.feeCalculator.ValidateTransactionFees(txFee, serializedSize, coinType, allowHighFees)
@@ -96,10 +97,10 @@ func (bsa *BlockSpaceAllocator) ValidateTransactionFees(txFee int64, serializedS
 }
 
 // GetFeeEstimate returns fee estimate for a coin type and target confirmations.
-func (bsa *BlockSpaceAllocator) GetFeeEstimate(coinType cointype.CoinType, targetConfirmations int) (dcrutil.Amount, error) {
+func (bsa *BlockSpaceAllocator) GetFeeEstimate(coinType cointype.CoinType, targetConfirmations int) (*big.Int, error) {
 	if bsa.feeCalculator != nil {
 		return bsa.feeCalculator.EstimateFeeRate(coinType, targetConfirmations)
 	}
 	// Return basic estimate if no fee calculator
-	return dcrutil.Amount(1e4), nil // Default 10000 atoms/KB
+	return big.NewInt(1e4), nil // Default 10000 atoms/KB
 }

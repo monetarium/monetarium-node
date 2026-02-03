@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math"
 	"math/big"
 	"strconv"
 
@@ -17,55 +16,67 @@ import (
 	"github.com/monetarium/monetarium-node/cointype"
 )
 
-// addInt64Safe adds two int64 values with overflow protection.
-// Returns the sum capped at math.MaxInt64 if positive overflow would occur,
-// or math.MinInt64 if negative overflow would occur.
-func addInt64Safe(a, b int64) int64 {
-	if b > 0 && a > math.MaxInt64-b {
-		return math.MaxInt64
-	}
-	if b < 0 && a < math.MinInt64-b {
-		return math.MinInt64
-	}
-	return a + b
-}
-
 // FeesByType represents transaction fees collected by coin type.
-// This map-based approach scales to handle all coin types (0-255) without
-// requiring separate variables for each coin type.
-type FeesByType map[cointype.CoinType]int64
+// All fees use *big.Int for consistency - VAR values fit in int64
+// and can be safely converted with .Int64() when needed.
+type FeesByType map[cointype.CoinType]*big.Int
 
 // NewFeesByType creates a new empty fees-by-type map.
 func NewFeesByType() FeesByType {
 	return make(FeesByType)
 }
 
-// Add adds a fee amount to the specified coin type.
-// Uses overflow-safe addition to prevent wraparound.
+// Add adds a fee amount (as int64) to the specified coin type.
+// For VAR, this is the natural representation. For SKA with large fees,
+// use AddBig instead to preserve full precision.
 func (f FeesByType) Add(coinType cointype.CoinType, amount int64) {
-	f[coinType] = addInt64Safe(f[coinType], amount)
+	f.AddBig(coinType, big.NewInt(amount))
 }
 
-// Get returns the total fees for the specified coin type.
+// AddBig adds a bigint fee amount to the specified coin type.
+func (f FeesByType) AddBig(coinType cointype.CoinType, amount *big.Int) {
+	if amount == nil || amount.Sign() == 0 {
+		return
+	}
+	existing := f[coinType]
+	if existing == nil {
+		f[coinType] = new(big.Int).Set(amount)
+	} else {
+		f[coinType] = new(big.Int).Add(existing, amount)
+	}
+}
+
+// Get returns the total fees for the specified coin type as int64.
+// Returns 0 if no fees exist or if the value exceeds int64.
+// For VAR, this is always safe. For SKA with large fees, use GetBig.
 func (f FeesByType) Get(coinType cointype.CoinType) int64 {
+	if fee := f[coinType]; fee != nil && fee.IsInt64() {
+		return fee.Int64()
+	}
+	return 0
+}
+
+// GetBig returns the total fees for the specified coin type as *big.Int.
+// Returns nil if no fees exist for this coin type.
+func (f FeesByType) GetBig(coinType cointype.CoinType) *big.Int {
 	return f[coinType]
 }
 
-// Total returns the sum of all fees across all coin types.
-// Uses overflow-safe addition to prevent wraparound.
-func (f FeesByType) Total() int64 {
-	total := int64(0)
-	for _, amount := range f {
-		total = addInt64Safe(total, amount)
-	}
-	return total
+// AddSKA is an alias for AddBig for SKA fee operations.
+func (f FeesByType) AddSKA(coinType cointype.CoinType, amount *big.Int) {
+	f.AddBig(coinType, amount)
+}
+
+// GetSKA is an alias for GetBig for SKA fee operations.
+func (f FeesByType) GetSKA(coinType cointype.CoinType) *big.Int {
+	return f.GetBig(coinType)
 }
 
 // Types returns a slice of all coin types that have non-zero fees.
 func (f FeesByType) Types() []cointype.CoinType {
 	types := make([]cointype.CoinType, 0, len(f))
 	for coinType, amount := range f {
-		if amount > 0 {
+		if amount != nil && amount.Sign() > 0 {
 			types = append(types, coinType)
 		}
 	}
@@ -73,11 +84,39 @@ func (f FeesByType) Types() []cointype.CoinType {
 }
 
 // Merge adds all fees from another FeesByType into this one.
-// Uses overflow-safe addition to prevent wraparound.
 func (f FeesByType) Merge(other FeesByType) {
 	for coinType, amount := range other {
-		f[coinType] = addInt64Safe(f[coinType], amount)
+		if amount != nil && amount.Sign() > 0 {
+			f.AddBig(coinType, amount)
+		}
 	}
+}
+
+// HasFee returns true if there is a non-zero fee for the given coin type.
+func (f FeesByType) HasFee(coinType cointype.CoinType) bool {
+	fee := f[coinType]
+	return fee != nil && fee.Sign() > 0
+}
+
+// HasSKAFees returns true if there are any non-zero fees for SKA coin types.
+func (f FeesByType) HasSKAFees() bool {
+	for coinType, amount := range f {
+		if coinType.IsSKA() && amount != nil && amount.Sign() > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// SKATypes returns a slice of all SKA coin types that have non-zero fees.
+func (f FeesByType) SKATypes() []cointype.CoinType {
+	types := make([]cointype.CoinType, 0)
+	for coinType, amount := range f {
+		if coinType.IsSKA() && amount != nil && amount.Sign() > 0 {
+			types = append(types, coinType)
+		}
+	}
+	return types
 }
 
 // GetPrimaryCoinType determines the primary coin type of a transaction by
@@ -92,17 +131,13 @@ func GetPrimaryCoinType(tx *MsgTx) cointype.CoinType {
 	return cointype.CoinTypeVAR
 }
 
-// CalcTxFee calculates the transaction fee for a transaction, handling both
+// CalcTxFee calculates the transaction fee as *big.Int, handling both
 // VAR and SKA coin types correctly. For VAR transactions, it uses ValueIn/Value.
 // For SKA transactions, it uses SKAValueIn/SKAValue.
-// Returns the fee amount (as int64, safe for typical fees), the coin type,
-// and whether the calculation succeeded (false if SKA values overflow int64).
-func CalcTxFee(tx *MsgTx) (fee int64, coinType cointype.CoinType, ok bool) {
+func CalcTxFee(tx *MsgTx) (fee *big.Int, coinType cointype.CoinType) {
 	coinType = GetPrimaryCoinType(tx)
 
 	if coinType.IsSKA() {
-		// SKA transaction: sum SKAValueIn and SKAValue
-		// SKA transactions are required to use SKAValueIn/SKAValue fields
 		totalIn := new(big.Int)
 		for _, txIn := range tx.TxIn {
 			if txIn.SKAValueIn != nil {
@@ -117,35 +152,33 @@ func CalcTxFee(tx *MsgTx) (fee int64, coinType cointype.CoinType, ok bool) {
 			}
 		}
 
-		feeBI := new(big.Int).Sub(totalIn, totalOut)
-		if !feeBI.IsInt64() {
-			// Fee exceeds int64 - shouldn't happen for normal fees
-			return 0, coinType, false
-		}
-		return feeBI.Int64(), coinType, true
+		return new(big.Int).Sub(totalIn, totalOut), coinType
 	}
 
-	// VAR transaction: sum ValueIn and Value
-	var totalIn int64
+	// VAR transaction
+	var totalIn, totalOut int64
 	for _, txIn := range tx.TxIn {
 		totalIn += txIn.ValueIn
 	}
-
-	var totalOut int64
 	for _, txOut := range tx.TxOut {
 		totalOut += txOut.Value
 	}
 
-	return totalIn - totalOut, coinType, true
+	return big.NewInt(totalIn - totalOut), coinType
 }
 
 // CalcFeeSplitByCoinType applies fee split to multi-coin fees based on
-// work/stake proportions. Returns separate FeesByType maps for miners and stakers.
+// work/stake proportions. Returns separate FeesByType for miners and stakers.
 // The proportions should be obtained from the subsidy system based on the
 // current subsidy split variant (e.g., SSVMonetarium).
+// All fees use bigint arithmetic for consistency.
 func CalcFeeSplitByCoinType(feesByType FeesByType, workProportion, stakeProportion uint16) (minerFees, stakerFees FeesByType) {
 	minerFees = NewFeesByType()
 	stakerFees = NewFeesByType()
+
+	if feesByType == nil {
+		return minerFees, stakerFees
+	}
 
 	// Fees are split only between miners and stakers (treasury gets no fees)
 	adjustedTotal := int64(workProportion + stakeProportion)
@@ -154,23 +187,31 @@ func CalcFeeSplitByCoinType(feesByType FeesByType, workProportion, stakeProporti
 		return minerFees, stakerFees
 	}
 
+	adjustedTotalBig := big.NewInt(adjustedTotal)
+	workProportionBig := big.NewInt(int64(workProportion))
+	stakeProportionBig := big.NewInt(int64(stakeProportion))
+
 	for coinType, totalFee := range feesByType {
-		if totalFee <= 0 {
+		if totalFee == nil || totalFee.Sign() <= 0 {
 			continue
 		}
 
-		// Calculate proportional split
-		minerFee := (totalFee * int64(workProportion)) / adjustedTotal
-		stakerFee := (totalFee * int64(stakeProportion)) / adjustedTotal
+		// Calculate proportional split: (totalFee * proportion) / adjustedTotal
+		minerFee := new(big.Int).Mul(totalFee, workProportionBig)
+		minerFee.Div(minerFee, adjustedTotalBig)
+
+		stakerFee := new(big.Int).Mul(totalFee, stakeProportionBig)
+		stakerFee.Div(stakerFee, adjustedTotalBig)
 
 		// Handle any rounding remainder by giving it to miners
-		remainder := totalFee - minerFee - stakerFee
-		minerFee += remainder
+		distributed := new(big.Int).Add(minerFee, stakerFee)
+		remainder := new(big.Int).Sub(totalFee, distributed)
+		minerFee.Add(minerFee, remainder)
 
-		if minerFee > 0 {
+		if minerFee.Sign() > 0 {
 			minerFees[coinType] = minerFee
 		}
-		if stakerFee > 0 {
+		if stakerFee.Sign() > 0 {
 			stakerFees[coinType] = stakerFee
 		}
 	}
@@ -666,22 +707,18 @@ func (msg *MsgTx) serialize(serType TxSerializeType) ([]byte, error) {
 func (msg *MsgTx) mustSerialize(serType TxSerializeType) []byte {
 	serialized, err := msg.serialize(serType)
 	if err != nil {
-		// Enhanced debug logging for merkle root debugging
-		fmt.Printf("CRITICAL: MsgTx failed serializing for type %v: %v\n", serType, err)
-		fmt.Printf("  Transaction details: Version=%d, SerType=%d, TxIn=%d, TxOut=%d\n",
+		log.Errorf("MsgTx failed serializing for type %v: %v", serType, err)
+		log.Debugf("  Transaction details: Version=%d, SerType=%d, TxIn=%d, TxOut=%d",
 			msg.Version, msg.SerType, len(msg.TxIn), len(msg.TxOut))
 		if len(msg.TxOut) > 0 {
-			fmt.Printf("  First TxOut: CoinType=%d, Value=%d, Version=%d, PkScript len=%d\n",
+			log.Debugf("  First TxOut: CoinType=%d, Value=%d, Version=%d, PkScript len=%d",
 				msg.TxOut[0].CoinType, msg.TxOut[0].Value, msg.TxOut[0].Version, len(msg.TxOut[0].PkScript))
 		}
-		fmt.Printf("  Expected SerializeSize: %d\n", msg.SerializeSize())
-		// Return empty byte slice as fallback
-		panic(fmt.Sprintf("MsgTx failed serializing for type %v",
-			serType))
+		log.Debugf("  Expected SerializeSize: %d", msg.SerializeSize())
+		panic(fmt.Sprintf("MsgTx failed serializing for type %v", serType))
 	}
-	// Log successful serialization details for debugging
 	if len(serialized) == 0 {
-		fmt.Printf("WARNING: Successful serialization produced empty bytes for type %v\n", serType)
+		log.Warnf("Successful serialization produced empty bytes for type %v", serType)
 	}
 	return serialized
 }

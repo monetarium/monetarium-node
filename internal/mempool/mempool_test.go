@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
 	"math/rand"
 	"runtime"
 	"sync"
@@ -489,8 +490,9 @@ func (p *poolHarness) CreateSignedTx(inputs []spendableOutput, numOutputs uint32
 	estimatedSize := int64(tx.SerializeSize()) +
 		int64(txOutTemplate.SerializeSize())*int64(numOutputs) +
 		int64(maxSigScriptLen)*int64(len(inputs))
-	minRelayTxFee := p.txPool.cfg.Policy.MinRelayTxFee
-	totalFee := calcMinRequiredTxRelayFee(estimatedSize, minRelayTxFee)
+	minRelayTxFee := big.NewInt(int64(p.txPool.cfg.Policy.MinRelayTxFee))
+	totalFeeBig := calcMinRequiredTxRelayFee(estimatedSize, minRelayTxFee)
+	totalFee := totalFeeBig.Int64()
 	feePerOutput := totalFee / int64(numOutputs)
 	feeRemainder := totalFee % int64(numOutputs)
 

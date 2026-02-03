@@ -5,6 +5,7 @@
 package mining
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/chaincfg"
@@ -28,7 +29,7 @@ func TestCreateMinerSSFeeTx(t *testing.T) {
 	tests := []struct {
 		name         string
 		coinType     cointype.CoinType
-		totalFee     int64
+		totalFee     *big.Int
 		minerAddress stdaddr.Address
 		height       int64
 		expectError  bool
@@ -37,7 +38,7 @@ func TestCreateMinerSSFeeTx(t *testing.T) {
 		{
 			name:         "Valid SKA-1 miner fee",
 			coinType:     cointype.CoinType(1),
-			totalFee:     100000,
+			totalFee:     big.NewInt(100000),
 			minerAddress: mockAddr,
 			height:       1000,
 			expectError:  false,
@@ -80,7 +81,7 @@ func TestCreateMinerSSFeeTx(t *testing.T) {
 		{
 			name:         "Valid SKA-2 miner fee",
 			coinType:     cointype.CoinType(2),
-			totalFee:     50000,
+			totalFee:     big.NewInt(50000),
 			minerAddress: mockAddr,
 			height:       2000,
 			expectError:  false,
@@ -97,7 +98,7 @@ func TestCreateMinerSSFeeTx(t *testing.T) {
 		{
 			name:         "Invalid VAR coin type",
 			coinType:     cointype.CoinTypeVAR,
-			totalFee:     100000,
+			totalFee:     big.NewInt(100000),
 			minerAddress: mockAddr,
 			height:       1000,
 			expectError:  true,
@@ -105,7 +106,7 @@ func TestCreateMinerSSFeeTx(t *testing.T) {
 		{
 			name:         "Invalid zero fee",
 			coinType:     cointype.CoinType(1),
-			totalFee:     0,
+			totalFee:     big.NewInt(0),
 			minerAddress: mockAddr,
 			height:       1000,
 			expectError:  true,
@@ -113,7 +114,7 @@ func TestCreateMinerSSFeeTx(t *testing.T) {
 		{
 			name:         "Invalid negative fee",
 			coinType:     cointype.CoinType(1),
-			totalFee:     -100000,
+			totalFee:     big.NewInt(-100000),
 			minerAddress: mockAddr,
 			height:       1000,
 			expectError:  true,
@@ -121,7 +122,7 @@ func TestCreateMinerSSFeeTx(t *testing.T) {
 		{
 			name:         "Nil miner address (anyone-can-spend)",
 			coinType:     cointype.CoinType(1),
-			totalFee:     100000,
+			totalFee:     big.NewInt(100000),
 			minerAddress: nil,
 			height:       1000,
 			expectError:  false,
@@ -183,7 +184,7 @@ func TestMinerSSFeeOpReturn(t *testing.T) {
 
 	height := int64(12345)
 	// Pass nil SSFeeIndex, blockUtxos, fetchUtxoEntry, and generator to test null-input SSFee creation (no augmentation)
-	minerSSFeeTx, err := createMinerSSFeeTx(cointype.CoinType(1), 100000, mockAddr, height, nil, nil, nil, nil)
+	minerSSFeeTx, err := createMinerSSFeeTx(cointype.CoinType(1), big.NewInt(100000), mockAddr, height, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to create miner SSFee tx: %v", err)
 	}
@@ -241,11 +242,11 @@ func TestMinerSSFeeDistribution(t *testing.T) {
 	// Test different fee amounts for different coin types
 	testCases := []struct {
 		coinType  cointype.CoinType
-		feeAmount int64
+		feeAmount *big.Int
 	}{
-		{cointype.CoinType(1), 1000000}, // 0.01 SKA-1
-		{cointype.CoinType(2), 500000},  // 0.005 SKA-2
-		{cointype.CoinType(3), 250000},  // 0.0025 SKA-3
+		{cointype.CoinType(1), big.NewInt(1000000)}, // 0.01 SKA-1
+		{cointype.CoinType(2), big.NewInt(500000)},  // 0.005 SKA-2
+		{cointype.CoinType(3), big.NewInt(250000)},  // 0.0025 SKA-3
 	}
 
 	for _, tc := range testCases {
@@ -266,8 +267,8 @@ func TestMinerSSFeeDistribution(t *testing.T) {
 		} else {
 			inputValue = tx.TxIn[0].ValueIn
 		}
-		if inputValue != tc.feeAmount {
-			t.Errorf("Input value mismatch for coin type %d: expected %d, got %d",
+		if inputValue != tc.feeAmount.Int64() {
+			t.Errorf("Input value mismatch for coin type %d: expected %v, got %d",
 				tc.coinType, tc.feeAmount, inputValue)
 		}
 
@@ -277,8 +278,8 @@ func TestMinerSSFeeDistribution(t *testing.T) {
 		if tx.TxOut[1].SKAValue != nil {
 			outputValue = tx.TxOut[1].SKAValue.Int64()
 		}
-		if outputValue != tc.feeAmount {
-			t.Errorf("Output value mismatch for coin type %d: expected %d, got %d",
+		if outputValue != tc.feeAmount.Int64() {
+			t.Errorf("Output value mismatch for coin type %d: expected %v, got %d",
 				tc.coinType, tc.feeAmount, outputValue)
 		}
 

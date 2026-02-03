@@ -27,6 +27,7 @@ import (
 	"github.com/monetarium/monetarium-node/mixing/mixpool"
 	"github.com/monetarium/monetarium-node/peer"
 	"github.com/monetarium/monetarium-node/txscript"
+	"github.com/monetarium/monetarium-node/wire"
 )
 
 // logWriter implements an io.Writer that outputs to both standard output and
@@ -78,6 +79,7 @@ var (
 	syncLog = backendLog.Logger("SYNC")
 	txmpLog = backendLog.Logger("TXMP")
 	trsyLog = backendLog.Logger("TRSY")
+	wireLog = backendLog.Logger("WIRE")
 )
 
 // Initialize package-global logger variables.
@@ -98,6 +100,7 @@ func init() {
 	stake.UseLogger(stkeLog)
 	netsync.UseLogger(syncLog)
 	txscript.UseLogger(scrpLog)
+	wire.UseLogger(wireLog)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
@@ -121,6 +124,7 @@ var subsystemLoggers = map[string]slog.Logger{
 	"SYNC": syncLog,
 	"TXMP": txmpLog,
 	"TRSY": trsyLog,
+	"WIRE": wireLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

@@ -1553,33 +1553,43 @@ func handleEstimateSmartFee(_ context.Context, s *Server, cmd interface{}) (inte
 
 	// Use coin-type-aware fee estimation if available
 	if s.cfg.CoinTypeFeeCalculator != nil {
-		feeRate, err := s.cfg.CoinTypeFeeCalculator.EstimateFeeRate(cointype.CoinType(coinType), int(c.Confirmations))
+		ct := cointype.CoinType(coinType)
+
+		feeRate, err := s.cfg.CoinTypeFeeCalculator.EstimateFeeRate(ct, int(c.Confirmations))
 		if err != nil {
-			// Fall back to standard fee estimator
+			// Only fall back to standard estimator for VAR - SKA types should error
+			if coinType != 0 {
+				return nil, rpcInvalidError("Fee estimation not available for coin type %d", coinType)
+			}
+			// Fall back to standard fee estimator (VAR only)
 			fee, err := s.cfg.FeeEstimator.EstimateFee(int32(c.Confirmations))
 			if err != nil {
 				return nil, rpcInternalErr(err, "Could not estimate fee")
 			}
 			return &types.EstimateSmartFeeResult{
-				FeeRate: fee.ToCoin(),
+				FeeRate: strconv.FormatInt(int64(fee), 10),
 				Blocks:  c.Confirmations,
 			}, nil
 		}
 
 		return &types.EstimateSmartFeeResult{
-			FeeRate: feeRate.ToCoin(),
+			FeeRate: feeRate.String(),
 			Blocks:  c.Confirmations,
 		}, nil
 	}
 
-	// Standard fee estimation (backward compatibility)
+	// Standard fee estimation (backward compatibility) - VAR only
+	if coinType != 0 {
+		return nil, rpcInvalidError("Fee estimation for coin type %d requires CoinTypeFeeCalculator", coinType)
+	}
+
 	fee, err := s.cfg.FeeEstimator.EstimateFee(int32(c.Confirmations))
 	if err != nil {
 		return nil, rpcInternalErr(err, "Could not estimate fee")
 	}
 
 	return &types.EstimateSmartFeeResult{
-		FeeRate: fee.ToCoin(),
+		FeeRate: strconv.FormatInt(int64(fee), 10),
 		Blocks:  c.Confirmations,
 	}, nil
 }
@@ -1601,7 +1611,14 @@ func handleGetFeeEstimatesByCoinType(_ context.Context, s *Server, cmd interface
 
 	// Get fee calculator from configuration if available
 	if s.cfg.CoinTypeFeeCalculator == nil {
-		// Fallback to basic fee estimation for the specified coin type
+		// Legacy fallback only works for VAR - SKA requires CoinTypeFeeCalculator
+		if c.CoinType != 0 {
+			return &types.GetFeeResult{
+				CoinType: c.CoinType,
+				Errors:   []string{"fee estimation for SKA coin types requires CoinTypeFeeCalculator"},
+			}, nil
+		}
+		// Fallback to basic fee estimation (VAR only)
 		fee, err := s.cfg.FeeEstimator.EstimateFee(int32(confirmations))
 		if err != nil {
 			// nolint: nilerr
@@ -1611,14 +1628,15 @@ func handleGetFeeEstimatesByCoinType(_ context.Context, s *Server, cmd interface
 			}, nil
 		}
 
-		feeRate := fee.ToCoin()
+		feeRateAtoms := int64(fee)
 		return &types.GetFeeResult{
 			CoinType:             c.CoinType,
-			MinRelayFee:          feeRate,
+			MinRelayFee:          strconv.FormatInt(feeRateAtoms, 10),
 			DynamicFeeMultiplier: 1.0,
-			FastFee:              feeRate * 2.0,
-			NormalFee:            feeRate,
-			SlowFee:              feeRate * 0.5,
+			MaxFeeRate:           strconv.FormatInt(feeRateAtoms*100, 10),
+			FastFee:              strconv.FormatInt(feeRateAtoms*2, 10),
+			NormalFee:            strconv.FormatInt(feeRateAtoms, 10),
+			SlowFee:              strconv.FormatInt(feeRateAtoms/2, 10),
 			PendingTxCount:       0,
 			PendingTxSize:        0,
 			BlockSpaceUsed:       0.0,
@@ -1637,13 +1655,15 @@ func handleGetFeeEstimatesByCoinType(_ context.Context, s *Server, cmd interface
 		}, nil
 	}
 
+	// Fee values are already strings (converted by the adapter based on coin type)
 	return &types.GetFeeResult{
 		CoinType:             c.CoinType,
-		MinRelayFee:          feeStats.MinRelayFee.ToCoin(),
+		MinRelayFee:          feeStats.MinRelayFee,
 		DynamicFeeMultiplier: feeStats.DynamicFeeMultiplier,
-		FastFee:              feeStats.FastFee.ToCoin(),
-		NormalFee:            feeStats.NormalFee.ToCoin(),
-		SlowFee:              feeStats.SlowFee.ToCoin(),
+		MaxFeeRate:           feeStats.MaxFeeRate,
+		FastFee:              feeStats.FastFee,
+		NormalFee:            feeStats.NormalFee,
+		SlowFee:              feeStats.SlowFee,
 		PendingTxCount:       feeStats.PendingTxCount,
 		PendingTxSize:        feeStats.PendingTxSize,
 		BlockSpaceUsed:       feeStats.BlockSpaceUsed,
@@ -2780,10 +2800,9 @@ func handleGetMempoolFeesInfo(_ context.Context, s *Server, cmd interface{}) (in
 			continue
 		}
 
-		// Calculate fee rates and statistics
-		feeRates := make([]float64, 0, len(txs))
-		sizes := make([]int64, 0, len(txs))
-		totalFees := float64(0)
+		// Calculate fee rates and statistics using big.Int for precise SKA arithmetic
+		feeRates := make([]*big.Int, 0, len(txs))
+		totalFees := new(big.Int)
 		totalCoinTypeSize := int64(0)
 		oldestTime := now
 		newestTime := time.Time{}
@@ -2791,11 +2810,20 @@ func handleGetMempoolFeesInfo(_ context.Context, s *Server, cmd interface{}) (in
 		for _, txDesc := range txs {
 			msgTx := txDesc.Tx.MsgTx()
 			size := int64(msgTx.SerializeSize())
-			feeRate := float64(txDesc.Fee) / (float64(size) / 1000.0) // atoms per KB
 
+			// Get fee based on coin type
+			var fee *big.Int
+			if coinType.IsSKA() && txDesc.SKAFee != nil {
+				fee = txDesc.SKAFee
+			} else {
+				fee = big.NewInt(txDesc.Fee)
+			}
+			totalFees.Add(totalFees, fee)
+
+			// Calculate fee rate: (fee * 1000) / size = atoms per KB
+			feeRate := new(big.Int).Mul(fee, big.NewInt(1000))
+			feeRate.Div(feeRate, big.NewInt(size))
 			feeRates = append(feeRates, feeRate)
-			sizes = append(sizes, size)
-			totalFees += dcrutil.Amount(txDesc.Fee).ToCoin()
 			totalCoinTypeSize += size
 
 			// Track oldest and newest transaction times
@@ -2807,7 +2835,7 @@ func handleGetMempoolFeesInfo(_ context.Context, s *Server, cmd interface{}) (in
 			}
 		}
 
-		// Calculate statistics
+		// Calculate statistics using big.Int arithmetic
 		minFee, maxFee, avgFee := calculateFeeStats(feeRates)
 		medianFee := calculatePercentile(feeRates, 0.50)
 		p25Fee := calculatePercentile(feeRates, 0.25)
@@ -2815,54 +2843,56 @@ func handleGetMempoolFeesInfo(_ context.Context, s *Server, cmd interface{}) (in
 		p90Fee := calculatePercentile(feeRates, 0.90)
 		avgSize := float64(totalCoinTypeSize) / float64(len(txs))
 
+		// Get coin-type-specific minimum relay fee for floor enforcement
+		var minRelayFee *big.Int
+		if coinType.IsSKA() {
+			if config, ok := s.cfg.ChainParams.SKACoins[coinType]; ok && config.MinRelayTxFee != nil {
+				minRelayFee = config.MinRelayTxFee
+			} else {
+				minRelayFee = big.NewInt(int64(s.cfg.MinRelayTxFee))
+			}
+		} else {
+			minRelayFee = big.NewInt(int64(s.cfg.MinRelayTxFee))
+		}
+
 		// Enforce minimum relay fee floor - no fee estimate should be below minRelayFee
-		// This ensures fee estimates are always acceptable to the mempool
-		minRelayFee := float64(s.cfg.MinRelayTxFee)
-		if minFee < minRelayFee {
-			minFee = minRelayFee
+		if minFee.Cmp(minRelayFee) < 0 {
+			minFee = new(big.Int).Set(minRelayFee)
 		}
-		if medianFee < minRelayFee {
-			medianFee = minRelayFee
+		if medianFee.Cmp(minRelayFee) < 0 {
+			medianFee = new(big.Int).Set(minRelayFee)
 		}
-		if p25Fee < minRelayFee {
-			p25Fee = minRelayFee
+		if p25Fee.Cmp(minRelayFee) < 0 {
+			p25Fee = new(big.Int).Set(minRelayFee)
 		}
-		if p75Fee < minRelayFee {
-			p75Fee = minRelayFee
+		if p75Fee.Cmp(minRelayFee) < 0 {
+			p75Fee = new(big.Int).Set(minRelayFee)
 		}
-		if p90Fee < minRelayFee {
-			p90Fee = minRelayFee
+		if p90Fee.Cmp(minRelayFee) < 0 {
+			p90Fee = new(big.Int).Set(minRelayFee)
 		}
 
 		// Calculate utilization rate (simplified - could be enhanced with actual block space limits)
 		utilizationRate := float64(totalCoinTypeSize) / (1024 * 1024) * 100 // Percentage based on 1MB blocks
 
-		// Convert fee rates from atoms/KB to DCR/KB
-		minFeeDCR := dcrutil.Amount(int64(minFee)).ToCoin()
-		maxFeeDCR := dcrutil.Amount(int64(maxFee)).ToCoin()
-		avgFeeDCR := dcrutil.Amount(int64(avgFee)).ToCoin()
-		medianFeeDCR := dcrutil.Amount(int64(medianFee)).ToCoin()
-		p25FeeDCR := dcrutil.Amount(int64(p25Fee)).ToCoin()
-		p75FeeDCR := dcrutil.Amount(int64(p75Fee)).ToCoin()
-		p90FeeDCR := dcrutil.Amount(int64(p90Fee)).ToCoin()
-
 		// Generate coin type name
 		coinTypeName := generateCoinTypeName(coinType)
 
+		// All fee values as string (atoms)
 		coinTypeResults[coinTypeName] = types.MempoolCoinTypeFeeInfo{
 			CoinType:        uint8(coinType),
 			Name:            coinTypeName,
 			TxCount:         len(txs),
 			TotalSize:       totalCoinTypeSize,
 			AverageSize:     avgSize,
-			MinFee:          minFeeDCR,
-			MaxFee:          maxFeeDCR,
-			AverageFee:      avgFeeDCR,
-			MedianFee:       medianFeeDCR,
-			P25Fee:          p25FeeDCR,
-			P75Fee:          p75FeeDCR,
-			P90Fee:          p90FeeDCR,
-			TotalFees:       totalFees,
+			MinFee:          minFee.String(),
+			MaxFee:          maxFee.String(),
+			AverageFee:      avgFee.String(),
+			MedianFee:       medianFee.String(),
+			P25Fee:          p25Fee.String(),
+			P75Fee:          p75Fee.String(),
+			P90Fee:          p90Fee.String(),
+			TotalFees:       totalFees.String(),
 			OldestTxTime:    oldestTime.Unix(),
 			NewestTxTime:    newestTime.Unix(),
 			UtilizationRate: utilizationRate,
@@ -2877,51 +2907,55 @@ func handleGetMempoolFeesInfo(_ context.Context, s *Server, cmd interface{}) (in
 	}, nil
 }
 
-// Helper function to calculate basic fee statistics
-func calculateFeeStats(feeRates []float64) (min, max, avg float64) {
+// calculateFeeStats calculates min, max, and avg fee rates using big.Int
+// for precise arithmetic with large SKA values.
+func calculateFeeStats(feeRates []*big.Int) (min, max, avg *big.Int) {
+	zero := big.NewInt(0)
 	if len(feeRates) == 0 {
-		return 0, 0, 0
+		return zero, zero, zero
 	}
 
-	min = feeRates[0]
-	max = feeRates[0]
-	sum := float64(0)
+	min = new(big.Int).Set(feeRates[0])
+	max = new(big.Int).Set(feeRates[0])
+	sum := new(big.Int)
 
 	for _, rate := range feeRates {
-		if rate < min {
-			min = rate
+		if rate.Cmp(min) < 0 {
+			min.Set(rate)
 		}
-		if rate > max {
-			max = rate
+		if rate.Cmp(max) > 0 {
+			max.Set(rate)
 		}
-		sum += rate
+		sum.Add(sum, rate)
 	}
 
-	avg = sum / float64(len(feeRates))
+	avg = new(big.Int).Div(sum, big.NewInt(int64(len(feeRates))))
 	return min, max, avg
 }
 
-// Helper function to calculate percentiles
-func calculatePercentile(values []float64, percentile float64) float64 {
+// calculatePercentile calculates the percentile value from a slice of big.Int values.
+// For percentiles that fall between indices, it returns the lower value (no interpolation
+// to avoid precision loss with big integers).
+func calculatePercentile(values []*big.Int, percentile float64) *big.Int {
 	if len(values) == 0 {
-		return 0
+		return big.NewInt(0)
 	}
 
-	// Use standard library sort for O(n log n) performance
-	sorted := make([]float64, len(values))
-	copy(sorted, values)
-	sort.Float64s(sorted)
+	// Sort a copy of the values
+	sorted := make([]*big.Int, len(values))
+	for i, v := range values {
+		sorted[i] = new(big.Int).Set(v)
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Cmp(sorted[j]) < 0
+	})
 
-	index := percentile * float64(len(sorted)-1)
-	lower := int(index)
-	upper := lower + 1
-
-	if upper >= len(sorted) {
-		return sorted[len(sorted)-1]
+	index := int(percentile * float64(len(sorted)-1))
+	if index >= len(sorted) {
+		index = len(sorted) - 1
 	}
 
-	weight := index - float64(lower)
-	return sorted[lower]*(1-weight) + sorted[upper]*weight
+	return new(big.Int).Set(sorted[index])
 }
 
 // Helper function to generate coin type names
@@ -3240,9 +3274,22 @@ func handleGetRawMempool(_ context.Context, s *Server, cmd interface{}) (interfa
 			}
 
 			tx := desc.Tx
+			// For SKA transactions, Fee is 0 and SKAFee contains the actual fee
+			// For VAR transactions, Fee contains the fee and SKAFee is empty
+			var feeFloat float64
+			var skaFee string
+			if desc.SKAFee != nil {
+				// SKA transaction: Fee=0, SKAFee=actual fee
+				feeFloat = 0
+				skaFee = desc.SKAFee.String()
+			} else {
+				// VAR transaction: Fee=actual fee, SKAFee empty
+				feeFloat = dcrutil.Amount(desc.Fee).ToCoin()
+			}
 			mpd := &types.GetRawMempoolVerboseResult{
 				Size:             int32(tx.MsgTx().SerializeSize()),
-				Fee:              dcrutil.Amount(desc.Fee).ToCoin(),
+				Fee:              feeFloat,
+				SKAFee:           skaFee,
 				Time:             desc.Added.Unix(),
 				Height:           desc.Height,
 				StartingPriority: 0,

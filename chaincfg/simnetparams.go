@@ -640,24 +640,22 @@ func SimNetParams() *Params {
 
 		seeders: nil, // NOTE: There must NOT be any seeds.
 
-		// SKA (Skarb) dual-coin system parameters for simnet testing
-		// 100 atoms/KB ensures safe staker fee distribution (minimum ~17 atoms for 177-byte tx)
-		SKAMinRelayTxFee: 100,
-
 		// SKA coin type configurations for simnet testing
 		// NOTE: Simnet uses same 900 trillion supply as mainnet for realistic testing.
 		// All amounts use big.Int via TxOut.SKAValue for large emissions.
 		SKACoins: map[cointype.CoinType]*SKACoinConfig{
 			1: {
-				CoinType:       1,
-				Name:           "Skarb-1",
-				Symbol:         "SKA-1",
-				MaxSupply:      mustParseBigInt("900000000000000000000000000000000"), // 900T * 1e18 atoms (900 trillion SKA coins)
-				AtomsPerCoin:   mustParseBigInt("1000000000000000000"),               // 1e18
-				EmissionHeight: 150,                                                  // After stake validation (144)
-				EmissionWindow: 100,                                                  // 100-block emission window for testing
-				Active:         true,
-				Description:    "Primary SKA coin type for simnet testing",
+				CoinType:         1,
+				Name:             "Skarb-1",
+				Symbol:           "SKA-1",
+				MaxSupply:        mustParseBigInt("900000000000000000000000000000000"), // 900T * 1e18 atoms (900 trillion SKA coins)
+				AtomsPerCoin:     mustParseBigInt("1000000000000000000"),               // 1e18
+				EmissionHeight:   150,                                                  // After stake validation (144)
+				EmissionWindow:   100,                                                  // 100-block emission window for testing
+				Active:           true,
+				Description:      "Primary SKA coin type for simnet testing",
+				MinRelayTxFee:    mustParseBigInt("4000000000000000000"), // 4 SKA per KB (4e18 atoms/KB)
+				MaxFeeMultiplier: 2500,                                   // Max fee is 2500x min fee
 				// Governance-approved emission distribution for simnet testing
 				EmissionAddresses: []string{
 					"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", // Full amount to treasury for testing
@@ -670,15 +668,17 @@ func SimNetParams() *Params {
 				EmissionKey: mustParseHexPubKeySimnet("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"),
 			},
 			2: {
-				CoinType:       2,
-				Name:           "Skarb-2",
-				Symbol:         "SKA-2",
-				MaxSupply:      mustParseBigInt("500000000000000000"),  // 5e17 atoms (0.5 SKA for testing)
-				AtomsPerCoin:   mustParseBigInt("1000000000000000000"), // 1e18
-				EmissionHeight: 200,                                    // After vote activation and test script completion
-				EmissionWindow: 100,                                    // 100-block emission window for testing
-				Active:         false,                                  // Initially inactive, activated by stakeholder vote
-				Description:    "Secondary SKA coin type requiring stakeholder vote activation for simnet testing",
+				CoinType:         2,
+				Name:             "Skarb-2",
+				Symbol:           "SKA-2",
+				MaxSupply:        mustParseBigInt("500000000000000000"),  // 5e17 atoms (0.5 SKA for testing)
+				AtomsPerCoin:     mustParseBigInt("1000000000000000000"), // 1e18
+				EmissionHeight:   200,                                    // After vote activation and test script completion
+				EmissionWindow:   100,                                    // 100-block emission window for testing
+				Active:           false,                                  // Initially inactive, activated by stakeholder vote
+				Description:      "Secondary SKA coin type requiring stakeholder vote activation for simnet testing",
+				MinRelayTxFee:    mustParseBigInt("4000000000000000000"), // 4 SKA per KB (4e18 atoms/KB)
+				MaxFeeMultiplier: 2500,                                   // Max fee is 2500x min fee
 				// Governance-approved emission distribution for simnet testing
 				EmissionAddresses: []string{
 					"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", // Full amount to treasury

@@ -30,6 +30,31 @@ var (
 	ErrSKAAmountInvalidString = errors.New("invalid SKA amount string")
 )
 
+// SKA amount constants for validation and fee calculations.
+const (
+	// MinSKADustAtoms is the minimum SKA amount (30 atoms) to avoid dust.
+	// Outputs below this value will be rejected by the mempool.
+	MinSKADustAtoms = 30
+
+	// MinSKATransactionFeeAtoms is the minimum fee for SKA transactions (10 atoms).
+	// This ensures safe distribution to all 5 stakers (at least 1 atom each after 50/50 split).
+	MinSKATransactionFeeAtoms = 10
+
+	// BytesPerKilobyte is used in fee rate calculations (atoms per KB).
+	BytesPerKilobyte = 1000
+)
+
+var (
+	// MinSKADustAmount is MinSKADustAtoms as *big.Int for comparison operations.
+	MinSKADustAmount = big.NewInt(MinSKADustAtoms)
+
+	// MinSKATransactionFee is MinSKATransactionFeeAtoms as *big.Int.
+	MinSKATransactionFee = big.NewInt(MinSKATransactionFeeAtoms)
+
+	// KilobyteInt is 1000 as *big.Int for fee calculations.
+	KilobyteInt = big.NewInt(BytesPerKilobyte)
+)
+
 // SKAAmount represents an SKA coin amount using arbitrary precision arithmetic.
 // It wraps math/big.Int to handle values up to 900 trillion coins with 18
 // decimal precision. The value is stored in atoms (smallest indivisible unit).
@@ -426,4 +451,19 @@ func SKAAmountFromCoinsBig(coins *big.Int) SKAAmount {
 	}
 	value := new(big.Int).Mul(coins, AtomsPerSKACoin)
 	return SKAAmount{value: value}
+}
+
+// MinSKADust returns the minimum dust amount as SKAAmount.
+func MinSKADust() SKAAmount {
+	return SKAAmountFromInt64(MinSKADustAtoms)
+}
+
+// MinSKAFee returns the minimum transaction fee as SKAAmount.
+func MinSKAFee() SKAAmount {
+	return SKAAmountFromInt64(MinSKATransactionFeeAtoms)
+}
+
+// IsSKADust returns true if the amount is below the dust threshold.
+func (a SKAAmount) IsSKADust() bool {
+	return a.Cmp(MinSKADust()) < 0
 }

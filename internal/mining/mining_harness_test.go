@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"sync/atomic"
 	"time"
 
@@ -769,7 +770,12 @@ func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*ch
 	}
 
 	// Add the transaction to the tx source.
-	p.addTransaction(tx, txType, height, txFee, totalSigOps)
+	// Convert fee to int64 for test harness (VAR fees fit, SKA uses TxDesc.SKAFee)
+	var feeInt64 int64
+	if txFee.IsInt64() {
+		feeInt64 = txFee.Int64()
+	}
+	p.addTransaction(tx, txType, height, feeInt64, totalSigOps)
 
 	// A regular transaction that is added back to the pool causes any tickets in
 	// the pool that redeem it to leave the main pool and enter the stage pool.
@@ -1464,7 +1470,7 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 				view *blockchain.UtxoViewpoint, checkFraudProof bool,
 				prevHeader *wire.BlockHeader, isTreasuryEnabled,
 				isAutoRevocationsEnabled bool,
-				subsidySplitVariant standalone.SubsidySplitVariant) (int64, error) {
+				subsidySplitVariant standalone.SubsidySplitVariant) (*big.Int, error) {
 
 				return blockchain.CheckTransactionInputs(subsidyCache, tx, txHeight,
 					view, checkFraudProof, chainParams, prevHeader, isTreasuryEnabled,

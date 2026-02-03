@@ -7,6 +7,7 @@ package mining
 
 import (
 	"container/heap"
+	"math/big"
 
 	"github.com/monetarium/monetarium-node/blockchain/stake"
 	"github.com/monetarium/monetarium-node/cointype"
@@ -22,7 +23,7 @@ type txPrioItem struct {
 	isSKAEmission  bool // True if this is an SKA emission transaction
 	fee            int64
 	priority       float64
-	feePerKB       float64
+	feePerKB       *big.Int          // Atoms per KB, supports both VAR and SKA
 	coinType       cointype.CoinType // Primary coin type for this transaction
 }
 
@@ -132,6 +133,20 @@ func compareStakePriority(i, j *txPrioItem) int {
 	return 0
 }
 
+// compareFeePerKB safely compares two feePerKB values, handling nil as zero.
+func compareFeePerKB(a, b *big.Int) int {
+	if a == nil && b == nil {
+		return 0
+	}
+	if a == nil {
+		return -1 // nil < any positive value
+	}
+	if b == nil {
+		return 1 // any positive value > nil
+	}
+	return a.Cmp(b)
+}
+
 // txPQByStakeAndFee sorts a txPriorityQueue by stake priority, followed by
 // fees per kilobyte, and then transaction priority.
 func txPQByStakeAndFee(pq *txPriorityQueue, i, j int) bool {
@@ -146,13 +161,14 @@ func txPQByStakeAndFee(pq *txPriorityQueue, i, j int) bool {
 
 	// Using > here so that pop gives the highest fee item as opposed
 	// to the lowest.  Sort by fee first, then priority.
-	if pq.items[i].feePerKB == pq.items[j].feePerKB {
+	feeCmp := compareFeePerKB(pq.items[i].feePerKB, pq.items[j].feePerKB)
+	if feeCmp == 0 {
 		return pq.items[i].priority > pq.items[j].priority
 	}
 
 	// The stake priorities are equal, so return based on fees
 	// per KB.
-	return pq.items[i].feePerKB > pq.items[j].feePerKB
+	return feeCmp > 0
 }
 
 // txPQByCoinTypeAndFee sorts a txPriorityQueue by stake priority, then by
@@ -171,12 +187,13 @@ func txPQByCoinTypeAndFee(pq *txPriorityQueue, i, j int) bool {
 	// For equal stake priorities, use coin-type-adjusted fee rates
 	// This allows each coin type to have its own fee market dynamics
 	// while maintaining overall transaction ordering fairness
-	if pq.items[i].feePerKB == pq.items[j].feePerKB {
+	feeCmp := compareFeePerKB(pq.items[i].feePerKB, pq.items[j].feePerKB)
+	if feeCmp == 0 {
 		return pq.items[i].priority > pq.items[j].priority
 	}
 
 	// Return based on coin-type-adjusted fees per KB
-	return pq.items[i].feePerKB > pq.items[j].feePerKB
+	return feeCmp > 0
 }
 
 // newTxPriorityQueue returns a new transaction priority queue that reserves the

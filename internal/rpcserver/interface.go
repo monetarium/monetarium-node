@@ -519,20 +519,22 @@ type CoinTypeFeeCalculator interface {
 	GetFeeStats(coinType cointype.CoinType) (*CoinTypeFeeStats, error)
 
 	// EstimateFeeRate returns the current fee rate estimate for the given coin type
-	// and target confirmation blocks.
-	EstimateFeeRate(coinType cointype.CoinType, targetConfirmations int) (dcrutil.Amount, error)
+	// and target confirmation blocks. Returns *big.Int to support both VAR and SKA.
+	// For VAR, the result fits in int64 and can be converted with .Int64().
+	EstimateFeeRate(coinType cointype.CoinType, targetConfirmations int) (*big.Int, error)
 }
 
 // CoinTypeFeeStats contains fee statistics for a specific coin type as used by
-// the RPC interface - this mirrors the fees package structure for compatibility.
+// the RPC interface. Fee values are strings (atoms) to support both VAR (int64)
+// and SKA (bigint) with full precision.
 type CoinTypeFeeStats struct {
 	CoinType             cointype.CoinType
-	MinRelayFee          dcrutil.Amount
+	MinRelayFee          string // Atoms as string
 	DynamicFeeMultiplier float64
-	MaxFeeRate           dcrutil.Amount
-	FastFee              dcrutil.Amount // ~1 block (90th percentile)
-	NormalFee            dcrutil.Amount // ~3 blocks (50th percentile)
-	SlowFee              dcrutil.Amount // ~6 blocks (10th percentile)
+	MaxFeeRate           string // Atoms as string (100x for VAR, total emission for SKA)
+	FastFee              string // Atoms as string, ~1 block (90th percentile)
+	NormalFee            string // Atoms as string, ~3 blocks (50th percentile)
+	SlowFee              string // Atoms as string, ~6 blocks (10th percentile)
 	PendingTxCount       int
 	PendingTxSize        int64
 	BlockSpaceUsed       float64
