@@ -1355,6 +1355,31 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64,
 			opReturnPkScript, topBlock.Height(), miningAddress,
 			tipHeader.Voters, g.cfg.ChainParams, isTreasuryEnabled,
 			subsidySplitVariant)
+
+		// Copy the miner's VAR fee share from the tip's coinbase.
+		// The tip's coinbase already includes fees from the same regular
+		// transactions that are being copied into this replacement block,
+		// so the fee amount is identical. Without this, the miner's fee
+		// share is permanently lost while the staker's share (SSFee) is
+		// preserved from the copied stake transactions.
+		powOutputIdx := 2
+		if isTreasuryEnabled {
+			powOutputIdx = 1
+		}
+		tipCoinbaseTx := topBlock.Transactions()[0].MsgTx()
+		if len(tipCoinbaseTx.TxOut) > powOutputIdx &&
+			len(coinbaseTx.MsgTx().TxOut) > powOutputIdx {
+
+			minerFees := tipCoinbaseTx.TxOut[powOutputIdx].Value -
+				coinbaseTx.MsgTx().TxOut[powOutputIdx].Value
+			if minerFees > 0 {
+				coinbaseTx.MsgTx().TxOut[powOutputIdx].Value += minerFees
+				log.Debugf("handleTooFewVoters: added %d atoms miner "+
+					"fee share to coinbase at height %d",
+					minerFees, tipHeader.Height)
+			}
+		}
+
 		block.AddTransaction(coinbaseTx.MsgTx())
 
 		if isTreasuryEnabled {
