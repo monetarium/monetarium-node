@@ -570,10 +570,9 @@ func MainNetParams() *Params {
 		TreasuryVoteRequiredMultiplier: 3, // 60% yes votes required
 		TreasuryVoteRequiredDivisor:    5,
 
-		// HTTP seeders - Genesis bootstrap node
-		seeders: []string{
-			"176.113.164.216:9108", // Genesis node
-		},
+		// HTTP seeders - Disabled until proper DNS seeder is deployed
+		// Use --addpeer=176.113.164.216:9108 to connect to the genesis node
+		seeders: []string{},
 
 		// SKA coin type configurations for multiple coin support
 		SKACoins: map[cointype.CoinType]*SKACoinConfig{
