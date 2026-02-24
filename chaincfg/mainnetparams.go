@@ -50,7 +50,7 @@ func MainNetParams() *Params {
 			PrevBlock: chainhash.Hash{}, // All zero.
 			// MerkleRoot: Calculated below.
 			StakeRoot:    chainhash.Hash{},
-			Timestamp:    time.Unix(1760649600, 0), // Thu, 16 Oct 2025 00:00:00 GMT
+			Timestamp:    time.Unix(1771891200, 0), // Mon, 24 Feb 2026 00:00:00 UTC
 			Bits:         0x1d00ffff,               // Difficulty 1 - CPU mining friendly for bootstrap
 			SBits:        2 * 1e8,                  // 2 Coin
 			Nonce:        0x00000000,
@@ -570,9 +570,10 @@ func MainNetParams() *Params {
 		TreasuryVoteRequiredMultiplier: 3, // 60% yes votes required
 		TreasuryVoteRequiredDivisor:    5,
 
-		// HTTP seeders disabled - Monetarium uses manual peer connections for bootstrap
-		// To add peers, use --connect=<ip>:9108 or --addpeer=<ip>:9108
-		seeders: []string{},
+		// HTTP seeders - Genesis bootstrap node
+		seeders: []string{
+			"176.113.164.216:9108", // Genesis node
+		},
 
 		// SKA coin type configurations for multiple coin support
 		SKACoins: map[cointype.CoinType]*SKACoinConfig{
@@ -590,14 +591,14 @@ func MainNetParams() *Params {
 				MaxFeeMultiplier: 2500,                                   // Max fee is 2500x min fee
 				// Governance-approved emission distribution (TO BE REPLACED WITH REAL ADDRESSES)
 				EmissionAddresses: []string{
-					"MsMz7mvUPBu5GDFexM2W8KiFxEeToFAC4Wv",
+					"MsRKhYVjnqebpbVhFzSVoa9wJzMBmhLsqLL",
 				},
 				EmissionAmounts: bigIntSlice(
 					"900000000000000000000000000000000", // 900 trillion * 1e18 atoms to treasury
 				),
 				// SECURITY NOTE: This is a placeholder key for development ONLY
 				// Production deployment MUST generate secure keys with proper key ceremony
-				EmissionKey: mustParseHexPubKey("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"),
+				EmissionKey: mustParseHexPubKey("03f45735292ccc672ddf51869e69c67520f2213c73b924e8b2ff0c9f1877b99a8f"),
 			},
 			2: {
 				CoinType:         2,
@@ -613,14 +614,14 @@ func MainNetParams() *Params {
 				MaxFeeMultiplier: 2500,                                   // Max fee is 2500x min fee
 				// Governance-approved emission distribution (TO BE REPLACED WITH REAL ADDRESSES)
 				EmissionAddresses: []string{
-					"MsMz7mvUPBu5GDFexM2W8KiFxEeToFAC4Wv", // Full amount to treasury
+					"MsRKhYVjnqebpbVhFzSVoa9wJzMBmhLsqLL", // Full amount to treasury
 				},
 				EmissionAmounts: bigIntSlice(
 					"5000000000000000000000000", // 5 million * 1e18 atoms to treasury
 				),
 				// SECURITY NOTE: This is a placeholder key for development ONLY
 				// Production deployment MUST generate secure keys with proper key ceremony
-				EmissionKey: mustParseHexPubKey("0316e57ce5fdb617dc192576d9c860f57e7e7a95592aa32e25941731a2eb2c57d6"),
+				EmissionKey: mustParseHexPubKey("03f45735292ccc672ddf51869e69c67520f2213c73b924e8b2ff0c9f1877b99a8f"),
 			},
 		},
 
