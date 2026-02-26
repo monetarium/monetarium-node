@@ -128,19 +128,19 @@ func (f ServiceFlag) String() string {
 	return s
 }
 
-// CurrencyNet represents which Decred network a message belongs to.
+// CurrencyNet represents which Monetarium network a message belongs to.
 type CurrencyNet uint32
 
-// Constants used to indicate the message Decred network.  They can also be
+// Constants used to indicate the message Monetarium network.  They can also be
 // used to seek to the next message when a stream's state is unknown, but
 // this package does not provide that functionality since it's generally a
 // better idea to simply disconnect clients that are misbehaving over TCP.
 const (
-	// MainNet represents the main Decred network.
-	MainNet CurrencyNet = 0xd9b400f9
+	// MainNet represents the main Monetarium network.
+	MainNet CurrencyNet = 0x4d4e5401
 
 	// RegNet represents the regression test network.
-	RegNet CurrencyNet = 0xdab500fa
+	RegNet CurrencyNet = 0x4d4e5402
 
 	// RegTest represents the regression test network.
 	//
@@ -149,13 +149,13 @@ const (
 	RegTest CurrencyNet = RegNet
 
 	// TestNet3 represents the 3rd test network.
-	TestNet3 CurrencyNet = 0xb194aa75
+	TestNet3 CurrencyNet = 0x4d4e5403
 
 	// SimNet represents the simulation test network.
-	SimNet CurrencyNet = 0x12141c16
+	SimNet CurrencyNet = 0x4d4e5404
 )
 
-// bnStrings is a map of Decred networks back to their constant names for
+// bnStrings is a map of Monetarium networks back to their constant names for
 // pretty printing.
 var bnStrings = map[CurrencyNet]string{
 	MainNet:  "MainNet",

@@ -169,8 +169,8 @@ const (
 
 var (
 	// userAgentName is the user agent name and is used to help identify
-	// ourselves to other Decred peers.
-	userAgentName = "dcrd"
+	// ourselves to other Monetarium peers.
+	userAgentName = "monetarium"
 
 	// userAgentVersion is the user agent version and is used to help
 	// identify ourselves to other peers.

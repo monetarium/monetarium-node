@@ -8103,7 +8103,7 @@ func TestHandleVersion(t *testing.T) {
 		version.BuildMetadata, runtimeVer))
 
 	result := map[string]types.VersionResult{
-		"dcrdjsonrpcapi": {
+		"monetariumjsonrpcapi": {
 			VersionString: jsonrpcSemverString,
 			Major:         jsonrpcSemverMajor,
 			Minor:         jsonrpcSemverMinor,
@@ -8111,7 +8111,7 @@ func TestHandleVersion(t *testing.T) {
 			Prerelease:    "",
 			BuildMetadata: "",
 		},
-		"dcrd": {
+		"monetarium": {
 			VersionString: version.String(),
 			Major:         version.Major,
 			Minor:         version.Minor,

@@ -5798,13 +5798,13 @@ func handleVersion(_ context.Context, _ *Server, _ interface{}) (interface{}, er
 		buildMeta = fmt.Sprintf("%s.%s", build, buildMeta)
 	}
 	result := map[string]types.VersionResult{
-		"dcrdjsonrpcapi": {
+		"monetariumjsonrpcapi": {
 			VersionString: jsonrpcSemverString,
 			Major:         jsonrpcSemverMajor,
 			Minor:         jsonrpcSemverMinor,
 			Patch:         jsonrpcSemverPatch,
 		},
-		"dcrd": {
+		"monetarium": {
 			VersionString: version.String(),
 			Major:         version.Major,
 			Minor:         version.Minor,

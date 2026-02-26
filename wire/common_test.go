@@ -129,7 +129,7 @@ func TestElementWire(t *testing.T) {
 		},
 		{
 			MainNet,
-			[]byte{0xf9, 0x00, 0xb4, 0xd9},
+			[]byte{0x01, 0x54, 0x4e, 0x4d},
 		},
 		// Type not supported by the "fast" path and requires reflection.
 		{
