@@ -102,7 +102,7 @@ var (
 var regNetParams = &chaincfg.Params{
 	Name:        "regnet",
 	Net:         wire.RegNet,
-	DefaultPort: "18655",
+	DefaultPort: "19055",
 	DNSSeeds:    nil, // NOTE: There must NOT be any seeds.
 
 	// Chain parameters

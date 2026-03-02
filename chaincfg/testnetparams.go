@@ -73,7 +73,7 @@ func TestNet3Params() *Params {
 	return &Params{
 		Name:        "testnet3",
 		Net:         wire.TestNet3,
-		DefaultPort: "19108",
+		DefaultPort: "19508",
 		// DNSSeeds disabled - Monetarium testnet uses manual peer connections
 		DNSSeeds: []DNSSeed{},
 

@@ -83,7 +83,7 @@ func MainNetParams() *Params {
 	return &Params{
 		Name:        "mainnet",
 		Net:         wire.MainNet,
-		DefaultPort: "9108",
+		DefaultPort: "9508",
 		// DNSSeeds disabled - Monetarium uses manual peer connections for bootstrap
 		DNSSeeds: []DNSSeed{},
 
