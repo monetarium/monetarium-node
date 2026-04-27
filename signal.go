@@ -31,10 +31,10 @@ func shutdownListener() context.Context {
 		// Listen for initial shutdown signal and cancel the returned context.
 		select {
 		case sig := <-interruptChannel:
-			dcrdLog.Infof("Received signal (%s).  Shutting down...", sig)
+			monnLog.Infof("Received signal (%s).  Shutting down...", sig)
 
 		case <-shutdownRequestChannel:
-			dcrdLog.Infof("Shutdown requested.  Shutting down...")
+			monnLog.Infof("Shutdown requested.  Shutting down...")
 		}
 		cancel()
 
@@ -44,11 +44,11 @@ func shutdownListener() context.Context {
 		for {
 			select {
 			case sig := <-interruptChannel:
-				dcrdLog.Infof("Received signal (%s).  Already "+
+				monnLog.Infof("Received signal (%s).  Already "+
 					"shutting down...", sig)
 
 			case <-shutdownRequestChannel:
-				dcrdLog.Info("Shutdown requested.  Already " +
+				monnLog.Info("Shutdown requested.  Already " +
 					"shutting down...")
 			}
 		}

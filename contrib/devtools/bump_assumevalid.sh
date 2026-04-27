@@ -58,13 +58,13 @@ if [ ! -f "$TESTNET_PARAMS_FILE" ]; then
   exit 1
 fi
 
-# Ensure git and dcrctl are available and this is running in a git repo.
+# Ensure git and monctl are available and this is running in a git repo.
 if ! git status &> /dev/null; then
   echo "git repository not be found"
   exit 1
 fi
-if ! command -v dcrctl &> /dev/null; then
-  echo "dcrctl could not be found"
+if ! command -v monctl &> /dev/null; then
+  echo "monctl could not be found"
   exit 1
 fi
 
@@ -76,15 +76,15 @@ if $(git show-ref --verify --quiet refs/heads/${BRANCH_NAME}); then
 fi
 
 # Determine the block height and hash to use for assume valid.
-dcrctl="dcrctl"
-dcrctlt="dcrctl --testnet"
-MAINNET_BLOCK_HEIGHT=$(($($dcrctl getblockcount) - 4032))
-MAINNET_BLOCK_HASH=$($dcrctl getblockhash $MAINNET_BLOCK_HEIGHT)
-TESTNET_BLOCK_HEIGHT=$(($($dcrctlt getblockcount) - 10080))
-TESTNET_BLOCK_HASH=$($dcrctlt getblockhash $TESTNET_BLOCK_HEIGHT)
+monctl="monctl"
+monctlt="monctl --testnet"
+MAINNET_BLOCK_HEIGHT=$(($($monctl getblockcount) - 4032))
+MAINNET_BLOCK_HASH=$($monctl getblockhash $MAINNET_BLOCK_HEIGHT)
+TESTNET_BLOCK_HEIGHT=$(($($monctlt getblockcount) - 10080))
+TESTNET_BLOCK_HASH=$($monctlt getblockhash $TESTNET_BLOCK_HEIGHT)
 
 # Create the branch.
-git checkout -b "$BRANCH_NAME" master
+git checkout -b "$BRANCH_NAME" main
 
 # Modify the main and test network params files with the updated details.
 sed -Ei \
@@ -114,9 +114,9 @@ Reviewers should verify that:
 
 The following commands may be used to verify the hashes:
 \`\`\`
-\$ dcrctl getblockhash ${MAINNET_BLOCK_HEIGHT}
+\$ monctl getblockhash ${MAINNET_BLOCK_HEIGHT}
 ${MAINNET_BLOCK_HASH}
-\$ dcrctl --testnet getblockhash ${TESTNET_BLOCK_HEIGHT}
+\$ monctl --testnet getblockhash ${TESTNET_BLOCK_HEIGHT}
 ${TESTNET_BLOCK_HASH}
 \`\`\`
 "

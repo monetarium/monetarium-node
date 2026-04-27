@@ -17,6 +17,7 @@ import (
 	"github.com/monetarium/monetarium-node/cointype"
 	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
 	"github.com/monetarium/monetarium-node/dcrec/secp256k1/ecdsa"
+	"github.com/monetarium/monetarium-node/txscript/stdaddr"
 	"github.com/monetarium/monetarium-node/wire"
 )
 
@@ -308,10 +309,14 @@ func TestValidateAuthorizedSKAEmissionTransactionBasic(t *testing.T) {
 		Timestamp:   time.Now().Unix(),
 	}
 
-	// Create a test script for output
-	testScript := []byte{0x76, 0xa9, 0x14}                             // OP_DUP OP_HASH160 OP_DATA_20
-	testScript = append(testScript, bytes.Repeat([]byte{0x01}, 20)...) // 20-byte hash
-	testScript = append(testScript, 0x88, 0xac)                        // OP_EQUALVERIFY OP_CHECKSIG
+	// Derive the test script from the governance-configured emission address so
+	// the tx outputs pay the configured destination (the validator binds outputs
+	// to EmissionAddresses).
+	emissionAddr, err := stdaddr.DecodeAddress(params.SKACoins[1].EmissionAddresses[0], params)
+	if err != nil {
+		t.Fatalf("Failed to decode configured emission address: %v", err)
+	}
+	_, testScript := emissionAddr.PaymentScript()
 
 	// Calculate Expiry (emission window end)
 	emissionWindow := int64(params.SKACoins[1].EmissionWindow)

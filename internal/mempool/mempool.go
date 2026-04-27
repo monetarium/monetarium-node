@@ -2902,11 +2902,16 @@ func (mp *TxPool) validateCoinTypeConsistency(tx *dcrutil.Tx, utxoView *blockcha
 			continue
 		}
 
-		// Get the UTXO being spent
+		// Get the UTXO being spent. By the time this function runs, the
+		// missing-input/orphan check in maybeAcceptTransaction has already
+		// returned for any tx with absent UTXOs, so a nil entry here would
+		// indicate a control-flow regression. Fail loudly rather than rely
+		// on that upstream invariant.
 		entry := utxoView.LookupEntry(txIn.PreviousOutPoint)
 		if entry == nil {
-			// This will be caught by other validation, skip for now
-			continue
+			return txRuleError(ErrInvalid, fmt.Sprintf(
+				"missing input UTXO %v during coin-type validation",
+				txIn.PreviousOutPoint))
 		}
 
 		inputCoinType := entry.CoinType()

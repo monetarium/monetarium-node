@@ -131,7 +131,7 @@ type config struct {
 
 	// RPC server options and policy.
 	DisableRPC           bool     `long:"norpc" description:"Disable built-in RPC server -- NOTE: The RPC server is disabled by default if no rpcuser/rpcpass or rpclimituser/rpclimitpass is specified"`
-	RPCListeners         []string `long:"rpclisten" description:"Add an interface/port to listen for RPC connections (default port: 9109, testnet: 19109)"`
+	RPCListeners         []string `long:"rpclisten" description:"Add an interface/port to listen for RPC connections (default port: 9509, testnet: 19509)"`
 	RPCUser              string   `short:"u" long:"rpcuser" description:"Username for RPC connections"`
 	RPCPass              string   `short:"P" long:"rpcpass" default-mask:"-" description:"Password for RPC connections"`
 	RPCAuthType          string   `long:"authtype" description:"Method for RPC client authentication (basic or clientcert)"`
@@ -161,7 +161,7 @@ type config struct {
 	AddPeers        []string      `short:"a" long:"addpeer" description:"Add a peer to connect with at startup"`
 	ConnectPeers    []string      `long:"connect" description:"Connect only to the specified peers at startup"`
 	DisableListen   bool          `long:"nolisten" description:"Disable listening for incoming connections -- NOTE: Listening is automatically disabled if the --connect or --proxy options are used without also specifying listen interfaces via --listen"`
-	Listeners       []string      `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 9108, testnet: 19108)"`
+	Listeners       []string      `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 9508, testnet: 19508)"`
 	MaxSameIP       int           `long:"maxsameip" description:"Max number of connections with the same IP -- 0 to disable"`
 	MaxPeers        int           `long:"maxpeers" description:"Max number of inbound and outbound peers"`
 	DialTimeout     time.Duration `long:"dialtimeout" description:"How long to wait for TCP connection completion.  Valid time units are {s, m, h}.  Minimum 1 second"`
@@ -1333,7 +1333,7 @@ func loadConfig(appName string) (*config, []string, error) {
 	// Warn if old testnet directory is present.
 	for _, oldDir := range oldTestNets {
 		if fileExists(oldDir) {
-			dcrdLog.Warnf("Block chain data from previous testnet"+
+			monnLog.Warnf("Block chain data from previous testnet"+
 				" found (%v) and can probably be removed.",
 				oldDir)
 		}
@@ -1354,7 +1354,7 @@ func loadConfig(appName string) (*config, []string, error) {
 	// done.  This prevents the warning on help messages and invalid
 	// options.  Note this should go directly before the return.
 	if configFileError != nil {
-		dcrdLog.Warnf("%v", configFileError)
+		monnLog.Warnf("%v", configFileError)
 	}
 
 	return &cfg, remainingArgs, nil

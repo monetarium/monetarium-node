@@ -588,14 +588,13 @@ func MainNetParams() *Params {
 				Description:      "Primary asset-backed SKA coin type for mainnet",
 				MinRelayTxFee:    mustParseBigInt("4000000000000000000"), // 4 SKA per KB (4e18 atoms/KB)
 				MaxFeeMultiplier: 2500,                                   // Max fee is 2500x min fee
-				// Governance-approved emission distribution (TO BE REPLACED WITH REAL ADDRESSES)
+				// Governance-approved emission distribution
 				EmissionAddresses: []string{
 					"MsRKhYVjnqebpbVhFzSVoa9wJzMBmhLsqLL",
 				},
 				EmissionAmounts: bigIntSlice(
 					"900000000000000000000000000000000", // 900 trillion * 1e18 atoms to treasury
 				),
-				// SECURITY NOTE: This is a placeholder key for development ONLY
 				// Production deployment MUST generate secure keys with proper key ceremony
 				EmissionKey: mustParseHexPubKey("03f45735292ccc672ddf51869e69c67520f2213c73b924e8b2ff0c9f1877b99a8f"),
 			},

@@ -432,16 +432,61 @@ func ValidateAuthorizedSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
 		return fmt.Errorf("SKA coin type %d not configured in chain params", emissionCoinType)
 	}
 
-	// Calculate the expected total emission amount from config (uses big.Int)
-	expectedEmissionAmount := new(big.Int)
-	for _, amount := range skaConfig.EmissionAmounts {
-		if amount != nil {
-			expectedEmissionAmount.Add(expectedEmissionAmount, amount)
-		}
+	// Bind every output to the governance-configured emission distribution: the
+	// transaction must have exactly the configured number of outputs, paying the
+	// configured addresses, in the configured order, with the configured amounts.
+	// Without this, the emission key holder could redirect the entire pre-emitted
+	// supply to arbitrary addresses while still satisfying signature and
+	// total-amount checks.
+	if len(skaConfig.EmissionAddresses) != len(skaConfig.EmissionAmounts) {
+		return fmt.Errorf("SKA coin type %d has misconfigured emission distribution: "+
+			"%d addresses vs %d amounts", emissionCoinType,
+			len(skaConfig.EmissionAddresses), len(skaConfig.EmissionAmounts))
+	}
+	if len(tx.TxOut) != len(skaConfig.EmissionAddresses) {
+		return fmt.Errorf("SKA coin type %d emission transaction has %d outputs, "+
+			"governance config requires %d", emissionCoinType,
+			len(tx.TxOut), len(skaConfig.EmissionAddresses))
 	}
 
-	// Enforce exact emission amount as configured in governance
-	// This ensures consistency between authorized and basic validation paths
+	expectedEmissionAmount := new(big.Int)
+	for i, txOut := range tx.TxOut {
+		expectedAddrStr := skaConfig.EmissionAddresses[i]
+		expectedAmount := skaConfig.EmissionAmounts[i]
+		if expectedAmount == nil {
+			return fmt.Errorf("SKA coin type %d emission amount %d is not configured",
+				emissionCoinType, i)
+		}
+
+		expectedAddr, err := stdaddr.DecodeAddress(expectedAddrStr, chainParams)
+		if err != nil {
+			return fmt.Errorf("SKA coin type %d has invalid emission address %d (%q): %w",
+				emissionCoinType, i, expectedAddrStr, err)
+		}
+		expectedVersion, expectedScript := expectedAddr.PaymentScript()
+		if expectedVersion != 0 {
+			return fmt.Errorf("SKA coin type %d emission address %d (%s) requires "+
+				"unsupported script version %d", emissionCoinType, i,
+				expectedAddrStr, expectedVersion)
+		}
+
+		if !bytes.Equal(txOut.PkScript, expectedScript) {
+			return fmt.Errorf("SKA emission output %d does not pay the configured "+
+				"emission address %s for coin type %d", i, expectedAddrStr, emissionCoinType)
+		}
+		if txOut.SKAValue.Cmp(expectedAmount) != 0 {
+			return fmt.Errorf("SKA emission output %d amount %s does not match "+
+				"governance-configured amount %s for address %s (coin type %d)",
+				i, txOut.SKAValue.String(), expectedAmount.String(),
+				expectedAddrStr, emissionCoinType)
+		}
+
+		expectedEmissionAmount.Add(expectedEmissionAmount, expectedAmount)
+	}
+
+	// Defense-in-depth: the per-output amount check above already implies the
+	// totals match, but keep this as a guarded invariant in case a future refactor
+	// changes one path without the other.
 	if expectedEmissionAmount.Sign() > 0 && totalEmissionAmount.Cmp(expectedEmissionAmount) != 0 {
 		return fmt.Errorf("total emission %s does not match governance-configured amount %s for coin type %d",
 			totalEmissionAmount.String(), expectedEmissionAmount.String(), emissionCoinType)

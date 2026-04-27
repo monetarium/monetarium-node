@@ -61,14 +61,14 @@ func dcrdMain() error {
 	// triggered either from an OS signal such as SIGINT (Ctrl+C) or from
 	// another subsystem such as the RPC server.
 	ctx := shutdownListener()
-	defer dcrdLog.Info("Shutdown complete")
+	defer monnLog.Info("Shutdown complete")
 
 	// Show version and home dir at startup.
-	dcrdLog.Infof("Version %s (Go version %s %s/%s)", version.String(),
+	monnLog.Infof("Version %s (Go version %s %s/%s)", version.String(),
 		runtime.Version(), runtime.GOOS, runtime.GOARCH)
-	dcrdLog.Infof("Home dir: %s", cfg.HomeDir)
+	monnLog.Infof("Home dir: %s", cfg.HomeDir)
 	if cfg.NoFileLogging {
-		dcrdLog.Info("File logging disabled")
+		monnLog.Info("File logging disabled")
 	}
 
 	// Block and transaction processing can cause bursty allocations.  This
@@ -97,14 +97,14 @@ func dcrdMain() error {
 	}
 	goMemLimit := debug.SetMemoryLimit(-1)
 	if goMemLimit < softMemLimit {
-		dcrdLog.Infof("Ignoring GOMEMLIMIT=%q since it is too low and would "+
+		monnLog.Infof("Ignoring GOMEMLIMIT=%q since it is too low and would "+
 			"lead to extremely poor performance", humanizeBytes(goMemLimit))
 	}
 	if _, ok := os.LookupEnv("GOMEMLIMIT"); ok && goMemLimit > softMemLimit {
 		softMemLimit = goMemLimit
 	}
 	debug.SetMemoryLimit(softMemLimit)
-	dcrdLog.Infof("Soft memory limit: %s", humanizeBytes(softMemLimit))
+	monnLog.Infof("Soft memory limit: %s", humanizeBytes(softMemLimit))
 
 	// Enable http profile server if requested.  Note that since the server may
 	// be started now or dynamically started and stopped later, the stop call is
@@ -114,7 +114,7 @@ func dcrdMain() error {
 	if cfg.Profile != "" {
 		const allowNonLoopback = true
 		if err := profiler.Start(cfg.Profile, allowNonLoopback); err != nil {
-			dcrdLog.Warnf("unable to start profile server: %v", err)
+			monnLog.Warnf("unable to start profile server: %v", err)
 			return err
 		}
 	}
@@ -123,7 +123,7 @@ func dcrdMain() error {
 	if cfg.CPUProfile != "" {
 		f, err := os.Create(cfg.CPUProfile)
 		if err != nil {
-			dcrdLog.Errorf("Unable to create cpu profile: %v", err.Error())
+			monnLog.Errorf("Unable to create cpu profile: %v", err.Error())
 			return err
 		}
 		pprof.StartCPUProfile(f)
@@ -135,7 +135,7 @@ func dcrdMain() error {
 	if cfg.MemProfile != "" {
 		f, err := os.Create(cfg.MemProfile)
 		if err != nil {
-			dcrdLog.Errorf("Unable to create mem profile: %v", err)
+			monnLog.Errorf("Unable to create mem profile: %v", err)
 			return err
 		}
 		defer f.Close()
@@ -165,13 +165,13 @@ func dcrdMain() error {
 	lifetimeNotifier.notifyStartupEvent(lifetimeEventDBOpen)
 	db, err := loadBlockDB(cfg.params.Params)
 	if err != nil {
-		dcrdLog.Errorf("%v", err)
+		monnLog.Errorf("%v", err)
 		return err
 	}
 	defer func() {
 		// Ensure the database is sync'd and closed on shutdown.
 		lifetimeNotifier.notifyShutdownEvent(lifetimeEventDBOpen)
-		dcrdLog.Infof("Gracefully shutting down the block database...")
+		monnLog.Infof("Gracefully shutting down the block database...")
 		db.Close()
 	}()
 
@@ -183,12 +183,12 @@ func dcrdMain() error {
 	// Load the UTXO database.
 	utxoDb, err := blockchain.LoadUtxoDB(ctx, cfg.params.Params, cfg.DataDir)
 	if err != nil {
-		dcrdLog.Errorf("%v", err)
+		monnLog.Errorf("%v", err)
 		return err
 	}
 	defer func() {
 		// Ensure the database is sync'd and closed on shutdown.
-		dcrdLog.Infof("Gracefully shutting down the UTXO database...")
+		monnLog.Infof("Gracefully shutting down the UTXO database...")
 		utxoDb.Close()
 	}()
 
@@ -203,12 +203,12 @@ func dcrdMain() error {
 	// NOTE: The order is important here because dropping the tx index also
 	// drops the address index since it relies on it.
 	if err := indexers.DropAddrIndex(ctx, db); err != nil {
-		dcrdLog.Errorf("%v", err)
+		monnLog.Errorf("%v", err)
 		return err
 	}
 	if cfg.DropTxIndex {
 		if err := indexers.DropTxIndex(ctx, db); err != nil {
-			dcrdLog.Errorf("%v", err)
+			monnLog.Errorf("%v", err)
 			return err
 		}
 
@@ -216,7 +216,7 @@ func dcrdMain() error {
 	}
 	if cfg.DropExistsAddrIndex {
 		if err := indexers.DropExistsAddrIndex(ctx, db); err != nil {
-			dcrdLog.Errorf("%v", err)
+			monnLog.Errorf("%v", err)
 			return err
 		}
 
@@ -225,7 +225,7 @@ func dcrdMain() error {
 
 	// Drop the legacy v1 committed filter index if needed.
 	if err := indexers.DropCfIndex(ctx, db); err != nil {
-		dcrdLog.Errorf("%v", err)
+		monnLog.Errorf("%v", err)
 		return err
 	}
 
@@ -234,7 +234,7 @@ func dcrdMain() error {
 	svr, err := newServer(ctx, &profiler, cfg.Listeners, db, utxoDb,
 		cfg.params.Params, cfg.DataDir)
 	if err != nil {
-		dcrdLog.Errorf("Unable to start server: %v", err)
+		monnLog.Errorf("Unable to start server: %v", err)
 		return err
 	}
 

@@ -15,8 +15,22 @@ import (
 	"github.com/monetarium/monetarium-node/cointype"
 	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
 	"github.com/monetarium/monetarium-node/dcrec/secp256k1/ecdsa"
+	"github.com/monetarium/monetarium-node/txscript/stdaddr"
 	"github.com/monetarium/monetarium-node/wire"
 )
+
+// emissionPaymentScript decodes the configured emission address for the given
+// coin type from params and returns its payment script. Used by tests so that
+// tx outputs match the governance-configured emission distribution.
+func emissionPaymentScript(t *testing.T, params *chaincfg.Params, ct cointype.CoinType) []byte {
+	t.Helper()
+	addr, err := stdaddr.DecodeAddress(params.SKACoins[ct].EmissionAddresses[0], params)
+	if err != nil {
+		t.Fatalf("decode emission address for coin type %d: %v", ct, err)
+	}
+	_, script := addr.PaymentScript()
+	return script
+}
 
 // TestHasVotePassedAtHeight tests the height-based vote checking function.
 func TestHasVotePassedAtHeight(t *testing.T) {
@@ -128,10 +142,8 @@ func TestSKA2EmissionTransactionValidation(t *testing.T) {
 		Height:      emissionHeight,
 	}
 
-	// Create test script
-	testScript := []byte{0x76, 0xa9, 0x14}
-	testScript = append(testScript, bytes.Repeat([]byte{0x01}, 20)...)
-	testScript = append(testScript, 0x88, 0xac)
+	// Use the governance-configured emission address so the tx outputs match
+	testScript := emissionPaymentScript(t, params, auth.CoinType)
 
 	// Calculate Expiry (emission window end)
 	emissionWindow := int64(params.SKACoins[2].EmissionWindow)
@@ -226,10 +238,8 @@ func TestSKA1EmissionWithoutVote(t *testing.T) {
 		Height:      emissionHeight,
 	}
 
-	// Create test script
-	testScript := []byte{0x76, 0xa9, 0x14}
-	testScript = append(testScript, bytes.Repeat([]byte{0x01}, 20)...)
-	testScript = append(testScript, 0x88, 0xac)
+	// Use the governance-configured emission address so the tx outputs match
+	testScript := emissionPaymentScript(t, params, auth.CoinType)
 
 	// Calculate Expiry (emission window end)
 	emissionWindow := int64(params.SKACoins[1].EmissionWindow)

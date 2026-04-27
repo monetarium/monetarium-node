@@ -19,7 +19,7 @@ RUN apk add --no-cache git ca-certificates upx
 RUN mkdir /emptydatadir
 
 # New unprivileged user for use in production image below to improve security.
-ENV USER=decred
+ENV USER=monetarium
 ENV UID=10000
 RUN adduser \
     --disabled-password \
@@ -30,24 +30,24 @@ RUN adduser \
     --uid "${UID}" \
     "${USER}"
 
-# Build dcrd and other commands it provides.
-WORKDIR /go/src/github.com/decred/dcrd
-ARG VAR_BUILD_TAG=master
-RUN git clone --branch ${VAR_BUILD_TAG} -c advice.detachedHead=false https://github.com/decred/dcrd . && \
+# Build monn and other commands it provides.
+WORKDIR /go/src/github.com/monetarium/monetarium-node
+ARG MONN_BUILD_TAG=master
+RUN git clone --branch ${MONN_BUILD_TAG} -c advice.detachedHead=false https://github.com/monetarium/monetarium-node . && \
     CGO_ENABLED=0 GOOS=linux \
     go install -trimpath -tags safe,netgo,timetzdata \
       -ldflags="-s -w" \
       . ./cmd/gencerts ./cmd/promptsecret
 
-# Build dcrctl.
-WORKDIR /go/src/github.com/decred/dcrctl
-ARG VARCTL_BUILD_TAG=${VAR_BUILD_TAG}
-RUN git clone --branch ${VARCTL_BUILD_TAG} -c advice.detachedHead=false https://github.com/decred/dcrctl . && \
+# Build monctl.
+WORKDIR /go/src/github.com/monetarium/monetarium-ctl
+ARG MONCTL_BUILD_TAG=master
+RUN git clone --branch ${MONCTL_BUILD_TAG} -c advice.detachedHead=false https://github.com/monetarium/monetarium-ctl . && \
     CGO_ENABLED=0 GOOS=linux \
     go install -trimpath -tags safe,netgo -ldflags="-s -w"
 
 # Build entrypoint helper for the production image.
-WORKDIR /go/src/github.com/decred/dcrd/contrib/docker/entrypoint
+WORKDIR /go/src/github.com/monetarium/monetarium-node/contrib/docker/entrypoint
 COPY ./contrib/docker/entrypoint/entrypoint.go .
 RUN go mod init entrypoint && \
     go mod tidy && \
@@ -63,28 +63,28 @@ RUN upx -9 /go/bin/*
 
 # Minimal scratch-based environment.
 FROM scratch
-ENV DECRED_DATA=/home/decred
-ENV VAR_NO_FILE_LOGGING=true
+ENV MONETARIUM_DATA=/home/monetarium
+ENV MON_NO_FILE_LOGGING=true
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /go/bin/* /bin/
-COPY --from=builder --chown=decred /emptydatadir /tmp
+COPY --from=builder --chown=monetarium /emptydatadir /tmp
 
 # Use an unprivileged user.
-USER decred
+USER monetarium
 
 # Ports for the p2p and json-rpc of mainnet, testnet, and simnet, respectively.
-EXPOSE 9108 9109 19108 19109 18555 19556
+EXPOSE 9508 9509 19508 19509 18955 19956
 
 ENTRYPOINT [ "/bin/entrypoint" ]
 
-RUN [ "dcrd", "--version" ]
-RUN [ "dcrctl", "--version" ]
+RUN [ "monn", "--version" ]
+RUN [ "monctl", "--version" ]
 
 # The volume instruction is intentionally commented here since it has many
 # well-known pitfalls.  It is only provided here for documentation purposes.
 #
 # The preferred approach to mounting the volume is to specify the binding via
 # the `-v` flag of `docker run` or via a Docker Compose file.
-#VOLUME [ "/home/decred" ]
+#VOLUME [ "/home/monetarium" ]

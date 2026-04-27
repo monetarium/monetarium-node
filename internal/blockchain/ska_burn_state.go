@@ -330,8 +330,13 @@ func extractSKABurnsFromBlock(block *dcrutil.Block, blockHeight int64, params *c
 			// - "SKA_BURN" marker
 			// - Valid SKA coin type (1-255)
 			if params.IsSKABurnScript(txOut.PkScript) {
-				// All SKA transactions use SKAValue (big.Int) - no legacy support needed
-				// since no SKA coins were minted before the big.Int protocol
+				// CheckTransactionSanity guarantees non-nil SKAValue for SKA
+				// outputs before block acceptance, but guard defensively so a
+				// future change in sanity-check ordering can't turn this into
+				// a block-connect panic.
+				if txOut.SKAValue == nil {
+					continue
+				}
 				burns = append(burns, SKABurnRecord{
 					CoinType: txOut.CoinType,
 					Amount:   new(big.Int).Set(txOut.SKAValue),

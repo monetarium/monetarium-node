@@ -1340,8 +1340,8 @@ of the best block.
 |-
 !Example Return
 |
-: <code>(mainnet)</code> <code>3652501241</code>
-: <code>(testnet3)</code> <code>2979310197</code>
+: <code>(mainnet)</code> <code>1296978945</code>
+: <code>(testnet3)</code> <code>1296978947</code>
 :
 |}
 

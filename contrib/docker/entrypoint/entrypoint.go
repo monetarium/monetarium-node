@@ -16,7 +16,7 @@ import (
 const (
 	// defaultApp is the default application assumed when either no arguments
 	// are specified or the first argument starts with a -.
-	defaultApp = "dcrd"
+	defaultApp = "monn"
 )
 
 // argN either returns the arguments at the provided position within the given
@@ -68,39 +68,39 @@ func main() {
 		args = prepend(args, defaultApp)
 	}
 
-	// Determine dcrd app data directory based on environment variable.
-	decredData := os.Getenv("DECRED_DATA")
-	dcrdAppData := filepath.Join(decredData, ".dcrd")
+	// Determine monn app data directory based on environment variable.
+	monetariumData := os.Getenv("MONETARIUM_DATA")
+	monnAppData := filepath.Join(monetariumData, ".monn")
 
 	// Additional setup when running in a container.
 	arg0 := argN(args, 0)
 	args = args[1:]
 	switch arg0 {
-	case "dcrd":
-		if !convertsToFalse(os.Getenv("VAR_NO_FILE_LOGGING")) {
+	case "monn":
+		if !convertsToFalse(os.Getenv("MON_NO_FILE_LOGGING")) {
 			args = append(args, "--nofilelogging")
 		}
-		args = append(args, fmt.Sprintf("--appdata=%s", dcrdAppData))
+		args = append(args, fmt.Sprintf("--appdata=%s", monnAppData))
 		args = append(args, "--rpclisten=")
 
-	case "dcrctl":
-		// Determine dcrctl app data directory based on environment variable.
-		rpcCert := filepath.Join(dcrdAppData, "rpc.cert")
-		dcrctlAppData := filepath.Join(decredData, ".dcrctl")
-		dcrctlConfig := filepath.Join(dcrctlAppData, "dcrctl.conf")
+	case "monctl":
+		// Determine monctl app data directory based on environment variable.
+		rpcCert := filepath.Join(monnAppData, "rpc.cert")
+		monctlAppData := filepath.Join(monetariumData, ".monctl")
+		monctlConfig := filepath.Join(monctlAppData, "monctl.conf")
 
 		// TODO: These all unconditionally override config file settings.
 		// Detect if already there and don't do it?
 		//
 		// Prepend the arguments in case the caller wants to override them.
 		args = prepend(args, fmt.Sprintf("--rpccert=%s", rpcCert))
-		args = prepend(args, fmt.Sprintf("--configfile=%s", dcrctlConfig))
+		args = prepend(args, fmt.Sprintf("--configfile=%s", monctlConfig))
 
-		// Change the home directory to match the data path since dcrctl
-		// relies in it to discover the dcrd config file in order to extract
+		// Change the home directory to match the data path since monctl
+		// relies in it to discover the monn config file in order to extract
 		// the rpc credentials.
-		if !fileExists(filepath.Join(dcrctlAppData, "dcrctl.conf")) {
-			os.Setenv("HOME", decredData)
+		if !fileExists(filepath.Join(monctlAppData, "monctl.conf")) {
+			os.Setenv("HOME", monetariumData)
 		}
 	}
 

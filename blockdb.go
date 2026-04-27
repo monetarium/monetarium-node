@@ -45,7 +45,7 @@ func removeRegressionDB(dbPath string) error {
 	// Remove the old regression test database if it already exists.
 	fi, err := os.Stat(dbPath)
 	if err == nil {
-		dcrdLog.Infof("Removing regression test database from '%s'", dbPath)
+		monnLog.Infof("Removing regression test database from '%s'", dbPath)
 		return removeDB(dbPath, fi)
 	}
 
@@ -87,7 +87,7 @@ func warnMultipleDBs() {
 	// Warn if there are extra databases.
 	if len(duplicateDbPaths) > 0 {
 		selectedDbPath := blockDbPath(cfg.DbType)
-		dcrdLog.Warnf("WARNING: There are multiple block chain databases "+
+		monnLog.Warnf("WARNING: There are multiple block chain databases "+
 			"using different database types.\nYou probably don't want to "+
 			"waste disk space by having more than one.\nYour current database "+
 			"is located at [%v].\nThe additional database is located at %v",
@@ -105,7 +105,7 @@ func loadBlockDB(params *chaincfg.Params) (database.DB, error) {
 	// it uniquely.  We also don't want to worry about the multiple database
 	// type warnings when running with the memory database.
 	if cfg.DbType == "memdb" {
-		dcrdLog.Infof("Creating block database in memory.")
+		monnLog.Infof("Creating block database in memory.")
 		db, err := database.Create(cfg.DbType)
 		if err != nil {
 			return nil, err
@@ -136,7 +136,7 @@ func loadBlockDB(params *chaincfg.Params) (database.DB, error) {
 	}
 
 	// Open the existing database or create a new one as needed.
-	dcrdLog.Infof("Loading block database from '%s'", dbPath)
+	monnLog.Infof("Loading block database from '%s'", dbPath)
 	db, err := database.Open(cfg.DbType, dbPath, params.Net)
 	if err != nil {
 		// Return the error if it's not because the database doesn't exist.
@@ -158,7 +158,7 @@ func loadBlockDB(params *chaincfg.Params) (database.DB, error) {
 		if !errors.Is(err, blockchain.ErrDBTooOldToUpgrade) {
 			return nil, err
 		}
-		dcrdLog.Infof("Removing database from '%s': %v", dbPath, err)
+		monnLog.Infof("Removing database from '%s': %v", dbPath, err)
 
 		// Close the database so it can be removed cleanly.
 		if err := db.Close(); err != nil {
@@ -182,16 +182,16 @@ func loadBlockDB(params *chaincfg.Params) (database.DB, error) {
 		}
 	}
 
-	dcrdLog.Info("Block database loaded")
+	monnLog.Info("Block database loaded")
 	return db, nil
 }
 
 // dumpBlockChain dumps a map of the blockchain blocks as serialized bytes.
 func dumpBlockChain(params *chaincfg.Params, b *blockchain.BlockChain) error {
-	dcrdLog.Infof("Writing the blockchain to flat file %q.  This might take a "+
+	monnLog.Infof("Writing the blockchain to flat file %q.  This might take a "+
 		"while...", cfg.DumpBlockchain)
 
-	progressLogger := progresslog.New("Wrote", dcrdLog)
+	progressLogger := progresslog.New("Wrote", monnLog)
 
 	file, err := os.Create(cfg.DumpBlockchain)
 	if err != nil {
