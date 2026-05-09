@@ -1014,7 +1014,7 @@ func (c *Client) EstimateSmartFeeAsync(ctx context.Context, confirmations int64,
 // between probability of the transaction being mined in the given target
 // confirmation range and minimization of fees paid.
 //
-// As of 2019-01, only the default conservative mode is supported by dcrd.
+// As of 2019-01, only the default conservative mode is supported by mond.
 func (c *Client) EstimateSmartFee(ctx context.Context, confirmations int64, mode chainjson.EstimateSmartFeeMode) (*chainjson.EstimateSmartFeeResult, error) {
 	return c.EstimateSmartFeeAsync(ctx, confirmations, mode).Receive()
 }

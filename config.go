@@ -106,7 +106,7 @@ var (
 // to parse and execute service commands specified via the -s flag.
 var runServiceCommand func(string) error
 
-// config defines the configuration options for dcrd.
+// config defines the configuration options for mond.
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
@@ -170,7 +170,7 @@ type config struct {
 	// P2P network discovery options.
 	DisableSeeders bool     `long:"noseeders" description:"Disable seeding for peer discovery"`
 	DisableDNSSeed bool     `long:"nodnsseed" description:"DEPRECATED: use --noseeders"`
-	ExternalIPs    []string `long:"externalip" description:"Add a public-facing IP to the list of local external IPs that dcrd will advertise to other peers"`
+	ExternalIPs    []string `long:"externalip" description:"Add a public-facing IP to the list of local external IPs that mond will advertise to other peers"`
 	NoDiscoverIP   bool     `long:"nodiscoverip" description:"Disable automatic network address discovery of local external IPs"`
 	Upnp           bool     `long:"upnp" description:"Use UPnP to map our listening port outside of NAT"`
 
@@ -462,7 +462,7 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 	return parser
 }
 
-// createDefaultConfig copies the file sample-dcrd.conf to the given destination path,
+// createDefaultConfig copies the file sample-monetarium.conf to the given destination path,
 // and populates it with some randomly generated RPC username and password.
 func createDefaultConfigFile(destPath string, authType string) error {
 	// Create the destination directory if it does not exist.
@@ -471,7 +471,7 @@ func createDefaultConfigFile(destPath string, authType string) error {
 		return err
 	}
 
-	cfg := sampleconfig.Dcrd()
+	cfg := sampleconfig.Mond()
 
 	// Set a randomized rpcuser and rpcpass if the authorization type is basic.
 	if authType == authTypeBasic {
@@ -589,7 +589,7 @@ func (e errSuppressUsage) Error() string {
 //  4. Load configuration file overwriting defaults with any specified options
 //  5. Parse CLI options and overwrite/add any specified options
 //
-// The above results in dcrd functioning properly without any config settings
+// The above results in mond functioning properly without any config settings
 // while still allowing the user to override settings with config files and
 // command line options.  Command line options always take precedence.
 func loadConfig(appName string) (*config, []string, error) {
@@ -684,7 +684,7 @@ func loadConfig(appName string) (*config, []string, error) {
 		os.Exit(0)
 	}
 
-	// Update the home directory for dcrd if specified. Since the home
+	// Update the home directory for mond if specified. Since the home
 	// directory is updated, other variables need to be updated to
 	// reflect the new changes.
 	if preCfg.HomeDir != "" {
@@ -1333,7 +1333,7 @@ func loadConfig(appName string) (*config, []string, error) {
 	// Warn if old testnet directory is present.
 	for _, oldDir := range oldTestNets {
 		if fileExists(oldDir) {
-			monnLog.Warnf("Block chain data from previous testnet"+
+			mondLog.Warnf("Block chain data from previous testnet"+
 				" found (%v) and can probably be removed.",
 				oldDir)
 		}
@@ -1354,32 +1354,32 @@ func loadConfig(appName string) (*config, []string, error) {
 	// done.  This prevents the warning on help messages and invalid
 	// options.  Note this should go directly before the return.
 	if configFileError != nil {
-		monnLog.Warnf("%v", configFileError)
+		mondLog.Warnf("%v", configFileError)
 	}
 
 	return &cfg, remainingArgs, nil
 }
 
-// dcrdDial connects to the address on the named network using the appropriate
+// mondDial connects to the address on the named network using the appropriate
 // dial function depending on the address and configuration options.  For
 // example, .onion addresses will be dialed using the onion specific proxy if
 // one was specified, but will otherwise use the normal dial function (which
 // could itself use a proxy or not).
-func dcrdDial(ctx context.Context, network, addr string) (net.Conn, error) {
+func mondDial(ctx context.Context, network, addr string) (net.Conn, error) {
 	if strings.Contains(addr, ".onion:") {
 		return cfg.oniondial(ctx, network, addr)
 	}
 	return cfg.dial(ctx, network, addr)
 }
 
-// dcrdLookup invokes the correct DNS lookup function to use depending on the
+// mondLookup invokes the correct DNS lookup function to use depending on the
 // passed host and configuration options.  For example, .onion addresses will be
 // resolved using the onion specific proxy if one was specified, but will
 // otherwise treat the normal proxy as tor unless --noonion was specified in
 // which case the lookup will fail.  Meanwhile, normal IP addresses will be
 // resolved using tor if a proxy was specified unless --noonion was also
 // specified in which case the normal system DNS resolver will be used.
-func dcrdLookup(host string) ([]net.IP, error) {
+func mondLookup(host string) ([]net.IP, error) {
 	if strings.HasSuffix(host, ".onion") {
 		return cfg.onionlookup(host)
 	}

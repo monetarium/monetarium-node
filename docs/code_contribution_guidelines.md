@@ -35,7 +35,7 @@ represent real money and introducing bugs and security vulnerabilities can have
 far more dire consequences than in typical projects where having a small bug is
 minimal by comparison.  In the world of cryptocurrencies, even the smallest bug
 in the wrong area can cost people a significant amount of money.  For this
-reason, the dcrd suite has a formalized and rigorous development process which
+reason, the mond suite has a formalized and rigorous development process which
 is outlined on this page.
 
 We highly encourage code contributions, however it is imperative that you adhere
@@ -72,7 +72,7 @@ security and performance implications.
 
 ### 3. Required Reading
 
-- [Effective Go](https://golang.org/doc/effective_go.html) - The entire dcrd
+- [Effective Go](https://golang.org/doc/effective_go.html) - The entire mond
   suite follows the guidelines in this document.  For your code to be accepted,
   it must follow the guidelines therein.
 - [Original Satoshi Whitepaper](https://decred.org/research/nakamoto2008.pdf) - 
@@ -114,7 +114,7 @@ This approach has several benefits:
 
 ### 4.2 Testing
 
-One of the major design goals of all core dcrd packages is to aim for complete
+One of the major design goals of all core mond packages is to aim for complete
 test coverage.  This is financial software so bugs and regressions can cost
 people real money.  For this reason every effort must be taken to ensure the
 code is as accurate and bug-free as possible.  Thorough testing is a good way to
@@ -338,7 +338,7 @@ guideline for consistency among contributors and is not strictly enforced.
 ### 5. Code Approval Process
 
 This section describes the code approval process that is used for code
-contributions.  This is how to get your changes into dcrd.
+contributions.  This is how to get your changes into mond.
 
 <a name="CodeReview" />
 
@@ -431,4 +431,4 @@ Rejoice as you will now be listed as a [contributor](https://github.com/decred/d
 ****
 All contributions must be licensed with the
 [ISC license](https://github.com/decred/dcrd/blob/master/LICENSE).  This is
-the same license as all of the code in the dcrd suite.
+the same license as all of the code in the mond suite.

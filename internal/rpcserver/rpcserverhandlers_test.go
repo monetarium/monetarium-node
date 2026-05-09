@@ -4852,7 +4852,7 @@ func TestHandleGetPeerInfo(t *testing.T) {
 						ConnTime:       time.Unix(1592918784, 0),
 						TimeOffset:     int64(-75),
 						Version:        uint32(6),
-						UserAgent:      "/dcrwire:0.3.0/dcrd:1.5.0(pre)/",
+						UserAgent:      "/dcrwire:0.3.0/mond:1.5.0(pre)/",
 						Inbound:        false,
 						StartingHeight: int64(323327),
 						LastBlock:      int64(323327),
@@ -4882,7 +4882,7 @@ func TestHandleGetPeerInfo(t *testing.T) {
 			PingTime:       float64(0),
 			PingWait:       float64(2),
 			Version:        uint32(6),
-			SubVer:         "/dcrwire:0.3.0/dcrd:1.5.0(pre)/",
+			SubVer:         "/dcrwire:0.3.0/mond:1.5.0(pre)/",
 			Inbound:        false,
 			StartingHeight: int64(323327),
 			CurrentHeight:  int64(323327),
@@ -8162,7 +8162,7 @@ func TestHandleStop(t *testing.T) {
 		name:    "handleStop: ok",
 		handler: handleStop,
 		cmd:     &types.StopCmd{},
-		result:  "dcrd stopping.",
+		result:  "mond stopping.",
 	}})
 }
 

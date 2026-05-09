@@ -5,15 +5,15 @@ jsonrpc/types
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
 [![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/rpc/jsonrpc/types/v4)
 
-Package types implements concrete types for marshalling to and from the dcrd
+Package types implements concrete types for marshalling to and from the mond
 JSON-RPC commands, return values, and notifications.  A comprehensive suite of
 tests is provided to ensure proper functionality.
 
 The provided types are automatically registered with
 [dcrjson](https://github.com/decred/dcrd/tree/master/dcrjson) when the package
-is imported.  Although this package was primarily written for dcrd, it has
+is imported.  Although this package was primarily written for mond, it has
 intentionally been designed so it can be used as a standalone package for any
-projects needing to marshal to and from dcrd JSON-RPC requests and responses.
+projects needing to marshal to and from mond JSON-RPC requests and responses.
 
 ## Installation and Updating
 

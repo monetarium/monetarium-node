@@ -38,7 +38,7 @@ func TestLoadConfig(t *testing.T) {
 	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
 	_, _, err := loadConfig(appName)
 	if err != nil {
-		t.Fatalf("Failed to load dcrd config: %s", err)
+		t.Fatalf("Failed to load mond config: %s", err)
 	}
 }
 
@@ -49,7 +49,7 @@ func TestDefaultAltDNSNames(t *testing.T) {
 	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
 	cfg, _, err := loadConfig(appName)
 	if err != nil {
-		t.Fatalf("Failed to load dcrd config: %s", err)
+		t.Fatalf("Failed to load mond config: %s", err)
 	}
 	if len(cfg.AltDNSNames) != 0 {
 		t.Fatalf("Invalid default value for altdnsnames: %s", cfg.AltDNSNames)
@@ -64,7 +64,7 @@ func TestAltDNSNamesWithEnv(t *testing.T) {
 	t.Setenv("MONETARIUM_ALT_DNSNAMES", "hostname1,hostname2")
 	cfg, _, err := loadConfig(appName)
 	if err != nil {
-		t.Fatalf("Failed to load dcrd config: %s", err)
+		t.Fatalf("Failed to load mond config: %s", err)
 	}
 	hostnames := strings.Join(cfg.AltDNSNames, ",")
 	if hostnames != "hostname1,hostname2" {
@@ -82,7 +82,7 @@ func TestAltDNSNamesWithArg(t *testing.T) {
 	os.Args = append(os.Args, "--altdnsnames=\"hostname1,hostname2\"")
 	cfg, _, err := loadConfig(appName)
 	if err != nil {
-		t.Fatalf("Failed to load dcrd config: %s", err)
+		t.Fatalf("Failed to load mond config: %s", err)
 	}
 	hostnames := strings.Join(cfg.AltDNSNames, ",")
 	if hostnames != "hostname1,hostname2" {

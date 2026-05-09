@@ -16,7 +16,7 @@ import (
 const (
 	// defaultApp is the default application assumed when either no arguments
 	// are specified or the first argument starts with a -.
-	defaultApp = "monn"
+	defaultApp = "mond"
 )
 
 // argN either returns the arguments at the provided position within the given
@@ -68,24 +68,24 @@ func main() {
 		args = prepend(args, defaultApp)
 	}
 
-	// Determine monn app data directory based on environment variable.
+	// Determine mond app data directory based on environment variable.
 	monetariumData := os.Getenv("MONETARIUM_DATA")
-	monnAppData := filepath.Join(monetariumData, ".monn")
+	mondAppData := filepath.Join(monetariumData, ".mond")
 
 	// Additional setup when running in a container.
 	arg0 := argN(args, 0)
 	args = args[1:]
 	switch arg0 {
-	case "monn":
+	case "mond":
 		if !convertsToFalse(os.Getenv("MON_NO_FILE_LOGGING")) {
 			args = append(args, "--nofilelogging")
 		}
-		args = append(args, fmt.Sprintf("--appdata=%s", monnAppData))
+		args = append(args, fmt.Sprintf("--appdata=%s", mondAppData))
 		args = append(args, "--rpclisten=")
 
 	case "monctl":
 		// Determine monctl app data directory based on environment variable.
-		rpcCert := filepath.Join(monnAppData, "rpc.cert")
+		rpcCert := filepath.Join(mondAppData, "rpc.cert")
 		monctlAppData := filepath.Join(monetariumData, ".monctl")
 		monctlConfig := filepath.Join(monctlAppData, "monctl.conf")
 
@@ -97,7 +97,7 @@ func main() {
 		args = prepend(args, fmt.Sprintf("--configfile=%s", monctlConfig))
 
 		// Change the home directory to match the data path since monctl
-		// relies in it to discover the monn config file in order to extract
+		// relies in it to discover the mond config file in order to extract
 		// the rpc credentials.
 		if !fileExists(filepath.Join(monctlAppData, "monctl.conf")) {
 			os.Setenv("HOME", monetariumData)

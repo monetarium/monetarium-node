@@ -30,10 +30,10 @@ RUN adduser \
     --uid "${UID}" \
     "${USER}"
 
-# Build monn and other commands it provides.
+# Build mond and other commands it provides.
 WORKDIR /go/src/github.com/monetarium/monetarium-node
-ARG MONN_BUILD_TAG=master
-RUN git clone --branch ${MONN_BUILD_TAG} -c advice.detachedHead=false https://github.com/monetarium/monetarium-node . && \
+ARG MOND_BUILD_TAG=master
+RUN git clone --branch ${MOND_BUILD_TAG} -c advice.detachedHead=false https://github.com/monetarium/monetarium-node . && \
     CGO_ENABLED=0 GOOS=linux \
     go install -trimpath -tags safe,netgo,timetzdata \
       -ldflags="-s -w" \
@@ -79,7 +79,7 @@ EXPOSE 9508 9509 19508 19509 18955 19956
 
 ENTRYPOINT [ "/bin/entrypoint" ]
 
-RUN [ "monn", "--version" ]
+RUN [ "mond", "--version" ]
 RUN [ "monctl", "--version" ]
 
 # The volume instruction is intentionally commented here since it has many

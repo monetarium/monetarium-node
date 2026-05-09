@@ -37,7 +37,7 @@ fi
 
 # Ensure the script is run from either the root of the repo or the devtools dir.
 SCRIPT=$(basename $0)
-MAIN_CODE_FILE="dcrd.go"
+MAIN_CODE_FILE="mond.go"
 if [ -f "../../${MAIN_CODE_FILE}" ]; then
   cd ../..
 fi

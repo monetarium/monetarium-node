@@ -49,7 +49,7 @@ func (r *FutureDebugLevelResult) Receive() (string, error) {
 //
 // See DebugLevel for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) DebugLevelAsync(ctx context.Context, levelSpec string) *FutureDebugLevelResult {
 	cmd := chainjson.NewDebugLevelCmd(levelSpec)
 	return (*FutureDebugLevelResult)(c.sendCmd(ctx, cmd))
@@ -65,7 +65,7 @@ func (c *Client) DebugLevelAsync(ctx context.Context, levelSpec string) *FutureD
 // Additionally, the special keyword 'show' can be used to get a list of the
 // available subsystems.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) DebugLevel(ctx context.Context, levelSpec string) (string, error) {
 	return c.DebugLevelAsync(ctx, levelSpec).Receive()
 }
@@ -98,7 +98,7 @@ func (r *FutureEstimateStakeDiffResult) Receive() (*chainjson.EstimateStakeDiffR
 //
 // See EstimateStakeDiff for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) EstimateStakeDiffAsync(ctx context.Context, tickets *uint32) *FutureEstimateStakeDiffResult {
 	cmd := chainjson.NewEstimateStakeDiffCmd(tickets)
 	return (*FutureEstimateStakeDiffResult)(c.sendCmd(ctx, cmd))
@@ -107,7 +107,7 @@ func (c *Client) EstimateStakeDiffAsync(ctx context.Context, tickets *uint32) *F
 // EstimateStakeDiff returns the minimum, maximum, and expected next stake
 // difficulty.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) EstimateStakeDiff(ctx context.Context, tickets *uint32) (*chainjson.EstimateStakeDiffResult, error) {
 	return c.EstimateStakeDiffAsync(ctx, tickets).Receive()
 }
@@ -144,7 +144,7 @@ func (c *Client) ExistsAddressAsync(ctx context.Context, address stdaddr.Address
 // ExistsAddress returns information about whether or not an address has been
 // used on the main chain or in mempool.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) ExistsAddress(ctx context.Context, address stdaddr.Address) (bool, error) {
 	return c.ExistsAddressAsync(ctx, address).Receive()
 }
@@ -187,7 +187,7 @@ func (c *Client) ExistsAddressesAsync(ctx context.Context, addresses []stdaddr.A
 // ExistsAddresses returns information about whether or not an address exists
 // in the blockchain or memory pool.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) ExistsAddresses(ctx context.Context, addresses []stdaddr.Address) (string, error) {
 	return c.ExistsAddressesAsync(ctx, addresses).Receive()
 }
@@ -225,7 +225,7 @@ func (c *Client) ExistsLiveTicketAsync(ctx context.Context, hash *chainhash.Hash
 // ExistsLiveTicket returns information about whether or not a ticket hash exists
 // in the live ticket database.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) ExistsLiveTicket(ctx context.Context, hash *chainhash.Hash) (bool, error) {
 	return c.ExistsLiveTicketAsync(ctx, hash).Receive()
 }
@@ -267,7 +267,7 @@ func (c *Client) ExistsLiveTicketsAsync(ctx context.Context, hashes []*chainhash
 // ExistsLiveTickets returns information about whether or not a list of ticket
 // hashes exist in the live ticket database.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) ExistsLiveTickets(ctx context.Context, hashes []*chainhash.Hash) (string, error) {
 	return c.ExistsLiveTicketsAsync(ctx, hashes).Receive()
 }
@@ -309,7 +309,7 @@ func (c *Client) ExistsMempoolTxsAsync(ctx context.Context, hashes []*chainhash.
 // ExistsMempoolTxs returns information about whether or not a list of
 // transaction hashes exist in the mempool.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) ExistsMempoolTxs(ctx context.Context, hashes []*chainhash.Hash) (string, error) {
 	return c.ExistsMempoolTxsAsync(ctx, hashes).Receive()
 }
@@ -348,7 +348,7 @@ func (r *FutureGetBestBlockResult) Receive() (*chainhash.Hash, int64, error) {
 //
 // See GetBestBlock for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) GetBestBlockAsync(ctx context.Context) *FutureGetBestBlockResult {
 	cmd := chainjson.NewGetBestBlockCmd()
 	return (*FutureGetBestBlockResult)(c.sendCmd(ctx, cmd))
@@ -357,7 +357,7 @@ func (c *Client) GetBestBlockAsync(ctx context.Context) *FutureGetBestBlockResul
 // GetBestBlock returns the hash and height of the block in the longest (best)
 // chain.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) GetBestBlock(ctx context.Context) (*chainhash.Hash, int64, error) {
 	return c.GetBestBlockAsync(ctx).Receive()
 }
@@ -390,7 +390,7 @@ func (r *FutureGetCurrentNetResult) Receive() (wire.CurrencyNet, error) {
 //
 // See GetCurrentNet for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) GetCurrentNetAsync(ctx context.Context) *FutureGetCurrentNetResult {
 	cmd := chainjson.NewGetCurrentNetCmd()
 	return (*FutureGetCurrentNetResult)(c.sendCmd(ctx, cmd))
@@ -398,7 +398,7 @@ func (c *Client) GetCurrentNetAsync(ctx context.Context) *FutureGetCurrentNetRes
 
 // GetCurrentNet returns the network the server is running on.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) GetCurrentNet(ctx context.Context) (wire.CurrencyNet, error) {
 	return c.GetCurrentNetAsync(ctx).Receive()
 }
@@ -479,7 +479,7 @@ func (r *FutureGetStakeDifficultyResult) Receive() (*chainjson.GetStakeDifficult
 //
 // See GetStakeDifficulty for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) GetStakeDifficultyAsync(ctx context.Context) *FutureGetStakeDifficultyResult {
 	cmd := chainjson.NewGetStakeDifficultyCmd()
 	return (*FutureGetStakeDifficultyResult)(c.sendCmd(ctx, cmd))
@@ -487,7 +487,7 @@ func (c *Client) GetStakeDifficultyAsync(ctx context.Context) *FutureGetStakeDif
 
 // GetStakeDifficulty returns the current and next stake difficulty.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) GetStakeDifficulty(ctx context.Context) (*chainjson.GetStakeDifficultyResult, error) {
 	return c.GetStakeDifficultyAsync(ctx).Receive()
 }
@@ -520,7 +520,7 @@ func (r *FutureGetStakeVersionsResult) Receive() (*chainjson.GetStakeVersionsRes
 //
 // See GetStakeVersionInfo for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) GetStakeVersionInfoAsync(ctx context.Context, count int32) *FutureGetStakeVersionInfoResult {
 	cmd := chainjson.NewGetStakeVersionInfoCmd(count)
 	return (*FutureGetStakeVersionInfoResult)(c.sendCmd(ctx, cmd))
@@ -528,7 +528,7 @@ func (c *Client) GetStakeVersionInfoAsync(ctx context.Context, count int32) *Fut
 
 // GetStakeVersionInfo returns the stake versions results for past requested intervals (count).
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) GetStakeVersionInfo(ctx context.Context, count int32) (*chainjson.GetStakeVersionInfoResult, error) {
 	return c.GetStakeVersionInfoAsync(ctx, count).Receive()
 }
@@ -561,7 +561,7 @@ func (r *FutureGetStakeVersionInfoResult) Receive() (*chainjson.GetStakeVersionI
 //
 // See GetStakeVersions for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) GetStakeVersionsAsync(ctx context.Context, hash string, count int32) *FutureGetStakeVersionsResult {
 	cmd := chainjson.NewGetStakeVersionsCmd(hash, count)
 	return (*FutureGetStakeVersionsResult)(c.sendCmd(ctx, cmd))
@@ -569,7 +569,7 @@ func (c *Client) GetStakeVersionsAsync(ctx context.Context, hash string, count i
 
 // GetStakeVersions returns the stake versions and vote versions of past requested blocks.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) GetStakeVersions(ctx context.Context, hash string, count int32) (*chainjson.GetStakeVersionsResult, error) {
 	return c.GetStakeVersionsAsync(ctx, hash, count).Receive()
 }
@@ -608,7 +608,7 @@ func (r *FutureGetTicketPoolValueResult) Receive() (dcrutil.Amount, error) {
 //
 // See GetTicketPoolValue for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) GetTicketPoolValueAsync(ctx context.Context) *FutureGetTicketPoolValueResult {
 	cmd := chainjson.NewGetTicketPoolValueCmd()
 	return (*FutureGetTicketPoolValueResult)(c.sendCmd(ctx, cmd))
@@ -616,7 +616,7 @@ func (c *Client) GetTicketPoolValueAsync(ctx context.Context) *FutureGetTicketPo
 
 // GetTicketPoolValue returns the value of the live ticket pool.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) GetTicketPoolValue(ctx context.Context) (dcrutil.Amount, error) {
 	return c.GetTicketPoolValueAsync(ctx).Receive()
 }
@@ -649,7 +649,7 @@ func (r *FutureGetVoteInfoResult) Receive() (*chainjson.GetVoteInfoResult, error
 //
 // See GetVoteInfo for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) GetVoteInfoAsync(ctx context.Context, version uint32) *FutureGetVoteInfoResult {
 	cmd := chainjson.NewGetVoteInfoCmd(version)
 	return (*FutureGetVoteInfoResult)(c.sendCmd(ctx, cmd))
@@ -658,7 +658,7 @@ func (c *Client) GetVoteInfoAsync(ctx context.Context, version uint32) *FutureGe
 // GetVoteInfo returns voting information for the specified stake version. This
 // includes current voting window, quorum, total votes and agendas.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) GetVoteInfo(ctx context.Context, version uint32) (*chainjson.GetVoteInfoResult, error) {
 	return c.GetVoteInfoAsync(ctx, version).Receive()
 }
@@ -705,7 +705,7 @@ func (c *Client) LiveTicketsAsync(ctx context.Context) *FutureLiveTicketsResult 
 // LiveTickets returns all currently live tickets from the live ticket database
 // in the daemon.
 //
-// NOTE: This is a dcrd extension.
+// NOTE: This is a mond extension.
 func (c *Client) LiveTickets(ctx context.Context) ([]*chainhash.Hash, error) {
 	return c.LiveTicketsAsync(ctx).Receive()
 }

@@ -6,7 +6,7 @@ Decred Full Node for Docker
 ## Overview
 
 This provides all of the necessary files to build your own lightweight non-root
-container image based on `scratch` that provides `dcrd`, `dcrctl`,
+container image based on `scratch` that provides `mond`, `monctl`,
 `promptsecret` and `gencerts`.
 
 The approach used by the primary `Dockerfile` is to employ a multi-stage build
@@ -44,14 +44,14 @@ exist.  You may wish to replace all instances of `${...}` with the associated
 concrete value.
 
 1. Build the base image with a tag to make it easy to reference later.  These
-   commands all use `yourusername/dcrd` for the image tag, but you should
+   commands all use `yourusername/mond` for the image tag, but you should
    replace `yourusername` with your username or something else unique to you so
    you can easily identify it as being one of your images:
 
-   **IMPORTANT: This MUST be run from the main directory of the dcrd code repo.**
+   **IMPORTANT: This MUST be run from the main directory of the mond code repo.**
 
    ```sh
-   $ VAR_IMAGE_NAME="yourusername/dcrd"
+   $ VAR_IMAGE_NAME="yourusername/mond"
    $ docker build -t "${VAR_IMAGE_NAME}" -f contrib/docker/Dockerfile .
    ```
 
@@ -62,7 +62,7 @@ concrete value.
         -t "${VAR_IMAGE_NAME}" -f contrib/docker/Dockerfile .
    ```
 
-    By default, the `VAR_BUILD_TAG` will also specify the tag or branch of the `dcrctl` utility to be built, as well.  It is feasible that `dcrctl` and `dcrd` don't use the same tags; if that's the case then the `VARCTL_BUILD_TAG` can be used (on its own or alongside `VAR_BUILD_TAG`):
+    By default, the `VAR_BUILD_TAG` will also specify the tag or branch of the `monctl` utility to be built, as well.  It is feasible that `monctl` and `mond` don't use the same tags; if that's the case then the `VARCTL_BUILD_TAG` can be used (on its own or alongside `VAR_BUILD_TAG`):
 
    ```
     $ docker build --build-arg VARCTL_BUILD_TAG=release-v1.x.x \
@@ -80,13 +80,13 @@ concrete value.
    $ sudo chown -R 10000:10000 "${DECRED_DATA_VOLUME}"
    ```
 
-3. Run `dcrd` on `mainnet` in the background using the aforementioned data
+3. Run `mond` on `mainnet` in the background using the aforementioned data
    volume to store the blockchain and configuration data along with a name to
    make it easy to reference later and exposing its peer-to-peer port:
 
    ```sh
    $ VAR_MAINNET_P2P_PORT=9108
-   $ VAR_CONTAINER_NAME="dcrd"
+   $ VAR_CONTAINER_NAME="mond"
    $ docker run -d --read-only \
      --name "${VAR_CONTAINER_NAME}" \
      -v decred-data:/home/decred \
@@ -94,7 +94,7 @@ concrete value.
      "${VAR_IMAGE_NAME}" --altdnsnames "${VAR_CONTAINER_NAME}"
    ```
 
-4. View the output logs of `dcrd` with the docker logs command:
+4. View the output logs of `mond` with the docker logs command:
 
    ```sh
    $ docker logs "${VAR_CONTAINER_NAME}"
@@ -105,20 +105,20 @@ concrete value.
    using Network Address Translation (NAT) if you want to allow inbound
    connections to contribute to network decentralization.
 
-### Querying `dcrd` with `dcrctl` Inside the Running Container
+### Querying `mond` with `monctl` Inside the Running Container
 
 ```sh
-$ docker exec "${VAR_CONTAINER_NAME}" dcrctl getblockchaininfo
+$ docker exec "${VAR_CONTAINER_NAME}" monctl getblockchaininfo
 ```
 
-### Showing available `dcrctl` Commands Inside the Running Container
+### Showing available `monctl` Commands Inside the Running Container
 
 ```sh
-$ docker exec "${VAR_CONTAINER_NAME}" dcrctl -l
+$ docker exec "${VAR_CONTAINER_NAME}" monctl -l
 ```
 
-**TIP:** The `dcrctl` utility interfaces with both `dcrd` and `dcrwallet`.
-Since the container only provides `dcrd`, which acts as a chain server, only the
+**TIP:** The `monctl` utility interfaces with both `mond` and `monwallet`.
+Since the container only provides `mond`, which acts as a chain server, only the
 commands listed under "Chain Server Commands" are available.
 
 ### Starting and Stopping the Container
@@ -135,7 +135,7 @@ $ docker start "${VAR_CONTAINER_NAME}"
   not need to be changed.
 
 - `VAR_NO_FILE_LOGGING` (Default: `true`):  
-  Controls whether or not dcrd additionally logs to files under `DECRED_DATA`.
+  Controls whether or not mond additionally logs to files under `DECRED_DATA`.
   Logging is only done via stdout by default in the container since that is
   standard practice for containers.
 
@@ -173,11 +173,11 @@ errors since the non-root user will not be able to write to the volume.
 
 ### RPC Server Authentication
 
-The primary method of interacting with a running instance of `dcrd` is
+The primary method of interacting with a running instance of `mond` is
 accomplished by means of authenticated and encrypted remote procedure calls
 (RPCs).  TLS is used to provide confidentiality, integrity, and authenticity.
 
-By default, `dcrd`, and by extension this image, automatically configures its
+By default, `mond`, and by extension this image, automatically configures its
 RPC server to use basic access authentication with a random username (`rpcuser`)
 and password (`rpcpass`) and generates a self-signed X.509 certificate, also
 known as the RPC certificate (`rpccert`), for TLS.
@@ -186,7 +186,7 @@ These credentials may or may not be needed depending on how you intend to use
 the image.
 
 Another detail to be aware of is that most TLS clients verify the target server
-name of the running `dcrd` instance matches one of the DNS names listed in the
+name of the running `mond` instance matches one of the DNS names listed in the
 certificate to help prevent man-in-the-middle attacks.  The certificate that is
 automatically generated is populated by default with localhost entries along
 with the container ID of the container that generated it and its IP address at
@@ -213,14 +213,14 @@ $ docker run -d --read-only \
 
 ## Usage
 
-### Interacting via RPC with `dcrctl` Using Local Authentication
+### Interacting via RPC with `monctl` Using Local Authentication
 
-The image provides the `dcrctl` utility for querying and controlling various
-aspects of the running instance of `dcrd` and automatically configures it to
+The image provides the `monctl` utility for querying and controlling various
+aspects of the running instance of `mond` and automatically configures it to
 read the authentication credentials and TLS certificate from `DECRED_DATA`.
 
-In other words, when `dcrctl` is running inside a container built with this
-image, no additional configuration is required to query the local `dcrd`
+In other words, when `monctl` is running inside a container built with this
+image, no additional configuration is required to query the local `mond`
 instance.  This is referred to as local authentication.
 
 Assuming the environment variables and configuration matches what was outlined
@@ -228,35 +228,35 @@ in the quick start section, the following example allows obtaining information
 about the state of the blockchain:
 
 ```sh
-$ docker exec "${VAR_CONTAINER_NAME}" dcrctl getblockchaininfo
+$ docker exec "${VAR_CONTAINER_NAME}" monctl getblockchaininfo
 ```
 
-A list of available `dcrctl` commands may be obtained as follows:
+A list of available `monctl` commands may be obtained as follows:
 
 ```sh
-$ docker exec "${VAR_CONTAINER_NAME}" dcrctl -l
+$ docker exec "${VAR_CONTAINER_NAME}" monctl -l
 ```
 
-**TIP:** The `dcrctl` utility interfaces with both `dcrd` and `dcrwallet`.
-Since the container only provides `dcrd`, which acts as a chain server, only the
+**TIP:** The `monctl` utility interfaces with both `mond` and `monwallet`.
+Since the container only provides `mond`, which acts as a chain server, only the
 commands listed under "Chain Server Commands" are available.
 
 ### Interacting via RPC with a Joined Docker Network
 
 Applications running in a separate container that wish to interact with the RPC
-server may wish to join the network of the running `dcrd` container instance
+server may wish to join the network of the running `mond` container instance
 which effectively makes it as if both containers are running on the same host
 for the purposes of the network and thus can communicate via `localhost`.
 
 For example, assuming the environment variables and configuration matches what
 was outlined in the quick start section, the following illustrates this
-technique by running `dcrctl` in a separate container while joining the network
-of the running `dcrd` container instance:
+technique by running `monctl` in a separate container while joining the network
+of the running `mond` container instance:
 
 ```sh
 $ docker run --rm --network container:"${VAR_CONTAINER_NAME}" --read-only \
   -v decred-data:/home/decred \
-  "${VAR_IMAGE_NAME}" dcrctl getblockchaininfo
+  "${VAR_IMAGE_NAME}" monctl getblockchaininfo
 ```
 
 ### Interacting via RPC with a User-Defined Docker Network
@@ -270,16 +270,16 @@ addresses and thus from the point of view of the RPC server, the connections
 will appear as though they are coming from a remote machine.
 
 This is important since, as described in the [RPC Server Authentication](#RPCServerAuth)
-section, most TLS clients verify the target server name of the running `dcrd`
+section, most TLS clients verify the target server name of the running `mond`
 instance matches the DNS names listed in the certificate to help prevent
 man-in-the-middle attacks, so be sure to follow the instructions in that section
 to avoid authentication failures when using this approach.
 
 For example, assuming the environment variables and configuration matches what
 was outlined in the quick start section, the following creating a user-defined
-Docker network. running a `dcrd` container attached to the user-defined network,
-and then running `dcrctl` in a separate container also attached to the
-user-defined network configured to talk to the remote `dcrd` RPC server:
+Docker network. running a `mond` container attached to the user-defined network,
+and then running `monctl` in a separate container also attached to the
+user-defined network configured to talk to the remote `mond` RPC server:
 
 **NOTE: The network volume only needs to be created once.**
 
@@ -294,12 +294,12 @@ $ docker run -d --read-only \
 $ docker run --rm --read-only \
   --network decred \
   -v decred-data:/home/decred \
-  "${VAR_IMAGE_NAME}" dcrctl --rpcserver "${VAR_CONTAINER_NAME}" getblockchaininfo
+  "${VAR_IMAGE_NAME}" monctl --rpcserver "${VAR_CONTAINER_NAME}" getblockchaininfo
 ```
 
 ### Accessing the RPC Server from Remote Services Outside of a Docker Network
 
-The previously described techniques for interacting with the `dcrd` RPC server
+The previously described techniques for interacting with the `mond` RPC server
 all make use of Docker's networking capabilities and rely on having access to
 the data volume in order to read the authentication credentials.
 
@@ -313,13 +313,13 @@ outside of a Docker network.
 
 For example, assuming the environment variables and configuration matches what
 was outlined in the quick start section, the following illustrates running a
-`dcrd` container that exposes the RPC port from the container as a port
+`mond` container that exposes the RPC port from the container as a port
 listening on `localhost` of the host machine, obtaining the authentication
 credentials and RPC certificate from the data volume, and then making a call via
 `curl` from the host machine:
 
 ```sh
-# Run a dcrd container with the RPC port in the container mapped to localhost
+# Run a mond container with the RPC port in the container mapped to localhost
 # on the host machine.
 #
 # Note that you would need to map the port to the external interface of the
@@ -339,10 +339,10 @@ $ docker run -d --read-only \
 # Notice that sudo is required here because the data volume must be configured
 # with the permissions of the UID/GID inside the container which the local user
 # on the host won't have access to.
-$ dcrdrpcuser=$(sudo cat "${DECRED_DATA_VOLUME}/.dcrd/dcrd.conf" | grep rpcuser= | cut -c9-)
-$ dcrdrpcpass=$(sudo cat "${DECRED_DATA_VOLUME}/.dcrd/dcrd.conf" | grep rpcpass= | cut -c9-)
-$ sudo curl --cacert "${DECRED_DATA_VOLUME}/.dcrd/rpc.cert" \
-  --user "${dcrdrpcuser}:${dcrdrpcpass}" \
+$ mondrpcuser=$(sudo cat "${DECRED_DATA_VOLUME}/.mond/mond.conf" | grep rpcuser= | cut -c9-)
+$ mondrpcpass=$(sudo cat "${DECRED_DATA_VOLUME}/.mond/mond.conf" | grep rpcpass= | cut -c9-)
+$ sudo curl --cacert "${DECRED_DATA_VOLUME}/.mond/rpc.cert" \
+  --user "${mondrpcuser}:${mondrpcpass}" \
   --data-binary '{"jsonrpc":"1.0","id":"1","method":"getbestblock","params":[]}' \
   https://127.0.0.1:${VAR_MAINNET_RPC_PORT}
 ```
@@ -354,8 +354,8 @@ $ sudo curl --cacert "${DECRED_DATA_VOLUME}/.dcrd/rpc.cert" \
 Write permission issues will typically look similar to:
 
 ```
-Error creating a default config file: mkdir /home/decred/.dcrd: permission denied
-loadConfig: failed to create home directory: mkdir /home/decred/.dcrd: permission denied
+Error creating a default config file: mkdir /home/decred/.mond: permission denied
+loadConfig: failed to create home directory: mkdir /home/decred/.mond: permission denied
 exit status 1
 ```
 
@@ -379,12 +379,12 @@ Issues related to RPC certificate server verification will typically look
 similar to:
 
 ```
-Post "https://dcrd:9109": x509: certificate is valid for a84fb1e0aa46, localhost, not dcrd
+Post "https://mond:9109": x509: certificate is valid for a84fb1e0aa46, localhost, not mond
 exit status 1
 ```
 
 As described in [RPC Server Authentication](#RPCServerAuth), most TLS clients
-verify the target server name of the running `dcrd` instance matches one of the
+verify the target server name of the running `mond` instance matches one of the
 DNS names listed in the certificate to help prevent man-in-the-middle attacks.
 
 This issue means that the certificate does not have the target server name (or
@@ -394,7 +394,7 @@ In order to resolve the issue, the RPC certificate pair will need to be
 recreated with the appropriate authorized IP addresses and/or DNS names.
 
 The easiest way to accomplish this is to delete the certificate pair from the
-data volume and run a new container instance of `dcrd` with either the
+data volume and run a new container instance of `mond` with either the
 `--altdnsnames` CLI parameter or the `MONETARIUM_ALT_DNSNAMES` environment variable so
 a new certificate pair is automatically generated with the new values.
 
@@ -402,7 +402,7 @@ For example:
 
 ```sh
 $ DECRED_DATA_VOLUME=$(docker volume inspect decred-data -f '{{.Mountpoint}}')
-$ sudo rm "${DECRED_DATA_VOLUME}"/.dcrd/rpc.{cert,key}
+$ sudo rm "${DECRED_DATA_VOLUME}"/.mond/rpc.{cert,key}
 $ docker run -d --read-only \
      --name "${VAR_CONTAINER_NAME}" \
      -v decred-data:/home/decred \

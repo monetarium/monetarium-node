@@ -14,7 +14,7 @@ two main goals:
   (expressed in blocks);
 - Attempting to minimize fees while maintaining be above restriction.
 
-This package was started in order to resolve issue decred/dcrd#1412 and related.
+This package was started in order to resolve issue decred/mond#1412 and related.
 See that issue for discussion of the selected approach.
 
 ## License

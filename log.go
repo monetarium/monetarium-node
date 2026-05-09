@@ -65,7 +65,7 @@ var (
 	bcdbLog = backendLog.Logger("BCDB")
 	chanLog = backendLog.Logger("CHAN")
 	cmgrLog = backendLog.Logger("CMGR")
-	monnLog = backendLog.Logger("MONN")
+	mondLog = backendLog.Logger("MOND")
 	discLog = backendLog.Logger("DISC")
 	feesLog = backendLog.Logger("FEES")
 	indxLog = backendLog.Logger("INDX")
@@ -110,7 +110,7 @@ var subsystemLoggers = map[string]slog.Logger{
 	"BCDB": bcdbLog,
 	"CHAN": chanLog,
 	"CMGR": cmgrLog,
-	"MONN": monnLog,
+	"MOND": mondLog,
 	"DISC": discLog,
 	"FEES": feesLog,
 	"INDX": indxLog,

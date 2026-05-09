@@ -4,14 +4,14 @@
 # Use of this source code is governed by an ISC
 # license that can be found in the LICENSE file.
 #
-# Tmux script to create 2 monn nodes (named monn1 and monn2) connected in series
+# Tmux script to create 2 mond nodes (named monn1 and monn2) connected in series
 # along with 2 wallets (named wallet1 and wallet2) configured such that wallet1
 # is connected via JSON-RPC to monn1 and, likewise, wallet2 to monn2.
 #
 # Both wallet1 and wallet2 use the same seed, however, wallet1 is configured to
 # automatically buy tickets and vote, while wallet2 is only configured to vote.
 #
-# The primary monn node (monn1) is configured as the primary mining node.
+# The primary mond node (monn1) is configured as the primary mining node.
 #
 # Network layout:
 # monn1 (p2p: localhost:18955) <-- monn2 (p2p: localhost:18965)
@@ -24,7 +24,7 @@
 
 set -e
 
-SESSION="monn-simnet-nodes"
+SESSION="mond-simnet-nodes"
 NODES_ROOT=${MONETARIUM_SIMNET_ROOT:-${HOME}/.monetarium-simnet}
 RPCUSER="test"
 RPCPASS="test"
@@ -52,7 +52,7 @@ mkdir -p "${NODES_ROOT}/${SECONDARY_VAR_NAME}"
 mkdir -p "${NODES_ROOT}/${PRIMARY_WALLET_NAME}"
 mkdir -p "${NODES_ROOT}/${SECONDARY_WALLET_NAME}"
 
-cat > "${NODES_ROOT}/monn.conf" <<EOF
+cat > "${NODES_ROOT}/mond.conf" <<EOF
 rpcuser=${RPCUSER}
 rpcpass=${RPCPASS}
 simnet=1
@@ -81,7 +81,7 @@ EOF
 cd ${NODES_ROOT} && tmux -2 new-session -d -s $SESSION
 
 ################################################################################
-# Setup the primary monn node
+# Setup the primary mond node
 ################################################################################
 
 PRIMARY_VAR_P2P=127.0.0.1:18955
@@ -90,7 +90,7 @@ tmux rename-window -t $SESSION:0 "${PRIMARY_VAR_NAME}"
 tmux split-window -v
 tmux select-pane -t 0
 tmux send-keys "cd ${NODES_ROOT}/${PRIMARY_VAR_NAME}" C-m
-tmux send-keys "monn -C ../monn.conf --listen ${PRIMARY_VAR_P2P} --miningaddr=${WALLET_MINING_ADDR}" C-m
+tmux send-keys "mond -C ../mond.conf --listen ${PRIMARY_VAR_P2P} --miningaddr=${WALLET_MINING_ADDR}" C-m
 tmux resize-pane -D 15
 tmux select-pane -t 1
 tmux send-keys "cd ${NODES_ROOT}/${PRIMARY_VAR_NAME}" C-m
@@ -180,7 +180,7 @@ sleep 1
 tmux send-keys "./ctl importprivkey ${TSPEND_PRIMARY_WIF} imported false; ./ctl importprivkey ${TSPEND_SECONDARY_WIF} imported false" C-m
 
 ################################################################################
-# Setup the serially connected secondary monn node
+# Setup the serially connected secondary mond node
 ################################################################################
 
 SECONDARY_VAR_P2P=127.0.0.1:18965
@@ -211,7 +211,7 @@ tmux split-window -v
 tmux select-pane -t 0
 tmux resize-pane -D 15
 tmux send-keys "cd ${NODES_ROOT}/${SECONDARY_VAR_NAME}" C-m
-tmux send-keys "monn -C ../monn.conf --listen ${SECONDARY_VAR_P2P} --rpclisten ${SECONDARY_VAR_RPC} --connect ${PRIMARY_VAR_P2P}  --miningaddr=${WALLET_MINING_ADDR}" C-m
+tmux send-keys "mond -C ../mond.conf --listen ${SECONDARY_VAR_P2P} --rpclisten ${SECONDARY_VAR_RPC} --connect ${PRIMARY_VAR_P2P}  --miningaddr=${WALLET_MINING_ADDR}" C-m
 tmux select-pane -t 1
 tmux send-keys "cd ${NODES_ROOT}/${SECONDARY_VAR_NAME}" C-m
 

@@ -43,7 +43,7 @@ However, in the case of ECDSA, it is highly recommended to use the ecdsa sub
 package of this package instead since it is optimized specifically for secp256k1
 and is significantly faster as a result.
 
-Although this package was primarily written for dcrd, it has intentionally been
+Although this package was primarily written for mond, it has intentionally been
 designed so it can be used as a standalone package for any projects needing to
 use optimized secp256k1 elliptic curve cryptography.
 

@@ -16,12 +16,12 @@ import (
 	"github.com/monetarium/monetarium-node/rpc/jsonrpc/types"
 	"github.com/monetarium/monetarium-node/txscript/stdscript"
 	"github.com/monetarium/monetarium-node/wire"
-	"github.com/monetarium/monetarium-test/dcrdtest"
+	"github.com/monetarium/monetarium-test/mondtest"
 )
 
 // testBurnTransaction tests creating and mining a burn transaction and verifying
 // the burn statistics are tracked correctly.
-func testBurnTransaction(ctx context.Context, h *dcrdtest.Harness, t *testing.T) {
+func testBurnTransaction(ctx context.Context, h *mondtest.Harness, t *testing.T) {
 	// This test requires:
 	// 1. Creating a burn script
 	// 2. Creating a transaction with burn output (requires SKA coins)
@@ -81,7 +81,7 @@ func testBurnTransaction(ctx context.Context, h *dcrdtest.Harness, t *testing.T)
 
 // testBurnScriptCreation tests that burn scripts can be created for all valid
 // SKA coin types.
-func testBurnScriptCreation(ctx context.Context, h *dcrdtest.Harness, t *testing.T) {
+func testBurnScriptCreation(ctx context.Context, h *mondtest.Harness, t *testing.T) {
 	t.Log("Test: Burn script creation for all SKA coin types")
 
 	// Test a sample of coin types
@@ -117,7 +117,7 @@ func testBurnScriptCreation(ctx context.Context, h *dcrdtest.Harness, t *testing
 }
 
 // testGetBurnedCoinsRPC tests the getburnedcoins RPC command with various parameters.
-func testGetBurnedCoinsRPC(ctx context.Context, h *dcrdtest.Harness, t *testing.T) {
+func testGetBurnedCoinsRPC(ctx context.Context, h *mondtest.Harness, t *testing.T) {
 	t.Log("Test: getburnedcoins RPC command variations")
 
 	client := h.Node
@@ -163,7 +163,7 @@ func testGetBurnedCoinsRPC(ctx context.Context, h *dcrdtest.Harness, t *testing.
 
 // testBurnScriptInTransaction tests creating a transaction with a burn output.
 // This is a basic test that verifies the transaction structure.
-func testBurnScriptInTransaction(ctx context.Context, h *dcrdtest.Harness, t *testing.T) {
+func testBurnScriptInTransaction(ctx context.Context, h *mondtest.Harness, t *testing.T) {
 	t.Log("Test: Burn script in transaction structure")
 
 	// Create a burn script
@@ -207,7 +207,7 @@ func TestBurnFeature(t *testing.T) {
 
 	// Create test harness with regnet
 	args := []string{"--rejectnonstd"}
-	harness, err := dcrdtest.New(t, chaincfg.RegNetParams(), nil, args)
+	harness, err := mondtest.New(t, chaincfg.RegNetParams(), nil, args)
 	if err != nil {
 		t.Fatalf("unable to create harness: %v", err)
 	}
@@ -223,7 +223,7 @@ func TestBurnFeature(t *testing.T) {
 	// Run test cases
 	tests := []struct {
 		name string
-		f    func(context.Context, *dcrdtest.Harness, *testing.T)
+		f    func(context.Context, *mondtest.Harness, *testing.T)
 	}{
 		{
 			name: "BurnScriptCreation",

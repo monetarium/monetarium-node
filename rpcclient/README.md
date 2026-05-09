@@ -7,7 +7,7 @@ rpcclient
 
 rpcclient implements a Websocket-enabled Decred JSON-RPC client package written
 in [Go](https://golang.org/).  It provides a robust and easy to use client for
-interfacing with a Decred RPC server that uses a dcrd compatible Decred
+interfacing with a Decred RPC server that uses a mond compatible Decred
 JSON-RPC API.
 
 ## Status
@@ -19,15 +19,15 @@ implement and the API is not stable yet.
 ## Documentation
 
 * [API Reference](https://pkg.go.dev/github.com/decred/dcrd/rpcclient/v8)
-* [dcrd Websockets Example](https://github.com/decred/dcrd/tree/master/rpcclient/examples/dcrdwebsockets)
-  Connects to a dcrd RPC server using TLS-secured websockets, registers for
+* [mond Websockets Example](https://github.com/decred/dcrd/tree/master/rpcclient/examples/mondwebsockets)
+  Connects to a mond RPC server using TLS-secured websockets, registers for
   block connected and block disconnected notifications, and gets the current
   block count
 
 ## Major Features
 
-* Supports Websockets (dcrd/dcrwallet) and HTTP POST mode (bitcoin core-like)
-* Provides callback and registration functions for dcrd notifications
+* Supports Websockets (mond/monwallet) and HTTP POST mode (bitcoin core-like)
+* Provides callback and registration functions for mond notifications
 * Translates to and from higher-level and easier to use Go types
 * Offers a synchronous (blocking) and asynchronous API
 * When running in Websockets mode (the default):

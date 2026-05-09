@@ -30,12 +30,12 @@ var outgoingPipeMessages = make(chan pipeMessage)
 
 // serviceControlPipeRx reads from the file descriptor fd of a read end pipe.
 // This is intended to be used as a simple control mechanism for parent
-// processes to communicate with and manage the lifetime of a dcrd child
+// processes to communicate with and manage the lifetime of a mond child
 // process using a unidirectional pipe (on Windows, this is an anonymous pipe,
 // not a named pipe).
 //
 // When the pipe is closed or any other errors occur reading the control
-// message, shutdown begins.  This prevents dcrd from continuing to run
+// message, shutdown begins.  This prevents mond from continuing to run
 // unsupervised after the parent process closes unexpectedly.
 //
 // No control messages are currently defined and the only use for the pipe is to
@@ -50,7 +50,7 @@ func serviceControlPipeRx(fd uintptr) {
 			break
 		}
 		if err != nil {
-			monnLog.Errorf("Failed to read from pipe: %v", err)
+			mondLog.Errorf("Failed to read from pipe: %v", err)
 			break
 		}
 	}
@@ -63,7 +63,7 @@ func serviceControlPipeRx(fd uintptr) {
 
 // serviceControlPipeTx sends pipe messages to the file descriptor fd of a write
 // end pipe.  This is intended to be a simple response and notification system
-// for a child dcrd process to communicate with a parent process without the
+// for a child mond process to communicate with a parent process without the
 // need to go through the RPC server.
 //
 // See the comment on the pipeMessage interface for the binary encoding of a
@@ -106,7 +106,7 @@ func serviceControlPipeTx(fd uintptr) {
 		headerBuffer = headerBuffer[:0]
 	}
 
-	monnLog.Errorf("Failed to write to pipe: %v", err)
+	mondLog.Errorf("Failed to write to pipe: %v", err)
 }
 
 func drainOutgoingPipeMessages() {
@@ -206,7 +206,7 @@ func (s lifetimeEventServer) notifyShutdownEvent(action lifetimeAction) {
 	}
 }
 
-// boundP2PListenAddrEvent are IPC events emitted by dcrd with the bound local
+// boundP2PListenAddrEvent are IPC events emitted by mond with the bound local
 // addresses for the P2P interface.  Multiple events of this type may be
 // generated.
 //
@@ -221,7 +221,7 @@ func (e boundP2PListenAddrEvent) WritePayload(w io.Writer) error {
 	return err
 }
 
-// boundRPCListenAddrEvent are IPC events emitted by dcrd with the bound local
+// boundRPCListenAddrEvent are IPC events emitted by mond with the bound local
 // addresses for the RPC interface.  Multiple events of this type may be
 // generated.
 //

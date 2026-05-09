@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 /*
-Package types implements concrete types for marshalling to and from the dcrd
+Package types implements concrete types for marshalling to and from the mond
 JSON-RPC commands, return values, and notifications.
 
 When communicating via the JSON-RPC protocol, all requests and responses must be

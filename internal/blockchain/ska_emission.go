@@ -100,7 +100,7 @@ func CheckSKAEmissionAlreadyExists(coinType cointype.CoinType, chain ChainStateP
 // verification and replay protection.
 //
 // It's  a reference implementation for the emission transaction creation, the actual
-// transaction creation is handled by the dcrwallet's createUnsignedSKAEmissionTransaction.
+// transaction creation is handled by the monwallet's createUnsignedSKAEmissionTransaction.
 //
 // NOTE: This function validates the authorization but does NOT verify the signature.
 // The signature will be verified later during transaction validation. This is because

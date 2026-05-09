@@ -234,7 +234,7 @@ func CreateSSFeeConsolidationOutput(hash160 []byte) (*wire.TxOut, error) {
 //
 // SSFee outputs must use OP_SSGEN-tagged scripts so that the wallet correctly
 // identifies them as stake tree outputs. Without the OP_SSGEN prefix, the wallet
-// would use TxTreeRegular when creating spending transactions, but dcrd stores
+// would use TxTreeRegular when creating spending transactions, but mond stores
 // SSFee UTXOs with TxTreeStake (since they're in the stake tree). This mismatch
 // causes UTXO lookup failures.
 //

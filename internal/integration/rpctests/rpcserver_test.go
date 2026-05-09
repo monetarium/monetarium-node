@@ -15,10 +15,10 @@ import (
 	"testing"
 
 	"github.com/monetarium/monetarium-node/chaincfg"
-	"github.com/monetarium/monetarium-test/dcrdtest"
+	"github.com/monetarium/monetarium-test/mondtest"
 )
 
-func testGetBestBlock(ctx context.Context, r *dcrdtest.Harness, t *testing.T) {
+func testGetBestBlock(ctx context.Context, r *mondtest.Harness, t *testing.T) {
 	_, prevbestHeight, err := r.Node.GetBestBlock(ctx)
 	if err != nil {
 		t.Fatalf("Call to `getbestblock` failed: %v", err)
@@ -48,7 +48,7 @@ func testGetBestBlock(ctx context.Context, r *dcrdtest.Harness, t *testing.T) {
 	}
 }
 
-func testGetBlockCount(ctx context.Context, r *dcrdtest.Harness, t *testing.T) {
+func testGetBlockCount(ctx context.Context, r *mondtest.Harness, t *testing.T) {
 	// Save the current count.
 	currentCount, err := r.Node.GetBlockCount(ctx)
 	if err != nil {
@@ -70,7 +70,7 @@ func testGetBlockCount(ctx context.Context, r *dcrdtest.Harness, t *testing.T) {
 	}
 }
 
-func testGetBlockHash(ctx context.Context, r *dcrdtest.Harness, t *testing.T) {
+func testGetBlockHash(ctx context.Context, r *mondtest.Harness, t *testing.T) {
 	// Create a new block connecting to the current tip.
 	generatedBlockHashes, err := r.Node.Generate(ctx, 1)
 	if err != nil {
@@ -101,7 +101,7 @@ func TestRpcServer(t *testing.T) {
 	// ensure that non-standard transactions aren't accepted into the
 	// mempool or relayed.
 	args := []string{"--rejectnonstd"}
-	harness, err := dcrdtest.New(t, chaincfg.RegNetParams(), nil, args)
+	harness, err := mondtest.New(t, chaincfg.RegNetParams(), nil, args)
 	if err != nil {
 		t.Fatalf("unable to create primary harness: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestRpcServer(t *testing.T) {
 	// Test cases.
 	tests := []struct {
 		name string
-		f    func(context.Context, *dcrdtest.Harness, *testing.T)
+		f    func(context.Context, *mondtest.Harness, *testing.T)
 	}{
 		{
 			f:    testGetBestBlock,

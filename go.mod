@@ -41,7 +41,7 @@ require (
 	github.com/monetarium/monetarium-node/rpcclient v1.2.0
 	github.com/monetarium/monetarium-node/txscript v1.2.0
 	github.com/monetarium/monetarium-node/wire v1.2.0
-	github.com/monetarium/monetarium-test/dcrdtest v1.0.6
+	github.com/monetarium/monetarium-test/mondtest v1.0.6
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	golang.org/x/net v0.34.0
 	golang.org/x/sys v0.30.0
@@ -63,3 +63,5 @@ require (
 	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 )
+
+replace github.com/monetarium/monetarium-test/mondtest => ../monetarium-test/mondtest

@@ -6,7 +6,7 @@ version
 [![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/internal/version)
 
 Package version provides a single location to house the version information for
-dcrd and other utilities provided in the same repository.
+mond and other utilities provided in the same repository.
 
 ## Installation and Updating
 
