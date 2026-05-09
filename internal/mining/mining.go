@@ -2995,14 +2995,30 @@ nextPriorityQueueItem:
 	}
 
 	// Distribute fees once stake validation height is reached.
-	// Note: Unlike subsidies, fees are NOT scaled by voter count.
-	// Fees are distributed fully among actual voters since we know the
-	// exact voter count at block template time. This differs from subsidies
-	// where wallets create vote transactions before knowing the final count.
+	// VAR fees are scaled by voters/TicketsPerBlock so that missing voters
+	// cause the unclaimed VAR share to burn (matches validate.go:4886-4907).
+	// SKA fees are distributed in full to the voters that actually voted.
 	// Track miner's VAR fee share for coinbase (captured early to prevent loss)
 	var minerVARFeeForCoinbase int64
 
 	if nextBlockHeight >= stakeValidationHeight {
+		// Scale VAR fees by voter participation to mirror validator's fee-burn
+		// behavior (validate.go:4886-4907). When voters < TicketsPerBlock, the
+		// unclaimed VAR share is burned. SKA fees are distributed in full.
+		bigVoters := new(big.Int).SetInt64(int64(voters))
+		bigTickets := new(big.Int).SetInt64(int64(g.cfg.ChainParams.TicketsPerBlock))
+		for coinType, fee := range totalFees {
+			if fee == nil || fee.Sign() <= 0 {
+				continue
+			}
+			if coinType.IsSKA() {
+				continue
+			}
+			scaledBig := new(big.Int).Mul(fee, bigVoters)
+			scaledBig.Div(scaledBig, bigTickets)
+			totalFees[coinType] = scaledBig
+		}
+
 		// Get subsidy proportions for fee splitting
 		work, stake, _, _ := standalone.GetSubsidyProportions(subsidySplitVariant)
 
