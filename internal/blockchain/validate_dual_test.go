@@ -31,7 +31,7 @@ func TestChainParamsSKAConfiguration(t *testing.T) {
 		}
 	}{
 		{
-			name:   "SimNet SKA-1 parameters",
+			name:   "SimNet SKA1 parameters",
 			params: chaincfg.SimNetParams(),
 			expected: struct {
 				ska1EmissionAmount *big.Int
@@ -46,7 +46,7 @@ func TestChainParamsSKAConfiguration(t *testing.T) {
 			},
 		},
 		{
-			name:   "MainNet SKA-1 parameters",
+			name:   "MainNet SKA1 parameters",
 			params: chaincfg.MainNetParams(),
 			expected: struct {
 				ska1EmissionAmount *big.Int
@@ -64,14 +64,14 @@ func TestChainParamsSKAConfiguration(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Check SKA-1 configuration
+			// Check SKA1 configuration
 			ska1Config := test.params.SKACoins[1]
 			if ska1Config == nil {
-				t.Errorf("SKA-1 configuration missing")
+				t.Errorf("SKA1 configuration missing")
 				return
 			}
 
-			// Calculate total emission amount for SKA-1 using big.Int
+			// Calculate total emission amount for SKA1 using big.Int
 			totalEmissionAmount := new(big.Int)
 			for _, amount := range ska1Config.EmissionAmounts {
 				if amount != nil {
@@ -80,28 +80,28 @@ func TestChainParamsSKAConfiguration(t *testing.T) {
 			}
 
 			if totalEmissionAmount.Cmp(test.expected.ska1EmissionAmount) != 0 {
-				t.Errorf("SKA-1 emission amount: expected %s, got %s",
+				t.Errorf("SKA1 emission amount: expected %s, got %s",
 					test.expected.ska1EmissionAmount.String(), totalEmissionAmount.String())
 			}
 
 			if ska1Config.EmissionHeight != test.expected.ska1EmissionHeight {
-				t.Errorf("SKA-1 emission height: expected %d, got %d",
+				t.Errorf("SKA1 emission height: expected %d, got %d",
 					test.expected.ska1EmissionHeight, ska1Config.EmissionHeight)
 			}
 
 			if ska1Config.Active != test.expected.ska1Active {
-				t.Errorf("SKA-1 active status: expected %t, got %t",
+				t.Errorf("SKA1 active status: expected %t, got %t",
 					test.expected.ska1Active, ska1Config.Active)
 			}
 
-			// Check MinRelayTxFee from SKA-1 config (now per-coin)
+			// Check MinRelayTxFee from SKA1 config (now per-coin)
 			expectedMinRelayFee := big.NewInt(test.expected.minRelayFee)
 			if ska1Config.MinRelayTxFee == nil || ska1Config.MinRelayTxFee.Cmp(expectedMinRelayFee) != 0 {
 				actual := "nil"
 				if ska1Config.MinRelayTxFee != nil {
 					actual = ska1Config.MinRelayTxFee.String()
 				}
-				t.Errorf("SKA-1 MinRelayTxFee: expected %s, got %s",
+				t.Errorf("SKA1 MinRelayTxFee: expected %s, got %s",
 					expectedMinRelayFee.String(), actual)
 			}
 		})
@@ -237,31 +237,31 @@ func TestSKAPerCoinActivation(t *testing.T) {
 		expectActive bool
 	}{
 		{
-			name:         "SimNet SKA-1 is active",
+			name:         "SimNet SKA1 is active",
 			params:       chaincfg.SimNetParams(),
 			coinType:     1,
 			expectActive: true,
 		},
 		{
-			name:         "SimNet SKA-99 is inactive",
+			name:         "SimNet SKA99 is inactive",
 			params:       chaincfg.SimNetParams(),
 			coinType:     99, // Not configured
 			expectActive: false,
 		},
 		{
-			name:         "MainNet SKA-1 is active",
+			name:         "MainNet SKA1 is active",
 			params:       chaincfg.MainNetParams(),
 			coinType:     1,
 			expectActive: true,
 		},
 		{
-			name:         "MainNet SKA-2 is inactive",
+			name:         "MainNet SKA2 is inactive",
 			params:       chaincfg.MainNetParams(),
 			coinType:     2,
 			expectActive: false,
 		},
 		{
-			name:         "MainNet SKA-99 is inactive",
+			name:         "MainNet SKA99 is inactive",
 			params:       chaincfg.MainNetParams(),
 			coinType:     99, // Not configured
 			expectActive: false,

@@ -751,7 +751,7 @@ func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, nextBlockHeight
 // - Single input: either null input (creating new UTXO) or real UTXO input (augmenting existing)
 // - Single OP_RETURN output with SSFee marker (height + voter sequence)
 // - Single payment output to the consolidation address (with fee proportional to total stake)
-// - The payment output has the specified coin type (VAR, SKA-1, SKA-2, etc.)
+// - The payment output has the specified coin type (VAR, SKA1, SKA2, etc.)
 //
 // UTXO Augmentation:
 // If ssfeeIndex is provided, the function will look up existing UTXOs matching the consolidation
@@ -760,7 +760,7 @@ func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, nextBlockHeight
 // existing UTXOs. If no matching UTXO exists, falls back to null input (creates new UTXO).
 //
 // Parameters:
-//   - coinType: The coin type for the fees (VAR=0, SKA-1=1, SKA-2=2, etc.)
+//   - coinType: The coin type for the fees (VAR=0, SKA1=1, SKA2=2, etc.)
 //   - totalFee: Total fee to distribute across all voters
 //   - voters: Vote transactions to extract consolidation addresses from
 //   - nextBlockHeight: Height of the block being created

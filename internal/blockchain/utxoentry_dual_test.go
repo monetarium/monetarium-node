@@ -18,8 +18,8 @@ func TestCoinTypeString(t *testing.T) {
 		expected string
 	}{
 		{cointype.CoinTypeVAR, "VAR"},
-		{cointype.CoinType(1), "SKA-1"},
-		{cointype.CoinType(99), "SKA-99"},
+		{cointype.CoinType(1), "SKA1"},
+		{cointype.CoinType(99), "SKA99"},
 	}
 
 	for i, test := range tests {
@@ -39,10 +39,10 @@ func TestCoinTypeIsValid(t *testing.T) {
 		expected bool
 	}{
 		{cointype.CoinTypeVAR, true},   // VAR coin (0)
-		{cointype.CoinType(1), true},   // SKA-1 coin (1)
-		{cointype.CoinType(2), true},   // SKA-2 coin (2)
-		{cointype.CoinType(99), true},  // SKA-99 coin (99)
-		{cointype.CoinType(255), true}, // SKA-255 coin (255) - maximum
+		{cointype.CoinType(1), true},   // SKA1 coin (1)
+		{cointype.CoinType(2), true},   // SKA2 coin (2)
+		{cointype.CoinType(99), true},  // SKA99 coin (99)
+		{cointype.CoinType(255), true}, // SKA255 coin (255) - maximum
 	}
 
 	for i, test := range tests {

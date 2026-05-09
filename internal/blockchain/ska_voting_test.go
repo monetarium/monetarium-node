@@ -111,7 +111,7 @@ func TestHasVotePassed(t *testing.T) {
 	}
 }
 
-// TestSKA2EmissionTransactionValidation tests SKA-2 emission transaction validation.
+// TestSKA2EmissionTransactionValidation tests SKA2 emission transaction validation.
 // Note: Vote checking happens at block level, not transaction level, to allow mempool
 // to accept transactions before vote passes.
 func TestSKA2EmissionTransactionValidation(t *testing.T) {
@@ -124,9 +124,9 @@ func TestSKA2EmissionTransactionValidation(t *testing.T) {
 	}
 	pubKey := privKey.PubKey()
 
-	// Set up SKA-2 emission key
+	// Set up SKA2 emission key
 	if params.SKACoins[2] == nil {
-		t.Fatal("SKA-2 not configured in simnet params")
+		t.Fatal("SKA2 not configured in simnet params")
 	}
 	params.SKACoins[2].EmissionKey = pubKey
 
@@ -137,7 +137,7 @@ func TestSKA2EmissionTransactionValidation(t *testing.T) {
 	auth := &chaincfg.SKAEmissionAuth{
 		EmissionKey: pubKey,
 		Nonce:       1,
-		CoinType:    2, // SKA-2
+		CoinType:    2, // SKA2
 		Amount:      emissionAmount,
 		Height:      emissionHeight,
 	}
@@ -205,11 +205,11 @@ func TestSKA2EmissionTransactionValidation(t *testing.T) {
 	}
 
 	// Note: The actual vote check happens in CheckSKAEmissionInBlock during block validation.
-	// This allows the mempool to accept SKA-2 emission transactions before the vote passes,
+	// This allows the mempool to accept SKA2 emission transactions before the vote passes,
 	// but blocks containing them will be rejected until the vote activates.
 }
 
-// TestSKA1EmissionWithoutVote tests that SKA-1 emission succeeds without voting requirement.
+// TestSKA1EmissionWithoutVote tests that SKA1 emission succeeds without voting requirement.
 func TestSKA1EmissionWithoutVote(t *testing.T) {
 	params := chaincfg.SimNetParams()
 
@@ -220,9 +220,9 @@ func TestSKA1EmissionWithoutVote(t *testing.T) {
 	}
 	pubKey := privKey.PubKey()
 
-	// Set up SKA-1 emission key
+	// Set up SKA1 emission key
 	if params.SKACoins[1] == nil {
-		t.Fatal("SKA-1 not configured in simnet params")
+		t.Fatal("SKA1 not configured in simnet params")
 	}
 	params.SKACoins[1].EmissionKey = pubKey
 
@@ -233,7 +233,7 @@ func TestSKA1EmissionWithoutVote(t *testing.T) {
 	auth := &chaincfg.SKAEmissionAuth{
 		EmissionKey: pubKey,
 		Nonce:       1,
-		CoinType:    1, // SKA-1
+		CoinType:    1, // SKA1
 		Amount:      emissionAmount,
 		Height:      emissionHeight,
 	}
@@ -293,18 +293,18 @@ func TestSKA1EmissionWithoutVote(t *testing.T) {
 	// Create blockchain for testing
 	chain := newFakeChain(params)
 
-	// Attempt emission - should succeed because SKA-1 doesn't require voting
+	// Attempt emission - should succeed because SKA1 doesn't require voting
 	err = ValidateAuthorizedSKAEmissionTransaction(tx, emissionHeight, chain, params)
 	if err != nil {
-		t.Errorf("SKA-1 emission should succeed without vote, but got error: %v", err)
+		t.Errorf("SKA1 emission should succeed without vote, but got error: %v", err)
 	}
 }
 
-// TestSKA2VoteActivationFlow tests the complete SKA-2 activation flow.
+// TestSKA2VoteActivationFlow tests the complete SKA2 activation flow.
 func TestSKA2VoteActivationFlow(t *testing.T) {
 	params := chaincfg.SimNetParams()
 
-	// Verify SKA-2 vote is configured
+	// Verify SKA2 vote is configured
 	stakeVersion := uint32(12)
 	deployment, exists := params.Deployments[stakeVersion]
 	if !exists {
@@ -320,25 +320,25 @@ func TestSKA2VoteActivationFlow(t *testing.T) {
 	}
 
 	if !found {
-		t.Error("SKA-2 activation vote not found in deployments")
+		t.Error("SKA2 activation vote not found in deployments")
 	}
 
-	// Verify SKA-2 emission config
+	// Verify SKA2 emission config
 	ska2Config, exists := params.SKACoins[2]
 	if !exists {
-		t.Fatal("SKA-2 not configured in simnet params")
+		t.Fatal("SKA2 not configured in simnet params")
 	}
 
 	if ska2Config.Active {
-		t.Error("SKA-2 should initially be inactive (activated by vote)")
+		t.Error("SKA2 should initially be inactive (activated by vote)")
 	}
 
 	if ska2Config.EmissionHeight != 200 {
-		t.Errorf("Expected SKA-2 emission height 200, got %d", ska2Config.EmissionHeight)
+		t.Errorf("Expected SKA2 emission height 200, got %d", ska2Config.EmissionHeight)
 	}
 
 	if ska2Config.EmissionWindow != 100 {
-		t.Errorf("Expected SKA-2 emission window 100, got %d", ska2Config.EmissionWindow)
+		t.Errorf("Expected SKA2 emission window 100, got %d", ska2Config.EmissionWindow)
 	}
 }
 
@@ -373,17 +373,17 @@ func TestCoinTypeVoteMapping(t *testing.T) {
 		{
 			coinType:       1,
 			expectedVoteID: "",
-			requiresVoting: false, // SKA-1 doesn't require voting
+			requiresVoting: false, // SKA1 doesn't require voting
 		},
 		{
 			coinType:       2,
 			expectedVoteID: "activateska2",
-			requiresVoting: true, // SKA-2 requires voting
+			requiresVoting: true, // SKA2 requires voting
 		},
 		{
 			coinType:       3,
 			expectedVoteID: "activateska3",
-			requiresVoting: true, // SKA-3+ require voting
+			requiresVoting: true, // SKA3+ require voting
 		},
 	}
 
@@ -391,7 +391,7 @@ func TestCoinTypeVoteMapping(t *testing.T) {
 		t.Run(test.expectedVoteID, func(t *testing.T) {
 			if test.requiresVoting {
 				expectedID := test.expectedVoteID
-				actualID := chaincfg.VoteIDActivateSKA2 // For SKA-2
+				actualID := chaincfg.VoteIDActivateSKA2 // For SKA2
 				if test.coinType == 2 {
 					if actualID != expectedID {
 						t.Errorf("Expected vote ID %s for coin type %d, got %s",
@@ -403,7 +403,7 @@ func TestCoinTypeVoteMapping(t *testing.T) {
 	}
 }
 
-// TestEmissionValidationVoteCheck tests that emission validation properly checks votes for SKA-2+.
+// TestEmissionValidationVoteCheck tests that emission validation properly checks votes for SKA2+.
 func TestEmissionValidationVoteCheck(t *testing.T) {
 	params := chaincfg.SimNetParams()
 
@@ -414,16 +414,16 @@ func TestEmissionValidationVoteCheck(t *testing.T) {
 		description string
 	}{
 		{
-			name:        "SKA-1 no vote check",
+			name:        "SKA1 no vote check",
 			coinType:    1,
 			expectCheck: false,
-			description: "SKA-1 emissions should not require vote checking",
+			description: "SKA1 emissions should not require vote checking",
 		},
 		{
-			name:        "SKA-2 requires vote check",
+			name:        "SKA2 requires vote check",
 			coinType:    2,
 			expectCheck: true,
-			description: "SKA-2 emissions must check for vote activation",
+			description: "SKA2 emissions must check for vote activation",
 		},
 	}
 
@@ -435,17 +435,17 @@ func TestEmissionValidationVoteCheck(t *testing.T) {
 				t.Skipf("Coin type %d not configured in simnet params", test.coinType)
 			}
 
-			// For SKA-2+, verify it requires voting
+			// For SKA2+, verify it requires voting
 			if test.expectCheck && test.coinType >= 2 {
 				if config.Active {
 					t.Errorf("Coin type %d should initially be inactive (requires vote)", test.coinType)
 				}
 			}
 
-			// For SKA-1, verify it doesn't require voting
+			// For SKA1, verify it doesn't require voting
 			if !test.expectCheck && test.coinType == 1 {
 				if !config.Active {
-					t.Errorf("SKA-1 should be active by default (no vote required)")
+					t.Errorf("SKA1 should be active by default (no vote required)")
 				}
 			}
 		})

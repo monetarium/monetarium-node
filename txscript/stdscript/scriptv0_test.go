@@ -1655,15 +1655,15 @@ func TestNewSKABurnScriptV0(t *testing.T) {
 		want     []byte
 		wantNil  bool
 	}{{
-		name:     "SKA-1 burn",
+		name:     "SKA1 burn",
 		coinType: 1,
 		want:     []byte{0x6a, 0x09, 'S', 'K', 'A', '_', 'B', 'U', 'R', 'N', 0x01},
 	}, {
-		name:     "SKA-2 burn",
+		name:     "SKA2 burn",
 		coinType: 2,
 		want:     []byte{0x6a, 0x09, 'S', 'K', 'A', '_', 'B', 'U', 'R', 'N', 0x02},
 	}, {
-		name:     "SKA-255 burn (max)",
+		name:     "SKA255 burn (max)",
 		coinType: 255,
 		want:     []byte{0x6a, 0x09, 'S', 'K', 'A', '_', 'B', 'U', 'R', 'N', 0xff},
 	}, {
@@ -1705,11 +1705,11 @@ func TestIsSKABurnScriptV0(t *testing.T) {
 		script []byte
 		want   bool
 	}{{
-		name:   "valid SKA-1 burn",
+		name:   "valid SKA1 burn",
 		script: validBurnSKA1,
 		want:   true,
 	}, {
-		name:   "valid SKA-255 burn",
+		name:   "valid SKA255 burn",
 		script: validBurnSKA255,
 		want:   true,
 	}, {
@@ -1770,15 +1770,15 @@ func TestExtractSKABurnCoinTypeV0(t *testing.T) {
 		want      uint8
 		wantError bool
 	}{{
-		name:   "SKA-1 burn",
+		name:   "SKA1 burn",
 		script: NewSKABurnScriptV0(1),
 		want:   1,
 	}, {
-		name:   "SKA-2 burn",
+		name:   "SKA2 burn",
 		script: NewSKABurnScriptV0(2),
 		want:   2,
 	}, {
-		name:   "SKA-255 burn (max)",
+		name:   "SKA255 burn (max)",
 		script: NewSKABurnScriptV0(255),
 		want:   255,
 	}, {
@@ -1830,7 +1830,7 @@ func TestSKABurnScriptRoundTrip(t *testing.T) {
 
 	for _, ct := range testCoinTypes {
 		ct := ct // capture range variable
-		t.Run(fmt.Sprintf("SKA-%d", ct), func(t *testing.T) {
+		t.Run(fmt.Sprintf("SKA%d", ct), func(t *testing.T) {
 			t.Parallel()
 
 			// Create burn script.

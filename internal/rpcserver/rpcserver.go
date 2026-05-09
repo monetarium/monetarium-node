@@ -2965,7 +2965,7 @@ func generateCoinTypeName(coinType cointype.CoinType) string {
 		return "VAR"
 	default:
 		if coinType >= 1 && coinType <= 255 {
-			return fmt.Sprintf("SKA-%d", coinType)
+			return fmt.Sprintf("SKA%d", coinType)
 		}
 		return fmt.Sprintf("Unknown-%d", coinType)
 	}

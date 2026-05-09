@@ -20,7 +20,7 @@ func mockChainParams() *chaincfg.Params {
 		1: {
 			CoinType:       1,
 			Name:           "Skarb-1",
-			Symbol:         "SKA-1",
+			Symbol:         "SKA1",
 			EmissionHeight: 100,
 			EmissionWindow: 50,
 			Active:         true,
@@ -28,7 +28,7 @@ func mockChainParams() *chaincfg.Params {
 		2: {
 			CoinType:       2,
 			Name:           "Skarb-2",
-			Symbol:         "SKA-2",
+			Symbol:         "SKA2",
 			EmissionHeight: 200,
 			EmissionWindow: 50,
 			Active:         true,
@@ -36,7 +36,7 @@ func mockChainParams() *chaincfg.Params {
 		3: {
 			CoinType:       3,
 			Name:           "Skarb-3",
-			Symbol:         "SKA-3",
+			Symbol:         "SKA3",
 			EmissionHeight: 300,
 			EmissionWindow: 50,
 			Active:         false, // Inactive for testing
@@ -55,7 +55,7 @@ func mockChainParamsWithThreeSKAs() *chaincfg.Params {
 		1: {
 			CoinType:       1,
 			Name:           "Skarb-1",
-			Symbol:         "SKA-1",
+			Symbol:         "SKA1",
 			EmissionHeight: 100,
 			EmissionWindow: 50,
 			Active:         true,
@@ -63,7 +63,7 @@ func mockChainParamsWithThreeSKAs() *chaincfg.Params {
 		2: {
 			CoinType:       2,
 			Name:           "Skarb-2",
-			Symbol:         "SKA-2",
+			Symbol:         "SKA2",
 			EmissionHeight: 200,
 			EmissionWindow: 50,
 			Active:         true,
@@ -71,7 +71,7 @@ func mockChainParamsWithThreeSKAs() *chaincfg.Params {
 		3: {
 			CoinType:       3,
 			Name:           "Skarb-3",
-			Symbol:         "SKA-3",
+			Symbol:         "SKA3",
 			EmissionHeight: 300,
 			EmissionWindow: 50,
 			Active:         true, // Now active for testing 3-way split
@@ -116,34 +116,34 @@ func TestBaseAllocations(t *testing.T) {
 		t.Errorf("Expected VAR allocation 100000, got %d", varAllocation)
 	}
 
-	// SKA-1 should get 45% = 450KB (90% / 2 active SKA types)
+	// SKA1 should get 45% = 450KB (90% / 2 active SKA types)
 	ska1Allocation := baseAllocations[1]
 	if ska1Allocation != 450000 {
-		t.Errorf("Expected SKA-1 allocation 450000, got %d", ska1Allocation)
+		t.Errorf("Expected SKA1 allocation 450000, got %d", ska1Allocation)
 	}
 
-	// SKA-2 should get 45% = 450KB
+	// SKA2 should get 45% = 450KB
 	ska2Allocation := baseAllocations[2]
 	if ska2Allocation != 450000 {
-		t.Errorf("Expected SKA-2 allocation 450000, got %d", ska2Allocation)
+		t.Errorf("Expected SKA2 allocation 450000, got %d", ska2Allocation)
 	}
 
-	// SKA-3 should not be allocated (inactive)
+	// SKA3 should not be allocated (inactive)
 	if _, exists := baseAllocations[3]; exists {
-		t.Error("SKA-3 should not have allocation (inactive)")
+		t.Error("SKA3 should not have allocation (inactive)")
 	}
 }
 */
 
-// TestHighDemandScenario tests the complex example: VAR=800KB, SKA-1=1000KB, SKA-2=100KB.
+// TestHighDemandScenario tests the complex example: VAR=800KB, SKA1=1000KB, SKA2=100KB.
 func TestHighDemandScenario(t *testing.T) {
 	params := mockChainParams()
 	allocator := NewBlockSpaceAllocator(1000000, params) // 1MB block
 
 	pendingTxBytes := map[cointype.CoinType]uint32{
 		cointype.CoinTypeVAR: 800000,  // 800KB pending
-		1:                    1000000, // 1000KB pending (SKA-1)
-		2:                    100000,  // 100KB pending (SKA-2)
+		1:                    1000000, // 1000KB pending (SKA1)
+		2:                    100000,  // 100KB pending (SKA2)
 	}
 
 	result := allocator.AllocateBlockSpace(pendingTxBytes)
@@ -157,19 +157,19 @@ func TestHighDemandScenario(t *testing.T) {
 		t.Errorf("Expected VAR used bytes 135000, got %d", varAlloc.UsedBytes)
 	}
 
-	// Verify SKA-1 allocation: 450KB base + 315KB overflow = 765KB
+	// Verify SKA1 allocation: 450KB base + 315KB overflow = 765KB
 	ska1Alloc := result.GetAllocationForCoinType(1)
 	if ska1Alloc.BaseAllocation != 450000 {
-		t.Errorf("Expected SKA-1 base allocation 450000, got %d", ska1Alloc.BaseAllocation)
+		t.Errorf("Expected SKA1 base allocation 450000, got %d", ska1Alloc.BaseAllocation)
 	}
 	if ska1Alloc.UsedBytes != 765000 {
-		t.Errorf("Expected SKA-1 used bytes 765000, got %d", ska1Alloc.UsedBytes)
+		t.Errorf("Expected SKA1 used bytes 765000, got %d", ska1Alloc.UsedBytes)
 	}
 
-	// Verify SKA-2 allocation: 100KB used (no overflow needed)
+	// Verify SKA2 allocation: 100KB used (no overflow needed)
 	ska2Alloc := result.GetAllocationForCoinType(2)
 	if ska2Alloc.UsedBytes != 100000 {
-		t.Errorf("Expected SKA-2 used bytes 100000, got %d", ska2Alloc.UsedBytes)
+		t.Errorf("Expected SKA2 used bytes 100000, got %d", ska2Alloc.UsedBytes)
 	}
 
 	// Verify total utilization
@@ -186,8 +186,8 @@ func TestNoVARDemandScenario(t *testing.T) {
 
 	pendingTxBytes := map[cointype.CoinType]uint32{
 		cointype.CoinTypeVAR: 0,      // No VAR demand
-		1:                    500000, // 500KB pending (SKA-1)
-		2:                    300000, // 300KB pending (SKA-2)
+		1:                    500000, // 500KB pending (SKA1)
+		2:                    300000, // 300KB pending (SKA2)
 	}
 
 	result := allocator.AllocateBlockSpace(pendingTxBytes)
@@ -198,16 +198,16 @@ func TestNoVARDemandScenario(t *testing.T) {
 		t.Errorf("Expected VAR used bytes 0, got %d", varAlloc.UsedBytes)
 	}
 
-	// SKA-1 should get its base + some overflow
+	// SKA1 should get its base + some overflow
 	ska1Alloc := result.GetAllocationForCoinType(1)
 	if ska1Alloc.UsedBytes != 500000 { // Uses all its pending (450KB base + 50KB more)
-		t.Errorf("Expected SKA-1 used bytes 500000, got %d", ska1Alloc.UsedBytes)
+		t.Errorf("Expected SKA1 used bytes 500000, got %d", ska1Alloc.UsedBytes)
 	}
 
-	// SKA-2 should use all its pending
+	// SKA2 should use all its pending
 	ska2Alloc := result.GetAllocationForCoinType(2)
 	if ska2Alloc.UsedBytes != 300000 {
-		t.Errorf("Expected SKA-2 used bytes 300000, got %d", ska2Alloc.UsedBytes)
+		t.Errorf("Expected SKA2 used bytes 300000, got %d", ska2Alloc.UsedBytes)
 	}
 }
 
@@ -218,8 +218,8 @@ func TestOnlyVARDemandScenario(t *testing.T) {
 
 	pendingTxBytes := map[cointype.CoinType]uint32{
 		cointype.CoinTypeVAR: 800000, // 800KB pending
-		1:                    0,      // No SKA-1 demand
-		2:                    0,      // No SKA-2 demand
+		1:                    0,      // No SKA1 demand
+		2:                    0,      // No SKA2 demand
 	}
 
 	result := allocator.AllocateBlockSpace(pendingTxBytes)
@@ -235,18 +235,18 @@ func TestOnlyVARDemandScenario(t *testing.T) {
 	// SKA types should have default allocations with 0 values (prevents nil pointer issues)
 	ska1Alloc := result.GetAllocationForCoinType(1)
 	if ska1Alloc == nil {
-		t.Fatal("Expected SKA-1 allocation to exist (default allocation)")
+		t.Fatal("Expected SKA1 allocation to exist (default allocation)")
 	}
 	if ska1Alloc.UsedBytes != 0 || ska1Alloc.BaseAllocation != 0 || ska1Alloc.FinalAllocation != 0 {
-		t.Errorf("Expected SKA-1 to have 0 allocations (no demand), got %+v", ska1Alloc)
+		t.Errorf("Expected SKA1 to have 0 allocations (no demand), got %+v", ska1Alloc)
 	}
 
 	ska2Alloc := result.GetAllocationForCoinType(2)
 	if ska2Alloc == nil {
-		t.Fatal("Expected SKA-2 allocation to exist (default allocation)")
+		t.Fatal("Expected SKA2 allocation to exist (default allocation)")
 	}
 	if ska2Alloc.UsedBytes != 0 || ska2Alloc.BaseAllocation != 0 || ska2Alloc.FinalAllocation != 0 {
-		t.Errorf("Expected SKA-2 to have 0 allocations (no demand), got %+v", ska2Alloc)
+		t.Errorf("Expected SKA2 to have 0 allocations (no demand), got %+v", ska2Alloc)
 	}
 }
 
@@ -257,20 +257,20 @@ func TestMultipleSKAWithDemand(t *testing.T) {
 
 	pendingTxBytes := map[cointype.CoinType]uint32{
 		cointype.CoinTypeVAR: 200000, // 200KB pending
-		1:                    800000, // 800KB pending (SKA-1)
-		2:                    700000, // 700KB pending (SKA-2)
+		1:                    800000, // 800KB pending (SKA1)
+		2:                    700000, // 700KB pending (SKA2)
 	}
 
 	result := allocator.AllocateBlockSpace(pendingTxBytes)
 
 	// Calculate expected overflow distribution
-	// Base: VAR=100KB, SKA-1=450KB, SKA-2=450KB
-	// Usage: VAR=100KB, SKA-1=450KB, SKA-2=450KB
+	// Base: VAR=100KB, SKA1=450KB, SKA2=450KB
+	// Usage: VAR=100KB, SKA1=450KB, SKA2=450KB
 	// No overflow since everyone uses their full base allocation
 	// Wait, let me recalculate:
 	// Total pending: 200+800+700=1700KB, Total space: 1000KB
-	// Base allocations: VAR=100KB, SKA-1=450KB, SKA-2=450KB
-	// After base: VAR uses 100KB (100KB still pending), SKA-1 uses 450KB (350KB pending), SKA-2 uses 450KB (250KB pending)
+	// Base allocations: VAR=100KB, SKA1=450KB, SKA2=450KB
+	// After base: VAR uses 100KB (100KB still pending), SKA1 uses 450KB (350KB pending), SKA2 uses 450KB (250KB pending)
 	// No overflow since all base allocations are fully used
 
 	varAlloc := result.GetAllocationForCoinType(cointype.CoinTypeVAR)
@@ -280,12 +280,12 @@ func TestMultipleSKAWithDemand(t *testing.T) {
 
 	ska1Alloc := result.GetAllocationForCoinType(1)
 	if ska1Alloc.UsedBytes != 450000 {
-		t.Errorf("Expected SKA-1 used bytes 450000, got %d", ska1Alloc.UsedBytes)
+		t.Errorf("Expected SKA1 used bytes 450000, got %d", ska1Alloc.UsedBytes)
 	}
 
 	ska2Alloc := result.GetAllocationForCoinType(2)
 	if ska2Alloc.UsedBytes != 450000 {
-		t.Errorf("Expected SKA-2 used bytes 450000, got %d", ska2Alloc.UsedBytes)
+		t.Errorf("Expected SKA2 used bytes 450000, got %d", ska2Alloc.UsedBytes)
 	}
 
 	// Total should be exactly 1MB since all base allocations are used
@@ -297,13 +297,13 @@ func TestMultipleSKAWithDemand(t *testing.T) {
 // TestSingleActiveSKAType tests allocation when only one SKA type is active.
 // Verifies that the single SKA gets the full 90% allocation, not split.
 func TestSingleActiveSKAType(t *testing.T) {
-	// Create params with only SKA-1 active
+	// Create params with only SKA1 active
 	params := &chaincfg.Params{}
 	params.SKACoins = map[cointype.CoinType]*chaincfg.SKACoinConfig{
 		1: {
 			CoinType:       1,
 			Name:           "Skarb-1",
-			Symbol:         "SKA-1",
+			Symbol:         "SKA1",
 			EmissionHeight: 100,
 			EmissionWindow: 50,
 			Active:         true,
@@ -314,7 +314,7 @@ func TestSingleActiveSKAType(t *testing.T) {
 
 	pendingTxBytes := map[cointype.CoinType]uint32{
 		cointype.CoinTypeVAR: 150000, // 150KB pending
-		1:                    600000, // 600KB pending (SKA-1)
+		1:                    600000, // 600KB pending (SKA1)
 	}
 
 	result := allocator.AllocateBlockSpace(pendingTxBytes)
@@ -325,10 +325,10 @@ func TestSingleActiveSKAType(t *testing.T) {
 		t.Errorf("Expected VAR base allocation 100000, got %d", varAlloc.BaseAllocation)
 	}
 
-	// SKA-1 should get full 90% base = 900KB (not split with another SKA)
+	// SKA1 should get full 90% base = 900KB (not split with another SKA)
 	ska1Alloc := result.GetAllocationForCoinType(1)
 	if ska1Alloc.BaseAllocation != 900000 {
-		t.Errorf("Expected SKA-1 base allocation 900000 (full 90%%), got %d", ska1Alloc.BaseAllocation)
+		t.Errorf("Expected SKA1 base allocation 900000 (full 90%%), got %d", ska1Alloc.BaseAllocation)
 	}
 
 	// Verify VAR uses its 150KB demand
@@ -337,12 +337,12 @@ func TestSingleActiveSKAType(t *testing.T) {
 		t.Errorf("Expected VAR to use between 100000-150000 bytes, got %d", varAlloc.UsedBytes)
 	}
 
-	// Verify SKA-1 uses its 600KB demand
+	// Verify SKA1 uses its 600KB demand
 	if ska1Alloc.UsedBytes != 600000 {
-		t.Errorf("Expected SKA-1 to use 600000 bytes, got %d", ska1Alloc.UsedBytes)
+		t.Errorf("Expected SKA1 to use 600000 bytes, got %d", ska1Alloc.UsedBytes)
 	}
 
-	// Total used: VAR's actual usage + SKA-1's 600KB
+	// Total used: VAR's actual usage + SKA1's 600KB
 	expectedTotal := varAlloc.UsedBytes + 600000
 	if result.TotalUsed != expectedTotal {
 		t.Errorf("Expected total used %d, got %d", expectedTotal, result.TotalUsed)
@@ -379,16 +379,16 @@ func TestAllDemandFitsInBaseAllocations(t *testing.T) {
 			varAlloc.FinalAllocation, varAlloc.BaseAllocation)
 	}
 
-	// SKA-1 should use exactly its demand
+	// SKA1 should use exactly its demand
 	ska1Alloc := result.GetAllocationForCoinType(1)
 	if ska1Alloc.UsedBytes != 200000 {
-		t.Errorf("Expected SKA-1 to use exactly 200000 bytes (its demand), got %d", ska1Alloc.UsedBytes)
+		t.Errorf("Expected SKA1 to use exactly 200000 bytes (its demand), got %d", ska1Alloc.UsedBytes)
 	}
 
-	// SKA-2 should use exactly its demand
+	// SKA2 should use exactly its demand
 	ska2Alloc := result.GetAllocationForCoinType(2)
 	if ska2Alloc.UsedBytes != 150000 {
-		t.Errorf("Expected SKA-2 to use exactly 150000 bytes (its demand), got %d", ska2Alloc.UsedBytes)
+		t.Errorf("Expected SKA2 to use exactly 150000 bytes (its demand), got %d", ska2Alloc.UsedBytes)
 	}
 
 	// Total used should be sum of demands (380KB), not full block
@@ -413,9 +413,9 @@ func TestThreeActiveSKATypes(t *testing.T) {
 
 	pendingTxBytes := map[cointype.CoinType]uint32{
 		cointype.CoinTypeVAR: 120000, // 120KB pending
-		1:                    400000, // 400KB pending (SKA-1)
-		2:                    250000, // 250KB pending (SKA-2)
-		3:                    200000, // 200KB pending (SKA-3)
+		1:                    400000, // 400KB pending (SKA1)
+		2:                    250000, // 250KB pending (SKA2)
+		3:                    200000, // 200KB pending (SKA3)
 	}
 
 	result := allocator.AllocateBlockSpace(pendingTxBytes)
@@ -431,22 +431,22 @@ func TestThreeActiveSKATypes(t *testing.T) {
 
 	ska1Alloc := result.GetAllocationForCoinType(1)
 	if ska1Alloc.BaseAllocation != skaPerType {
-		t.Errorf("Expected SKA-1 base allocation %d (30%%), got %d", skaPerType, ska1Alloc.BaseAllocation)
+		t.Errorf("Expected SKA1 base allocation %d (30%%), got %d", skaPerType, ska1Alloc.BaseAllocation)
 	}
 
 	ska2Alloc := result.GetAllocationForCoinType(2)
 	if ska2Alloc.BaseAllocation != skaPerType {
-		t.Errorf("Expected SKA-2 base allocation %d (30%%), got %d", skaPerType, ska2Alloc.BaseAllocation)
+		t.Errorf("Expected SKA2 base allocation %d (30%%), got %d", skaPerType, ska2Alloc.BaseAllocation)
 	}
 
 	ska3Alloc := result.GetAllocationForCoinType(3)
 	if ska3Alloc.BaseAllocation != skaPerType {
-		t.Errorf("Expected SKA-3 base allocation %d (30%%), got %d", skaPerType, ska3Alloc.BaseAllocation)
+		t.Errorf("Expected SKA3 base allocation %d (30%%), got %d", skaPerType, ska3Alloc.BaseAllocation)
 	}
 
 	// Verify all allocations exist (non-nil)
 	if ska3Alloc == nil {
-		t.Fatal("Expected SKA-3 allocation to exist")
+		t.Fatal("Expected SKA3 allocation to exist")
 	}
 
 	// Verify VAR gets overflow (needs 120KB, base is 100KB)
@@ -458,9 +458,9 @@ func TestThreeActiveSKATypes(t *testing.T) {
 		t.Errorf("Expected VAR to use at most 120000 bytes (its demand), got %d", varAlloc.UsedBytes)
 	}
 
-	// SKA-1 needs 400KB, base is 300KB, should get overflow
+	// SKA1 needs 400KB, base is 300KB, should get overflow
 	if ska1Alloc.UsedBytes < 300000 {
-		t.Errorf("Expected SKA-1 to use at least 300000 bytes, got %d", ska1Alloc.UsedBytes)
+		t.Errorf("Expected SKA1 to use at least 300000 bytes, got %d", ska1Alloc.UsedBytes)
 	}
 
 	// Total base allocations should equal maxBlockSize
@@ -504,7 +504,7 @@ func TestExactBoundaryConditions(t *testing.T) {
 
 		pendingTxBytes := map[cointype.CoinType]uint32{
 			cointype.CoinTypeVAR: 37501,  // Base + 1 byte
-			cointype.CoinType(1): 100000, // SKA-1 has demand
+			cointype.CoinType(1): 100000, // SKA1 has demand
 		}
 
 		result := allocator.AllocateBlockSpace(pendingTxBytes)
@@ -561,7 +561,7 @@ func TestIdentifyActivePendingTypes(t *testing.T) {
 	params := mockChainParams()
 	allocator := NewBlockSpaceAllocator(1000000, params)
 
-	// Setup scenario where VAR and SKA-1 have unmet demand, SKA-2 is satisfied
+	// Setup scenario where VAR and SKA1 have unmet demand, SKA2 is satisfied
 	allocations := map[cointype.CoinType]*CoinTypeAllocation{
 		cointype.CoinTypeVAR: {
 			CoinType:     cointype.CoinTypeVAR,
@@ -582,7 +582,7 @@ func TestIdentifyActivePendingTypes(t *testing.T) {
 
 	activePending := allocator.identifyActivePendingTypes(allocations)
 
-	// Should identify all 3 types as having pending bytes (even SKA-2 which is satisfied)
+	// Should identify all 3 types as having pending bytes (even SKA2 which is satisfied)
 	// This is intentional: types with pending are eligible for overflow even if
 	// they fit within their base allocation.
 	if len(activePending) != 3 {
@@ -605,7 +605,7 @@ func TestIdentifyActivePendingTypes(t *testing.T) {
 		t.Error("Expected VAR to be in active pending types")
 	}
 	if !hasSKA1 {
-		t.Error("Expected SKA-1 to be in active pending types")
+		t.Error("Expected SKA1 to be in active pending types")
 	}
 }
 */
@@ -732,8 +732,8 @@ func TestIterativeOverflowDistribution(t *testing.T) {
 	allocator := NewBlockSpaceAllocator(1000000, params) // 1MB
 
 	// Scenario: VAR needs 200KB (100KB base + 100KB overflow)
-	//          SKA-1 needs 300KB (can't fit in 450KB base)
-	//          SKA-2 needs 600KB (150KB over base)
+	//          SKA1 needs 300KB (can't fit in 450KB base)
+	//          SKA2 needs 600KB (150KB over base)
 	pendingTxBytes := map[cointype.CoinType]uint32{
 		cointype.CoinTypeVAR: 200000, // 200KB
 		1:                    300000, // 300KB - fits in base
@@ -760,9 +760,9 @@ func TestIterativeOverflowDistribution(t *testing.T) {
 		t.Fatal("Missing allocations")
 	}
 
-	// SKA-1 should get its full 300KB (fits in base)
+	// SKA1 should get its full 300KB (fits in base)
 	if ska1Alloc.UsedBytes != 300000 {
-		t.Errorf("Expected SKA-1 to use 300000, got %d", ska1Alloc.UsedBytes)
+		t.Errorf("Expected SKA1 to use 300000, got %d", ska1Alloc.UsedBytes)
 	}
 }
 
@@ -790,15 +790,15 @@ func TestMixedPendingWithNewCoinType(t *testing.T) {
 		t.Errorf("Expected no allocation for unconfigured coin type 99, got %+v", newTypeAlloc)
 	}
 
-	// The configured types (VAR, SKA-1, SKA-2) should have allocations
+	// The configured types (VAR, SKA1, SKA2) should have allocations
 	if result.GetAllocationForCoinType(cointype.CoinTypeVAR) == nil {
 		t.Error("Expected VAR allocation")
 	}
 	if result.GetAllocationForCoinType(1) == nil {
-		t.Error("Expected SKA-1 allocation")
+		t.Error("Expected SKA1 allocation")
 	}
 	if result.GetAllocationForCoinType(2) == nil {
-		t.Error("Expected SKA-2 allocation")
+		t.Error("Expected SKA2 allocation")
 	}
 }
 
@@ -824,9 +824,9 @@ func TestOverflowDistributedToVARWhenSKAUnused(t *testing.T) {
 
 	// Debug output
 	t.Logf("Overflow handled: %d", result.OverflowHandled)
-	t.Logf("SKA-1 allocation exists: %v", skaAlloc != nil)
+	t.Logf("SKA1 allocation exists: %v", skaAlloc != nil)
 	if skaAlloc != nil {
-		t.Logf("SKA-1: base=%d, pending=%d, used=%d, final=%d",
+		t.Logf("SKA1: base=%d, pending=%d, used=%d, final=%d",
 			skaAlloc.BaseAllocation, skaAlloc.PendingBytes, skaAlloc.UsedBytes, skaAlloc.FinalAllocation)
 	}
 
@@ -889,7 +889,7 @@ func TestMixedDemandRespects10_90Split(t *testing.T) {
 	// Scenario: Both VAR and SKA have significant pending transactions
 	pending := map[cointype.CoinType]uint32{
 		cointype.CoinTypeVAR: 50000,  // 50KB VAR
-		cointype.CoinType(1): 200000, // 200KB SKA-1
+		cointype.CoinType(1): 200000, // 200KB SKA1
 	}
 
 	result := allocator.AllocateBlockSpace(pending)
@@ -900,7 +900,7 @@ func TestMixedDemandRespects10_90Split(t *testing.T) {
 		t.Fatal("Expected VAR allocation")
 	}
 	if skaAlloc == nil {
-		t.Fatal("Expected SKA-1 allocation")
+		t.Fatal("Expected SKA1 allocation")
 	}
 
 	// When both have demand, should respect base allocations
@@ -914,7 +914,7 @@ func TestMixedDemandRespects10_90Split(t *testing.T) {
 		t.Errorf("VAR should get at least its 50KB demand, got %d", varAlloc.FinalAllocation)
 	}
 	if skaAlloc.FinalAllocation < 200000 {
-		t.Errorf("SKA-1 should get at least its 200KB demand, got %d", skaAlloc.FinalAllocation)
+		t.Errorf("SKA1 should get at least its 200KB demand, got %d", skaAlloc.FinalAllocation)
 	}
 
 	t.Logf("Mixed demand: VAR=%d/%d bytes, SKA=%d/%d bytes",
@@ -988,20 +988,20 @@ func TestMinFunction(t *testing.T) {
 // This reproduces the mainnet issue where:
 // - Max block: 375,000 bytes
 // - VAR pending: 1,738 bytes
-// - SKA-1 pending: 254 bytes
+// - SKA1 pending: 254 bytes
 // - VAR allocation: 410,508 bytes (109% of max!)
 //
 // Root cause: VAR's unused space from initial allocation is being redistributed back to VAR,
 // causing double-counting of VAR's unused space.
 func TestAllocationOverflowBug(t *testing.T) {
-	// Use mainnet config with SKA-1 active
+	// Use mainnet config with SKA1 active
 	params := chaincfg.MainNetParams()
 	allocator := NewBlockSpaceAllocator(375000, params)
 
 	// Exact scenario from mainnet logs
 	pending := map[cointype.CoinType]uint32{
 		cointype.CoinTypeVAR: 1738, // Very small VAR pending
-		cointype.CoinType(1): 254,  // Very small SKA-1 pending
+		cointype.CoinType(1): 254,  // Very small SKA1 pending
 	}
 
 	result := allocator.AllocateBlockSpace(pending)
@@ -1021,7 +1021,7 @@ func TestAllocationOverflowBug(t *testing.T) {
 		skaAlloc := result.GetAllocationForCoinType(cointype.CoinType(1))
 		t.Logf("VAR: base=%d, final=%d, pending=%d, used=%d",
 			varAlloc.BaseAllocation, varAlloc.FinalAllocation, varAlloc.PendingBytes, varAlloc.UsedBytes)
-		t.Logf("SKA-1: base=%d, final=%d, pending=%d, used=%d",
+		t.Logf("SKA1: base=%d, final=%d, pending=%d, used=%d",
 			skaAlloc.BaseAllocation, skaAlloc.FinalAllocation, skaAlloc.PendingBytes, skaAlloc.UsedBytes)
 	}
 
@@ -1054,7 +1054,7 @@ func TestAllocationOverflowBug(t *testing.T) {
 	}
 
 	// Log the actual allocations for verification
-	t.Logf("Final allocations: VAR=%d (%.1f%%), SKA-1=%d (%.1f%%)",
+	t.Logf("Final allocations: VAR=%d (%.1f%%), SKA1=%d (%.1f%%)",
 		varAlloc.FinalAllocation, float64(varAlloc.FinalAllocation)/375000*100,
 		skaAlloc.FinalAllocation, float64(skaAlloc.FinalAllocation)/375000*100)
 }
@@ -1069,7 +1069,7 @@ func TestVARGetsLeftoverWhenSKAHasMinimalDemand(t *testing.T) {
 	// VAR should get its base (37.5KB) + most of SKA's unused space
 	pending := map[cointype.CoinType]uint32{
 		cointype.CoinTypeVAR: 100000, // 100KB VAR pending (needs overflow)
-		cointype.CoinType(1): 254,    // 254 bytes SKA-1 (minimal)
+		cointype.CoinType(1): 254,    // 254 bytes SKA1 (minimal)
 	}
 
 	result := allocator.AllocateBlockSpace(pending)
@@ -1098,11 +1098,11 @@ func TestVARGetsLeftoverWhenSKAHasMinimalDemand(t *testing.T) {
 	// SKA should only get what it needs (254 bytes) or slightly more from its base
 	skaAlloc := result.GetAllocationForCoinType(cointype.CoinType(1))
 	if skaAlloc.UsedBytes != 254 {
-		t.Errorf("SKA-1 should use exactly 254 bytes, got %d", skaAlloc.UsedBytes)
+		t.Errorf("SKA1 should use exactly 254 bytes, got %d", skaAlloc.UsedBytes)
 	}
 
 	t.Logf("VAR: final=%d, used=%d (demand=100000)", varAlloc.FinalAllocation, varAlloc.UsedBytes)
-	t.Logf("SKA-1: final=%d, used=%d (demand=254)", skaAlloc.FinalAllocation, skaAlloc.UsedBytes)
+	t.Logf("SKA1: final=%d, used=%d (demand=254)", skaAlloc.FinalAllocation, skaAlloc.UsedBytes)
 	t.Logf("Total allocated: %d / 375000 (%.1f%%)",
 		totalAllocated, float64(totalAllocated)/375000*100)
 }

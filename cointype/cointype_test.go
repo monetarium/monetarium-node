@@ -74,10 +74,10 @@ func TestCoinType_String(t *testing.T) {
 		expected string
 	}{
 		{CoinTypeVAR, "VAR"},
-		{CoinType(1), "SKA-1"},
-		{CoinType(2), "SKA-2"},
-		{CoinType(42), "SKA-42"},
-		{CoinType(255), "SKA-255"},
+		{CoinType(1), "SKA1"},
+		{CoinType(2), "SKA2"},
+		{CoinType(42), "SKA42"},
+		{CoinType(255), "SKA255"},
 	}
 
 	for _, test := range tests {

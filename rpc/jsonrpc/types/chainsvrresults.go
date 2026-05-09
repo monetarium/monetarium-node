@@ -65,7 +65,7 @@ type GetMempoolFeesInfoResult struct {
 // Fee values are returned as strings (atoms) to support both VAR and SKA with full precision.
 type MempoolCoinTypeFeeInfo struct {
 	CoinType        uint8   `json:"cointype"`
-	Name            string  `json:"name"`            // E.g., "VAR", "SKA-1", "SKA-2"
+	Name            string  `json:"name"`            // E.g., "VAR", "SKA1", "SKA2"
 	TxCount         int     `json:"txcount"`         // Number of transactions in mempool
 	TotalSize       int64   `json:"totalsize"`       // Total size of transactions (bytes)
 	AverageSize     float64 `json:"averagesize"`     // Average transaction size
@@ -250,7 +250,7 @@ type GetEmissionStatusResult struct {
 // GetBurnedCoinsStat models burn statistics for a single coin type.
 type GetBurnedCoinsStat struct {
 	CoinType    uint8  `json:"cointype"`    // Coin type (1-255 for SKA)
-	Name        string `json:"name"`        // Coin name (e.g., "SKA-1")
+	Name        string `json:"name"`        // Coin name (e.g., "SKA1")
 	TotalBurned string `json:"totalburned"` // Total amount burned in coins (string for big.Int precision)
 }
 

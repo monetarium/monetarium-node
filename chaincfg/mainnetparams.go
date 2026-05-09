@@ -579,7 +579,7 @@ func MainNetParams() *Params {
 			1: {
 				CoinType:         1,
 				Name:             "Skarb-1",
-				Symbol:           "SKA-1",
+				Symbol:           "SKA1",
 				EmissionHeight:   4096,                                                 // Aligned with StakeValidationHeight
 				EmissionWindow:   4320,                                                 // 30-day emission window (~144 blocks/day * 30)
 				MaxSupply:        mustParseBigInt("900000000000000000000000000000000"), // 900 trillion * 1e18 atoms
@@ -598,15 +598,15 @@ func MainNetParams() *Params {
 				// Production deployment MUST generate secure keys with proper key ceremony
 				EmissionKey: mustParseHexPubKey("03f45735292ccc672ddf51869e69c67520f2213c73b924e8b2ff0c9f1877b99a8f"),
 			},
-			// SKA-2 is intentionally not configured on mainnet. It will be added
+			// SKA2 is intentionally not configured on mainnet. It will be added
 			// back only after a real key ceremony produces an EmissionKey that
-			// is independent of SKA-1's. Until then, registering it here would
-			// share SKA-1's historical EmissionKey and let any party who
-			// observed that key mint SKA-2 the moment it activates.
+			// is independent of SKA1's. Until then, registering it here would
+			// share SKA1's historical EmissionKey and let any party who
+			// observed that key mint SKA2 the moment it activates.
 		},
 
 		// Initial SKA types to activate at network genesis
-		InitialSKATypes: []cointype.CoinType{1}, // Only SKA-1 initially active
+		InitialSKATypes: []cointype.CoinType{1}, // Only SKA1 initially active
 	}
 }
 

@@ -30,7 +30,7 @@ func TestNewAmountForCoinType(t *testing.T) {
 		{"SKA 0.5", 0.5, cointype.CoinType(1), Amount(atomsPerSKA / 2), false},
 		{"VAR 0", 0.0, cointype.CoinTypeVAR, 0, false},
 		{"SKA 0", 0.0, cointype.CoinType(1), 0, false},
-		{"Valid SKA-99 coin type", 1.0, cointype.CoinType(99), Amount(atomsPerSKA), false},
+		{"Valid SKA99 coin type", 1.0, cointype.CoinType(99), Amount(atomsPerSKA), false},
 		{"NaN", math.NaN(), cointype.CoinTypeVAR, 0, true},
 		{"Positive infinity", math.Inf(1), cointype.CoinTypeVAR, 0, true},
 		{"Negative infinity", math.Inf(-1), cointype.CoinTypeVAR, 0, true},
@@ -69,7 +69,7 @@ func TestAmountToCoinType(t *testing.T) {
 		{"SKA 0.5 coin", Amount(atomsPerSKA / 2), cointype.CoinType(1), 0.5},
 		{"VAR 0", 0, cointype.CoinTypeVAR, 0.0},
 		{"SKA 0", 0, cointype.CoinType(1), 0.0},
-		{"Valid SKA-99 coin type", Amount(atomsPerSKA), cointype.CoinType(99), 1.0},
+		{"Valid SKA99 coin type", Amount(atomsPerSKA), cointype.CoinType(99), 1.0},
 	}
 
 	for _, test := range tests {
@@ -139,12 +139,12 @@ func TestAmountStringForCoinType(t *testing.T) {
 		expected string
 	}{
 		{"VAR 1.0", Amount(cointype.AtomsPerVAR), cointype.CoinTypeVAR, "1.00000000 VAR"},
-		{"SKA 1.0", Amount(atomsPerSKA), cointype.CoinType(1), "1.00000000 SKA-1"},
+		{"SKA 1.0", Amount(atomsPerSKA), cointype.CoinType(1), "1.00000000 SKA1"},
 		{"VAR 0.5", Amount(cointype.AtomsPerVAR / 2), cointype.CoinTypeVAR, "0.50000000 VAR"},
-		{"SKA 0.5", Amount(atomsPerSKA / 2), cointype.CoinType(1), "0.50000000 SKA-1"},
+		{"SKA 0.5", Amount(atomsPerSKA / 2), cointype.CoinType(1), "0.50000000 SKA1"},
 		{"VAR 0", 0, cointype.CoinTypeVAR, "0.00000000 VAR"},
-		{"SKA 0", 0, cointype.CoinType(1), "0.00000000 SKA-1"},
-		{"Valid SKA-99 coin type", Amount(atomsPerSKA), cointype.CoinType(99), "1.00000000 SKA-99"},
+		{"SKA 0", 0, cointype.CoinType(1), "0.00000000 SKA1"},
+		{"Valid SKA99 coin type", Amount(atomsPerSKA), cointype.CoinType(99), "1.00000000 SKA99"},
 	}
 
 	for _, test := range tests {
@@ -170,7 +170,7 @@ func TestAmountStringVAR(t *testing.T) {
 // TestAmountStringSKA tests the StringSKA method.
 func TestAmountStringSKA(t *testing.T) {
 	amount := Amount(atomsPerSKA)
-	expected := "1.00000000 SKA-1"
+	expected := "1.00000000 SKA1"
 	result := amount.StringSKA()
 	if result != expected {
 		t.Errorf("Expected %s, got %s", expected, result)

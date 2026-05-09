@@ -214,7 +214,7 @@ func TestCalcSignatureHashSKAInput(t *testing.T) {
 
 // TestCalcSignatureHashCoinTypeBinding verifies the sighash digest changes
 // when only the per-output CoinType byte is altered.  This prevents an
-// attacker from re-tagging a VAR output as SKA (or swapping SKA-1 for SKA-2)
+// attacker from re-tagging a VAR output as SKA (or swapping SKA1 for SKA2)
 // without invalidating any prior signature on the transaction.
 func TestCalcSignatureHashCoinTypeBinding(t *testing.T) {
 	script := hexToBytes("51")

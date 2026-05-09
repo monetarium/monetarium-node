@@ -221,12 +221,12 @@ func TestCheckSSFeeMixedCoinTypes(t *testing.T) {
 		CoinType: cointype.CoinTypeVAR,
 	})
 
-	// Output 2: SKA-1 (mixed - invalid)
+	// Output 2: SKA1 (mixed - invalid)
 	tx.AddTxOut(&wire.TxOut{
 		Value:    1000,
 		Version:  0,
 		PkScript: pkScript,
-		CoinType: 1, // SKA-1
+		CoinType: 1, // SKA1
 	})
 
 	// OP_RETURN marker

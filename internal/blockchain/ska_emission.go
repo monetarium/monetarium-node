@@ -56,7 +56,7 @@ func isSKAEmissionWindowActive(blockHeight int64, chainParams *chaincfg.Params) 
 }
 
 // hasVotePassed checks if a consensus vote has passed and is active at the
-// given block node. This is used to validate SKA-2+ activations require
+// given block node. This is used to validate SKA2+ activations require
 // stakeholder approval through the voting system.
 func (b *BlockChain) hasVotePassed(voteID string, prevNode *blockNode) bool {
 	deployment, ok := b.deploymentData[voteID]
@@ -302,7 +302,7 @@ func createEmissionAuthScript(auth *chaincfg.SKAEmissionAuth) ([]byte, error) {
 // - Authorization amount matching
 // - Governance parameter enforcement
 //
-// Note: Stakeholder vote activation (for SKA-2+) is checked at block validation level
+// Note: Stakeholder vote activation (for SKA2+) is checked at block validation level
 // in CheckSKAEmissionInBlock, not here, to allow mempool to accept transactions before
 // vote passes.
 func ValidateAuthorizedSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
@@ -330,7 +330,7 @@ func ValidateAuthorizedSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
 			blockHeight, coinType)
 	}
 
-	// Note: Stakeholder vote check for SKA-2+ is performed in CheckSKAEmissionInBlock
+	// Note: Stakeholder vote check for SKA2+ is performed in CheckSKAEmissionInBlock
 	// at the block validation level, not here at transaction validation level.
 	// This allows the mempool to accept emission transactions before the vote passes.
 
@@ -791,8 +791,8 @@ func CheckSKAEmissionInBlock(block *dcrutil.Block, prevNode *blockNode,
 					return fmt.Errorf("multiple emission transactions for coin type %d at height %d - only one emission per coin type allowed", coinType, blockHeight)
 				}
 
-				// For SKA-2 and higher coin types, verify stakeholder vote has passed
-				// SKA-1 is always active and doesn't require voting
+				// For SKA2 and higher coin types, verify stakeholder vote has passed
+				// SKA1 is always active and doesn't require voting
 				if coinType >= 2 {
 					voteID := fmt.Sprintf("activateska%d", coinType)
 					// Use hasVotePassed with prevNode to avoid re-acquiring the chain lock

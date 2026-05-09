@@ -15,9 +15,9 @@ import (
 	"github.com/monetarium/monetarium-node/wire"
 )
 
-// mainnetSKA1TestParams returns a fresh copy of MainNetParams() with the SKA-1
+// mainnetSKA1TestParams returns a fresh copy of MainNetParams() with the SKA1
 // EmissionKey replaced by a test pubkey we hold the private half of, so the
-// validator can verify a signature we produce. All other SKA-1 fields
+// validator can verify a signature we produce. All other SKA1 fields
 // (EmissionAddresses, EmissionAmounts, EmissionHeight, EmissionWindow) come
 // from the real mainnet config — this is what makes the test load-bearing.
 //
@@ -39,7 +39,7 @@ func mainnetSKA1TestParams(t *testing.T) (*chaincfg.Params, *secp256k1.PrivateKe
 	return params, priv
 }
 
-// signedSKA1EmissionTx builds an SKA-1 emission transaction with the given
+// signedSKA1EmissionTx builds an SKA1 emission transaction with the given
 // outputs (addresses + amounts), then signs it with `priv` for validation at
 // blockHeight on a fresh chain (where the next expected nonce is 1).
 func signedSKA1EmissionTx(t *testing.T, params *chaincfg.Params, priv *secp256k1.PrivateKey,
@@ -63,10 +63,10 @@ func signedSKA1EmissionTx(t *testing.T, params *chaincfg.Params, priv *secp256k1
 	return tx
 }
 
-// TestSKA1MainnetEmissionShape pins the historical SKA-1 mainnet emission
+// TestSKA1MainnetEmissionShape pins the historical SKA1 mainnet emission
 // shape (single output to EmissionAddresses[0] paying EmissionAmounts[0])
 // against the new per-output-binding validator at
-// internal/blockchain/ska_emission.go:435-485. SKA-1 was emitted on mainnet
+// internal/blockchain/ska_emission.go:435-485. SKA1 was emitted on mainnet
 // at block 4096 with this exact shape; if the validator is ever tightened
 // further, this test must continue to pass or full-node reindex will reject
 // a previously-valid block.
@@ -80,7 +80,7 @@ func TestSKA1MainnetEmissionShape(t *testing.T) {
 
 // testSKA1MainnetAcceptCanonicalShape: a single-output emission paying the
 // configured address with the configured full amount, validated at
-// EmissionHeight (the height SKA-1 was actually emitted at on mainnet),
+// EmissionHeight (the height SKA1 was actually emitted at on mainnet),
 // must pass.
 func testSKA1MainnetAcceptCanonicalShape(t *testing.T) {
 	params, priv := mainnetSKA1TestParams(t)
@@ -94,12 +94,12 @@ func testSKA1MainnetAcceptCanonicalShape(t *testing.T) {
 	chain := createMockChain(t, params)
 
 	if err := ValidateAuthorizedSKAEmissionTransaction(tx, blockHeight, chain, params); err != nil {
-		t.Fatalf("canonical SKA-1 emission rejected: %v", err)
+		t.Fatalf("canonical SKA1 emission rejected: %v", err)
 	}
 }
 
 // testSKA1MainnetAcceptAtWindowEnd: same shape, validated at the last block
-// of the emission window. Mainnet SKA-1 used a 30-day window
+// of the emission window. Mainnet SKA1 used a 30-day window
 // (EmissionWindow=4320 from EmissionHeight=4096 → end=8416).
 func testSKA1MainnetAcceptAtWindowEnd(t *testing.T) {
 	params, priv := mainnetSKA1TestParams(t)
@@ -113,7 +113,7 @@ func testSKA1MainnetAcceptAtWindowEnd(t *testing.T) {
 	chain := createMockChain(t, params)
 
 	if err := ValidateAuthorizedSKAEmissionTransaction(tx, blockHeight, chain, params); err != nil {
-		t.Fatalf("SKA-1 emission at window end (height %d) rejected: %v", blockHeight, err)
+		t.Fatalf("SKA1 emission at window end (height %d) rejected: %v", blockHeight, err)
 	}
 }
 

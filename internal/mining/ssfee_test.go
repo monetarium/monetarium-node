@@ -86,7 +86,7 @@ func TestCreateSSFeeTxBatched(t *testing.T) {
 		expectNilEmpty bool // Expect nil/empty result (no error, no txs)
 	}{
 		{
-			name:         "valid SKA-1 fee distribution - same address",
+			name:         "valid SKA1 fee distribution - same address",
 			coinType:     1,
 			totalFee:     big.NewInt(3000),
 			voters:       votersSameAddr,
@@ -95,7 +95,7 @@ func TestCreateSSFeeTxBatched(t *testing.T) {
 			expectedTxns: 1, // All voters have same address = 1 batched tx
 		},
 		{
-			name:         "valid SKA-1 fee distribution - different addresses",
+			name:         "valid SKA1 fee distribution - different addresses",
 			coinType:     1,
 			totalFee:     big.NewInt(3000),
 			voters:       votersDiffAddr,
@@ -104,7 +104,7 @@ func TestCreateSSFeeTxBatched(t *testing.T) {
 			expectedTxns: 3, // Each voter has different address = 3 txs
 		},
 		{
-			name:         "valid SKA-2 fee distribution",
+			name:         "valid SKA2 fee distribution",
 			coinType:     2,
 			totalFee:     big.NewInt(6000),
 			voters:       votersDiffAddr,
@@ -250,7 +250,7 @@ func TestSSFeeMultipleCoinTypes(t *testing.T) {
 
 	// Test creating SSFee for multiple coin types
 	// These are the staker portions (50% of total fees per coin type)
-	coinTypes := []cointype.CoinType{1, 2, 3}                                // SKA-1, SKA-2, SKA-3
+	coinTypes := []cointype.CoinType{1, 2, 3}                                // SKA1, SKA2, SKA3
 	fees := []*big.Int{big.NewInt(2000), big.NewInt(4000), big.NewInt(6000)} // Staker portions after 50/50 split
 
 	allSSFeeTxns := make([][]*dcrutil.Tx, 0)
@@ -527,16 +527,16 @@ func TestCreateSSFeeTxBatchedUTXOAugmentation(t *testing.T) {
 	})
 
 	t.Run("different coin types don't interfere", func(t *testing.T) {
-		// Create SSFee for SKA-1
+		// Create SSFee for SKA1
 		ska1Txns, err := createSSFeeTxBatched(1, big.NewInt(3000), voters, 100, nil, nil, nil, nil)
 		if err != nil {
-			t.Fatalf("SKA-1 error: %v", err)
+			t.Fatalf("SKA1 error: %v", err)
 		}
 
-		// Create SSFee for SKA-2
+		// Create SSFee for SKA2
 		ska2Txns, err := createSSFeeTxBatched(2, big.NewInt(6000), voters, 100, nil, nil, nil, nil)
 		if err != nil {
-			t.Fatalf("SKA-2 error: %v", err)
+			t.Fatalf("SKA2 error: %v", err)
 		}
 
 		// Should create separate transactions per coin type
@@ -547,21 +547,21 @@ func TestCreateSSFeeTxBatchedUTXOAugmentation(t *testing.T) {
 		// Verify coin types are correct (payment output is at index 1)
 		for _, tx := range ska1Txns {
 			if tx.MsgTx().TxOut[1].CoinType != 1 {
-				t.Errorf("SKA-1 transaction has wrong coin type")
+				t.Errorf("SKA1 transaction has wrong coin type")
 			}
 		}
 		for _, tx := range ska2Txns {
 			if tx.MsgTx().TxOut[1].CoinType != 2 {
-				t.Errorf("SKA-2 transaction has wrong coin type")
+				t.Errorf("SKA2 transaction has wrong coin type")
 			}
-			// SKA-2 should have 2000 per address (6000 / 3)
+			// SKA2 should have 2000 per address (6000 / 3)
 			// SKA outputs use SKAValue, not Value
 			var outputValue int64
 			if tx.MsgTx().TxOut[1].SKAValue != nil {
 				outputValue = tx.MsgTx().TxOut[1].SKAValue.Int64()
 			}
 			if outputValue != 2000 {
-				t.Errorf("SKA-2 tx has wrong value: %d", outputValue)
+				t.Errorf("SKA2 tx has wrong value: %d", outputValue)
 			}
 		}
 	})

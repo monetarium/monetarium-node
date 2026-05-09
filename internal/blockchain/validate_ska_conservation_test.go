@@ -19,17 +19,17 @@ import (
 )
 
 // TestSKACrossTypeSubsidizationPrevention ensures that SKA coins of different types
-// cannot subsidize each other. For example, SKA-7 inputs cannot be used to pay for
-// SKA-13 outputs.
+// cannot subsidize each other. For example, SKA7 inputs cannot be used to pay for
+// SKA13 outputs.
 func TestSKACrossTypeSubsidizationPrevention(t *testing.T) {
 	// Create a test chain configuration with SKA types active
 	params := chaincfg.SimNetParams()
-	// Activate SKA-2 for this test (SKA-1 is already active by default)
+	// Activate SKA2 for this test (SKA1 is already active by default)
 	if params.SKACoins[cointype.CoinType(2)] != nil {
 		params.SKACoins[cointype.CoinType(2)].Active = true
 	}
 
-	// Create a test transaction with inputs of SKA-1 and outputs of SKA-2
+	// Create a test transaction with inputs of SKA1 and outputs of SKA2
 	tx := &wire.MsgTx{
 		Version: 1,
 		TxIn: []*wire.TxIn{
@@ -42,7 +42,7 @@ func TestSKACrossTypeSubsidizationPrevention(t *testing.T) {
 		},
 		TxOut: []*wire.TxOut{
 			{
-				Value:    50000,             // Output for SKA-2 (different from input)
+				Value:    50000,             // Output for SKA2 (different from input)
 				SKAValue: big.NewInt(50000), // SKA uses big.Int for amounts
 				CoinType: cointype.CoinType(2),
 				PkScript: []byte{0x00}, // Dummy script
@@ -50,15 +50,15 @@ func TestSKACrossTypeSubsidizationPrevention(t *testing.T) {
 		},
 	}
 
-	// Create a utxo view with SKA-1 input
+	// Create a utxo view with SKA1 input
 	view := NewUtxoViewpoint(nil)
 	prevOut := wire.OutPoint{Hash: chainhash.Hash{1}, Index: 0}
 
-	// Create a UTXO entry with coin type SKA-1 and value 100000
+	// Create a UTXO entry with coin type SKA1 and value 100000
 	entry := &UtxoEntry{
-		amount:        100000,               // SKA-1 input value (legacy)
+		amount:        100000,               // SKA1 input value (legacy)
 		skaAmount:     big.NewInt(100000),   // SKA uses big.Int for amounts
-		coinType:      cointype.CoinType(1), // SKA-1 coin type
+		coinType:      cointype.CoinType(1), // SKA1 coin type
 		pkScript:      []byte{0x00},
 		blockHeight:   100,
 		blockIndex:    0,
@@ -70,7 +70,7 @@ func TestSKACrossTypeSubsidizationPrevention(t *testing.T) {
 	// Create test subsidyCache
 	subsidyCache := standalone.NewSubsidyCache(params)
 
-	// Test: Transaction should fail because SKA-1 inputs cannot pay for SKA-2 outputs
+	// Test: Transaction should fail because SKA1 inputs cannot pay for SKA2 outputs
 	utilTx := dcrutil.NewTx(tx)
 	_, err := CheckTransactionInputs(
 		subsidyCache,
@@ -85,7 +85,7 @@ func TestSKACrossTypeSubsidizationPrevention(t *testing.T) {
 		standalone.SSVOriginal,
 	)
 
-	// We expect an error because SKA-1 cannot subsidize SKA-2
+	// We expect an error because SKA1 cannot subsidize SKA2
 	if err == nil {
 		t.Fatalf("Expected error for cross-type SKA subsidization, but got none")
 	}
@@ -115,7 +115,7 @@ func TestSKACrossTypeSubsidizationPrevention(t *testing.T) {
 		},
 		TxOut: []*wire.TxOut{
 			{
-				Value:    50000,             // Output for SKA-1
+				Value:    50000,             // Output for SKA1
 				SKAValue: big.NewInt(50000), // SKA uses big.Int for amounts
 				CoinType: cointype.CoinType(1),
 				PkScript: []byte{0x00},
@@ -123,12 +123,12 @@ func TestSKACrossTypeSubsidizationPrevention(t *testing.T) {
 		},
 	}
 
-	// Add SKA-1 UTXO for the second test
+	// Add SKA1 UTXO for the second test
 	prevOut2 := wire.OutPoint{Hash: chainhash.Hash{2}, Index: 0}
 	entry2 := &UtxoEntry{
-		amount:        100000,               // SKA-1 input value (legacy)
+		amount:        100000,               // SKA1 input value (legacy)
 		skaAmount:     big.NewInt(100000),   // SKA uses big.Int for amounts
-		coinType:      cointype.CoinType(1), // SKA-1 coin type
+		coinType:      cointype.CoinType(1), // SKA1 coin type
 		pkScript:      []byte{0x00},
 		blockHeight:   100,
 		blockIndex:    0,
@@ -137,7 +137,7 @@ func TestSKACrossTypeSubsidizationPrevention(t *testing.T) {
 	}
 	view.Entries()[prevOut2] = entry2
 
-	// This should succeed because input and output are both SKA-1
+	// This should succeed because input and output are both SKA1
 	utilTx2 := dcrutil.NewTx(tx2)
 	fee, err := CheckTransactionInputs(
 		subsidyCache,

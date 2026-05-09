@@ -107,7 +107,7 @@ type Config struct {
 	GetSKAEmissionNonce func(cointype.CoinType) uint64
 
 	// HasVotePassedAtHeight checks if a consensus vote has passed and is active
-	// at the specified block height. This is used to validate SKA-2+ emissions
+	// at the specified block height. This is used to validate SKA2+ emissions
 	// which require stakeholder approval before they can be mined.
 	// Returns false if the vote doesn't exist or hasn't activated yet.
 	HasVotePassedAtHeight func(voteID string, height int64) bool
@@ -1396,7 +1396,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 				return nil, txRuleError(ErrDuplicate, str)
 			}
 
-			// SKA-2 and higher require stakeholder vote activation
+			// SKA2 and higher require stakeholder vote activation
 			// Only accept to mempool if vote has passed (ready to mine)
 			if coinType >= 2 {
 				voteID := fmt.Sprintf("activateska%d", coinType)
@@ -1873,7 +1873,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 
 		coinTypeStr := ""
 		if primaryCoinType.IsSKA() {
-			coinTypeStr = fmt.Sprintf(" (SKA-%d)", primaryCoinType)
+			coinTypeStr = fmt.Sprintf(" (SKA%d)", primaryCoinType)
 		}
 
 		// Validate fee using the fee calculator

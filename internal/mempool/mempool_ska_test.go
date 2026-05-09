@@ -113,7 +113,7 @@ func TestSKATransactionValidation(t *testing.T) {
 			// Test SKA activation check
 			if hasSKAOutputs {
 				// Since we no longer have global activation height, check individual coin types
-				// For now, assume SKA-1 is active for testing
+				// For now, assume SKA1 is active for testing
 				if test.blockHeight < 10 { // Simulate activation at block 10
 					if !test.expectError {
 						t.Errorf("Expected SKA transaction before activation to be rejected")

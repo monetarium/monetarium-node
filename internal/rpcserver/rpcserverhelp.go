@@ -372,7 +372,7 @@ var helpDescsEnUS = map[string]string{
 
 	// GetBurnedCoinsStat help.
 	"getburnedcoinsstat-cointype":    "The coin type number (1-255)",
-	"getburnedcoinsstat-name":        "The name of the coin type (e.g., 'SKA-1', 'SKA-2')",
+	"getburnedcoinsstat-name":        "The name of the coin type (e.g., 'SKA1', 'SKA2')",
 	"getburnedcoinsstat-totalburned": "Total amount of coins burned",
 
 	// GetCFilterV2Cmd help.
@@ -542,13 +542,13 @@ var helpDescsEnUS = map[string]string{
 	"getmempoolfeesinfo-cointype":               "Optional: filter results to a specific coin type (0 for VAR, 1-255 for SKA variants).",
 	"getmempoolfeesinforesult-cointypes":        "Map of coin type fee information keyed by coin type name.",
 	"getmempoolfeesinforesult-cointypes--desc":  "Coin type fee information keyed by coin type name.",
-	"getmempoolfeesinforesult-cointypes--key":   "Coin type name (e.g., 'VAR', 'SKA-1').",
+	"getmempoolfeesinforesult-cointypes--key":   "Coin type name (e.g., 'VAR', 'SKA1').",
 	"getmempoolfeesinforesult-cointypes--value": "Detailed fee information for this coin type.",
 	"getmempoolfeesinforesult-totaltxcount":     "Total number of transactions across all coin types.",
 	"getmempoolfeesinforesult-totalsize":        "Total size of all transactions (bytes).",
 	"getmempoolfeesinforesult-lastupdated":      "Unix timestamp when this data was collected.",
 	"mempoolcointypefeeinfo-cointype":           "The numeric coin type.",
-	"mempoolcointypefeeinfo-name":               "The coin type name (e.g., 'VAR', 'SKA-1').",
+	"mempoolcointypefeeinfo-name":               "The coin type name (e.g., 'VAR', 'SKA1').",
 	"mempoolcointypefeeinfo-txcount":            "Number of transactions in mempool for this coin type.",
 	"mempoolcointypefeeinfo-totalsize":          "Total size of transactions (bytes).",
 	"mempoolcointypefeeinfo-averagesize":        "Average transaction size (bytes).",

@@ -52,7 +52,7 @@ func TestNewCoinTypeFeeCalculator(t *testing.T) {
 	for _, coinType := range supportedTypes {
 		if coinType == cointype.CoinTypeVAR {
 			varFound = true
-		} else if coinType == cointype.CoinType(1) { // SKA-1
+		} else if coinType == cointype.CoinType(1) { // SKA1
 			skaFound = true
 		}
 	}
@@ -87,7 +87,7 @@ func TestCalculateMinFee(t *testing.T) {
 		{
 			name:           "SKA transaction 250 bytes",
 			serializedSize: 250,
-			coinType:       cointype.CoinType(1), // SKA-1
+			coinType:       cointype.CoinType(1), // SKA1
 			expectedMin:    1000000000000000000,  // SKA fee rate 4e18/KB: (250 * 4e18) / 1000 = 1e18 atoms
 		},
 		{
@@ -99,7 +99,7 @@ func TestCalculateMinFee(t *testing.T) {
 		{
 			name:           "Large SKA transaction 1000 bytes",
 			serializedSize: 1000,
-			coinType:       cointype.CoinType(1), // SKA-1
+			coinType:       cointype.CoinType(1), // SKA1
 			expectedMin:    4000000000000000000,  // SKA fee rate 4e18/KB: (1000 * 4e18) / 1000 = 4e18 atoms
 		},
 		{
@@ -142,7 +142,7 @@ func TestEstimateFeeRate(t *testing.T) {
 		},
 		{
 			name:                "SKA fast confirmation",
-			coinType:            cointype.CoinType(1), // SKA-1
+			coinType:            cointype.CoinType(1), // SKA1
 			targetConfirmations: 3,
 			expectError:         false,
 		},
@@ -306,7 +306,7 @@ func TestValidateTransactionFees(t *testing.T) {
 			name:           "SKA sufficient fee",
 			txFee:          2000000000000000000, // 2 SKA - above min fee of 1 SKA for 250 bytes
 			serializedSize: 250,
-			coinType:       cointype.CoinType(1), // SKA-1
+			coinType:       cointype.CoinType(1), // SKA1
 			allowHighFees:  false,
 			expectError:    false,
 		},
@@ -314,7 +314,7 @@ func TestValidateTransactionFees(t *testing.T) {
 			name:           "SKA insufficient fee",
 			txFee:          100000000000000000, // 0.1 SKA - below min fee of 1 SKA for 250 bytes
 			serializedSize: 250,
-			coinType:       cointype.CoinType(1), // SKA-1 - min fee is (250*4e18)/1000=1e18 atoms
+			coinType:       cointype.CoinType(1), // SKA1 - min fee is (250*4e18)/1000=1e18 atoms
 			allowHighFees:  false,
 			expectError:    true,
 			errorContains:  "insufficient fee",
@@ -440,7 +440,7 @@ func TestSKASpecificFeeBehavior(t *testing.T) {
 	calc := NewCoinTypeFeeCalculator(params, defaultMinRelayFee)
 
 	// SKA should use custom fee rate
-	skaFee := calc.CalculateMinFee(1000, cointype.CoinType(1)) // 1KB transaction, SKA-1
+	skaFee := calc.CalculateMinFee(1000, cointype.CoinType(1)) // 1KB transaction, SKA1
 	expectedSKAFee := big.NewInt(500)                          // Should use SKACoinConfig.MinRelayTxFee
 
 	if skaFee.Cmp(expectedSKAFee) != 0 {
@@ -504,7 +504,7 @@ func TestInitializeActiveSKACoinsFromConfig(t *testing.T) {
 	}
 
 	// Check that active SKA coins from config are initialized
-	// Based on simnetparams.go: SKA-1 is active (Active: true), SKA-2 is inactive (Active: false)
+	// Based on simnetparams.go: SKA1 is active (Active: true), SKA2 is inactive (Active: false)
 	expectedActiveSKACoins := []cointype.CoinType{}
 	for coinType, config := range params.SKACoins {
 		if config.Active {

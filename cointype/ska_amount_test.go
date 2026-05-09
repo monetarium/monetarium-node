@@ -448,7 +448,7 @@ func TestSKAAmountImmutability(t *testing.T) {
 // Note: MaxSupply is now per-config in SKACoinConfig, not a global constant.
 func TestSKAAmountLargeSupply(t *testing.T) {
 	// Example: 900 trillion coins * 10^18 atoms per coin = 9 * 10^32 atoms
-	// This is what SKA-1 would have as MaxSupply in its config.
+	// This is what SKA1 would have as MaxSupply in its config.
 	largeSupply := SKAAmountFromCoinsBig(mustParseBigInt("900000000000000")) // 900 trillion
 
 	expectedStr := "900000000000000000000000000000000" // 9 * 10^32
@@ -561,7 +561,7 @@ func TestAtomsPerCoinMethod(t *testing.T) {
 	// SKA returns 0 - use AtomsPerSKACoin (big.Int) instead
 	ska1 := CoinType(1)
 	if ska1.AtomsPerCoin() != 0 {
-		t.Errorf("SKA-1 AtomsPerCoin = %d, want 0 (use AtomsPerSKACoin for SKA)", ska1.AtomsPerCoin())
+		t.Errorf("SKA1 AtomsPerCoin = %d, want 0 (use AtomsPerSKACoin for SKA)", ska1.AtomsPerCoin())
 	}
 }
 
@@ -573,7 +573,7 @@ func TestUsesBigInt(t *testing.T) {
 
 	ska1 := CoinType(1)
 	if !ska1.UsesBigInt() {
-		t.Error("SKA-1 should use big.Int")
+		t.Error("SKA1 should use big.Int")
 	}
 }
 

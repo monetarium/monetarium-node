@@ -61,8 +61,8 @@ func TestHandleGetBurnedCoins(t *testing.T) {
 				if r.Stats[0].TotalBurned != "1" {
 					t.Errorf("expected total burned 1, got %s", r.Stats[0].TotalBurned)
 				}
-				if r.Stats[0].Name != "SKA-1" {
-					t.Errorf("expected name SKA-1, got %s", r.Stats[0].Name)
+				if r.Stats[0].Name != "SKA1" {
+					t.Errorf("expected name SKA1, got %s", r.Stats[0].Name)
 				}
 			},
 		},
@@ -72,10 +72,10 @@ func TestHandleGetBurnedCoins(t *testing.T) {
 				CoinType: uint8Ptr(2),
 			},
 			burnedAmounts: map[cointype.CoinType]*big.Int{
-				1: bigInt("1000000000000000000"), // SKA-1 has burns, but we're querying SKA-2
+				1: bigInt("1000000000000000000"), // SKA1 has burns, but we're querying SKA2
 			},
 			wantErr:      false,
-			wantStatsLen: 0, // No burns for SKA-2, so empty array
+			wantStatsLen: 0, // No burns for SKA2, so empty array
 			validate: func(t *testing.T, result interface{}) {
 				r := result.(types.GetBurnedCoinsResult)
 				if len(r.Stats) != 0 {
@@ -90,8 +90,8 @@ func TestHandleGetBurnedCoins(t *testing.T) {
 			},
 			burnedAmounts: map[cointype.CoinType]*big.Int{
 				// Using 1e18 atoms/coin for SKA
-				1: bigInt("1000000000000000000"), // 1 SKA-1 coin (1e18 atoms)
-				2: bigInt("500000000000000000"),  // 0.5 SKA-2 coin (5e17 atoms)
+				1: bigInt("1000000000000000000"), // 1 SKA1 coin (1e18 atoms)
+				2: bigInt("500000000000000000"),  // 0.5 SKA2 coin (5e17 atoms)
 			},
 			wantErr:      false,
 			wantStatsLen: 2,
@@ -107,13 +107,13 @@ func TestHandleGetBurnedCoins(t *testing.T) {
 					if stat.CoinType == 1 {
 						found1 = true
 						if stat.TotalBurned != "1" {
-							t.Errorf("SKA-1: expected 1, got %s", stat.TotalBurned)
+							t.Errorf("SKA1: expected 1, got %s", stat.TotalBurned)
 						}
 					}
 					if stat.CoinType == 2 {
 						found2 = true
 						if stat.TotalBurned != "0.5" {
-							t.Errorf("SKA-2: expected 0.5, got %s", stat.TotalBurned)
+							t.Errorf("SKA2: expected 0.5, got %s", stat.TotalBurned)
 						}
 					}
 				}
@@ -226,12 +226,12 @@ func TestBurnCoinTypeValidation(t *testing.T) {
 		expectValid bool
 	}{
 		{
-			name:        "valid SKA-1",
+			name:        "valid SKA1",
 			coinType:    1,
 			expectValid: true,
 		},
 		{
-			name:        "valid SKA-255",
+			name:        "valid SKA255",
 			coinType:    255,
 			expectValid: true,
 		},
@@ -241,7 +241,7 @@ func TestBurnCoinTypeValidation(t *testing.T) {
 			expectValid: false,
 		},
 		{
-			name:        "valid SKA-128",
+			name:        "valid SKA128",
 			coinType:    128,
 			expectValid: true,
 		},

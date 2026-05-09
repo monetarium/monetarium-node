@@ -69,7 +69,7 @@ func TestSKAEmissionDuplicatePrevention(t *testing.T) {
 			// Set up mempool state for the test
 			if test.mempoolEmission != nil {
 				if test.name == "valid emission - different hash in mempool for different coin" {
-					// Use different coin type (SKA-2 instead of SKA-1)
+					// Use different coin type (SKA2 instead of SKA1)
 					mp.skaEmissions[cointype.CoinType(2)] = test.mempoolEmission
 				} else {
 					mp.skaEmissions[cointype.CoinType(1)] = test.mempoolEmission
@@ -264,30 +264,30 @@ func TestSKAEmissionsMapCleanup(t *testing.T) {
 
 		// Verify the hashes match what we expect
 		if mp.skaEmissions[cointype.CoinType(1)] == nil || *mp.skaEmissions[cointype.CoinType(1)] != ska1Hash {
-			t.Error("SKA-1 emission hash should match what we set")
+			t.Error("SKA1 emission hash should match what we set")
 		}
 		if mp.skaEmissions[cointype.CoinType(2)] == nil || *mp.skaEmissions[cointype.CoinType(2)] != ska2Hash {
-			t.Error("SKA-2 emission hash should match what we set")
+			t.Error("SKA2 emission hash should match what we set")
 		}
 
 		// Update the skaEmissions map to point to the actual transaction hashes
 		mp.skaEmissions[cointype.CoinType(1)] = ska1Tx.Hash()
 		mp.skaEmissions[cointype.CoinType(2)] = ska2Tx.Hash()
 
-		// Remove SKA-1 emission
+		// Remove SKA1 emission
 		mp.removeTransaction(ska1Tx, false)
 
-		// Verify only SKA-1 was removed from skaEmissions
+		// Verify only SKA1 was removed from skaEmissions
 		if len(mp.skaEmissions) != 1 {
 			t.Errorf("Expected 1 emission tracked after removal, got %d", len(mp.skaEmissions))
 		}
 
 		if mp.skaEmissions[cointype.CoinType(1)] != nil {
-			t.Error("SKA-1 emission should be removed from skaEmissions map")
+			t.Error("SKA1 emission should be removed from skaEmissions map")
 		}
 
 		if mp.skaEmissions[cointype.CoinType(2)] == nil {
-			t.Error("SKA-2 emission should still be in skaEmissions map")
+			t.Error("SKA2 emission should still be in skaEmissions map")
 		}
 	})
 

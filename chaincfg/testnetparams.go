@@ -567,7 +567,7 @@ func TestNet3Params() *Params {
 			1: {
 				CoinType:         1,
 				Name:             "Skarb-1",
-				Symbol:           "SKA-1",
+				Symbol:           "SKA1",
 				EmissionHeight:   800,                                                  // After stake validation (768)
 				EmissionWindow:   4096,                                                 // 4096 block window for testing
 				MaxSupply:        mustParseBigInt("900000000000000000000000000000000"), // 900 trillion * 1e18 atoms
@@ -588,7 +588,7 @@ func TestNet3Params() *Params {
 			2: {
 				CoinType:         2,
 				Name:             "Skarb-2",
-				Symbol:           "SKA-2",
+				Symbol:           "SKA2",
 				MaxSupply:        mustParseBigInt("5000000000000000000000000"), // 5 million * 1e18 atoms
 				AtomsPerCoin:     mustParseBigInt("1000000000000000000"),       // 1e18
 				EmissionHeight:   1000,                                         // After stake validation (768)

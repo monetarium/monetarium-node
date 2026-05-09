@@ -37,7 +37,7 @@ func testBurnTransaction(ctx context.Context, h *dcrdtest.Harness, t *testing.T)
 	// - Mining and verification
 
 	// For now, we test that burn scripts can be created
-	burnScript := stdscript.NewSKABurnScriptV0(1) // SKA-1
+	burnScript := stdscript.NewSKABurnScriptV0(1) // SKA1
 	if burnScript == nil {
 		t.Fatal("failed to create burn script")
 	}
@@ -155,7 +155,7 @@ func testGetBurnedCoinsRPC(ctx context.Context, h *dcrdtest.Harness, t *testing.
 	}
 
 	if len(specificResult.Stats) != 0 {
-		t.Errorf("expected 0 stats for SKA-1, got %d", len(specificResult.Stats))
+		t.Errorf("expected 0 stats for SKA1, got %d", len(specificResult.Stats))
 	}
 
 	t.Log("✓ getburnedcoins RPC working with various parameters")
@@ -177,7 +177,7 @@ func testBurnScriptInTransaction(ctx context.Context, h *dcrdtest.Harness, t *te
 
 	// Add burn output
 	burnOutput := wire.NewTxOut(1000000000, burnScript) // 10 coins
-	burnOutput.CoinType = cointype.CoinType(1)          // SKA-1
+	burnOutput.CoinType = cointype.CoinType(1)          // SKA1
 	tx.AddTxOut(burnOutput)
 
 	// Verify output is correct

@@ -26,13 +26,13 @@ func TestMakeDistributionKey(t *testing.T) {
 			expectedKey: "0_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
 		},
 		{
-			name:        "SKA-1 coin type",
+			name:        "SKA1 coin type",
 			coinType:    cointype.CoinType(1),
 			hash160Hex:  "abcdef1234567890abcdef1234567890abcdef12",
 			expectedKey: "1_abcdef1234567890abcdef1234567890abcdef12",
 		},
 		{
-			name:        "SKA-2 coin type",
+			name:        "SKA2 coin type",
 			coinType:    cointype.CoinType(2),
 			hash160Hex:  "0000000000000000000000000000000000000000",
 			expectedKey: "2_0000000000000000000000000000000000000000",

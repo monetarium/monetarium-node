@@ -22,7 +22,7 @@ import (
 // it activates.
 //
 // This test is the CI-level forcing function for the 2026-05-02 review's
-// CRITICAL finding (mainnet SKA-2 placeholder key identical to SKA-1's).
+// CRITICAL finding (mainnet SKA2 placeholder key identical to SKA1's).
 // When this test fails, the fix is a real key ceremony for the duplicating
 // coin type — never a code change to silence the test.
 func TestSKAEmissionKeysUnique(t *testing.T) {

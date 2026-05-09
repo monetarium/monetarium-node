@@ -83,7 +83,7 @@ func TestSKAEmissionBasicValidation(t *testing.T) {
 		// which validates the amount against authorization
 		emissionKey := params.GetSKAEmissionKey(cointype.CoinType(1))
 		if emissionKey == nil {
-			t.Fatal("No emission key configured for SKA-1")
+			t.Fatal("No emission key configured for SKA1")
 		}
 		auth := &chaincfg.SKAEmissionAuth{
 			EmissionKey: emissionKey,
@@ -272,7 +272,7 @@ func TestSKAEmissionConcurrency(t *testing.T) {
 		// This tests the amount validation in CreateAuthorizedSKAEmissionTransaction
 		emissionKey := params.GetSKAEmissionKey(cointype.CoinType(1))
 		if emissionKey == nil {
-			t.Fatal("No emission key configured for SKA-1")
+			t.Fatal("No emission key configured for SKA1")
 		}
 
 		halfAmount := new(big.Int).Div(expectedEmissionAmount, big.NewInt(2))

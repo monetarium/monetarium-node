@@ -33,10 +33,10 @@ func TestFeesByType(t *testing.T) {
 	fees.Add(cointype.CoinType(2), 300)
 
 	if got := fees.Get(cointype.CoinType(1)); got != 500 {
-		t.Errorf("Expected SKA-1 fees 500, got %d", got)
+		t.Errorf("Expected SKA1 fees 500, got %d", got)
 	}
 	if got := fees.Get(cointype.CoinType(2)); got != 300 {
-		t.Errorf("Expected SKA-2 fees 300, got %d", got)
+		t.Errorf("Expected SKA2 fees 300, got %d", got)
 	}
 
 	// Test Add to existing VAR
@@ -104,7 +104,7 @@ func TestFeesByTypeTypes(t *testing.T) {
 	fees.AddSKA(cointype.CoinType(3), big.NewInt(300))
 
 	types = fees.Types()
-	expectedCount := 3 // VAR, SKA-1, SKA-3
+	expectedCount := 3 // VAR, SKA1, SKA3
 	if len(types) != expectedCount {
 		t.Errorf("Expected %d types, got %d", expectedCount, len(types))
 	}
@@ -133,7 +133,7 @@ func TestFeesByTypeSKATypes(t *testing.T) {
 	fees.AddSKA(cointype.CoinType(2), big.NewInt(300))
 
 	types := fees.SKATypes()
-	expectedCount := 2 // SKA-1, SKA-2 (not VAR)
+	expectedCount := 2 // SKA1, SKA2 (not VAR)
 	if len(types) != expectedCount {
 		t.Errorf("Expected %d SKA types, got %d", expectedCount, len(types))
 	}
@@ -156,10 +156,10 @@ func TestFeesByTypeMerge(t *testing.T) {
 		t.Errorf("Expected merged VAR fees 1200, got %d", got)
 	}
 	if got := fees1.Get(cointype.CoinType(1)); got != 500 {
-		t.Errorf("Expected SKA-1 fees unchanged at 500, got %d", got)
+		t.Errorf("Expected SKA1 fees unchanged at 500, got %d", got)
 	}
 	if got := fees1.GetSKA(cointype.CoinType(2)); got == nil || got.Cmp(big.NewInt(300)) != 0 {
-		t.Errorf("Expected new SKA-2 fees 300, got %v", got)
+		t.Errorf("Expected new SKA2 fees 300, got %v", got)
 	}
 
 	// Original fees2 should be unchanged
@@ -255,7 +255,7 @@ func TestGetPrimaryCoinType(t *testing.T) {
 			expected: cointype.CoinType(2),
 		},
 		{
-			name: "SKA-3 transaction",
+			name: "SKA3 transaction",
 			outputs: []*TxOut{
 				{Value: 1000, CoinType: cointype.CoinType(3)},
 			},
