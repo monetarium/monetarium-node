@@ -572,3 +572,101 @@ func TestInitializeActiveSKACoinsFromConfig(t *testing.T) {
 
 	t.Logf("Successfully verified %d active SKA coins are initialized from config", len(expectedActiveSKACoins))
 }
+
+// TestGetFeeStats_CapsAtMaxFeeRate verifies that GetFeeStats never returns a
+// percentile (Fast/Normal/Slow) above MaxFeeRate. A percentile of observed
+// network fees can climb above the node's max-fee policy when many recent txs
+// pay high per-kB rates; returning that uncapped value to wallets causes
+// deterministic self-rejection by ValidateTransactionFees.
+func TestGetFeeStats_CapsAtMaxFeeRate(t *testing.T) {
+	t.Run("VAR", func(t *testing.T) {
+		params := chaincfg.SimNetParams()
+		defaultMinRelayFee := dcrutil.Amount(1e4) // 10000 atoms/KB → MaxFeeRate = 1,000,000
+		calc := NewCoinTypeFeeCalculator(params, defaultMinRelayFee)
+
+		// Inject 30 observations at fee rate 1,200,000 atoms/KB — 20% above
+		// the VAR MaxFeeRate of 1,000,000. Use fee=1,200,000 with size=1000
+		// so RecordTransactionFeeBig computes feeRate = 1,200,000 * 1000 / 1000.
+		highFeeRate := int64(1_200_000)
+		for i := 0; i < 30; i++ {
+			calc.RecordTransactionFee(cointype.CoinTypeVAR, highFeeRate, 1000, true)
+		}
+
+		stats, err := calc.GetFeeStats(cointype.CoinTypeVAR)
+		if err != nil {
+			t.Fatalf("GetFeeStats(VAR): %v", err)
+		}
+
+		assertCappedBelowOrEqMax := func(name string, fee *big.Int) {
+			if fee == nil {
+				t.Errorf("VAR %s is nil", name)
+				return
+			}
+			if stats.MaxFeeRate == nil {
+				t.Fatal("VAR MaxFeeRate is nil — test setup wrong")
+			}
+			if fee.Cmp(stats.MaxFeeRate) > 0 {
+				t.Errorf("VAR %s = %s exceeds MaxFeeRate = %s",
+					name, fee.String(), stats.MaxFeeRate.String())
+			}
+		}
+		assertCappedBelowOrEqMax("FastFee", stats.FastFee)
+		assertCappedBelowOrEqMax("NormalFee", stats.NormalFee)
+		assertCappedBelowOrEqMax("SlowFee", stats.SlowFee)
+	})
+
+	t.Run("SKA", func(t *testing.T) {
+		params := chaincfg.SimNetParams()
+		defaultMinRelayFee := dcrutil.Amount(1e4)
+		calc := NewCoinTypeFeeCalculator(params, defaultMinRelayFee)
+
+		// Find an active SKA coin to test against.
+		var skaCoin cointype.CoinType
+		var found bool
+		for ct, cfg := range params.SKACoins {
+			if cfg.Active {
+				skaCoin = ct
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Skip("no active SKA coin in simnet params; cap-at-SKAMaxFeeRate path not exercised")
+		}
+
+		// Read the configured SKAMaxFeeRate so we can blow past it.
+		preStats, err := calc.GetFeeStats(skaCoin)
+		if err != nil {
+			t.Fatalf("GetFeeStats(SKA pre): %v", err)
+		}
+		if preStats.MaxFeeRate == nil || preStats.MaxFeeRate.Sign() == 0 {
+			t.Fatalf("SKA coin %d has no MaxFeeRate configured", skaCoin)
+		}
+
+		// Inject observations at 2x the SKA max — guaranteed to exceed any
+		// percentile cutoff.
+		highFeeRate := new(big.Int).Mul(preStats.MaxFeeRate, big.NewInt(2))
+		for i := 0; i < 30; i++ {
+			calc.RecordTransactionFeeBig(skaCoin, highFeeRate, 1000, true)
+		}
+
+		stats, err := calc.GetFeeStats(skaCoin)
+		if err != nil {
+			t.Fatalf("GetFeeStats(SKA): %v", err)
+		}
+
+		assertCappedBelowOrEqMax := func(name string, fee *big.Int) {
+			if fee == nil {
+				t.Errorf("SKA %s is nil", name)
+				return
+			}
+			if fee.Cmp(stats.MaxFeeRate) > 0 {
+				t.Errorf("SKA %s = %s exceeds MaxFeeRate = %s",
+					name, fee.String(), stats.MaxFeeRate.String())
+			}
+		}
+		assertCappedBelowOrEqMax("FastFee", stats.FastFee)
+		assertCappedBelowOrEqMax("NormalFee", stats.NormalFee)
+		assertCappedBelowOrEqMax("SlowFee", stats.SlowFee)
+	})
+}

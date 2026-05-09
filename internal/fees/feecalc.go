@@ -449,6 +449,16 @@ func (calc *CoinTypeFeeCalculator) GetFeeStats(coinType cointype.CoinType) (*Coi
 	// Calculate percentile fees from recent transactions using coin-type-specific min fee
 	percentileFees := calc.calculatePercentileFees(stats.RecentTxFees, minRelayFee)
 
+	// Cap each percentile at maxFeeRate. Without this, a percentile of recent
+	// observed fees can exceed the same node's max-fee policy — callers paying
+	// the recommended rate would be self-rejected by ValidateTransactionFees.
+	capAtMax := func(fee *big.Int) *big.Int {
+		if fee != nil && maxFeeRate != nil && maxFeeRate.Sign() > 0 && fee.Cmp(maxFeeRate) > 0 {
+			return new(big.Int).Set(maxFeeRate)
+		}
+		return fee
+	}
+
 	return &CoinTypeFeeStats{
 		CoinType:             coinType,
 		MinRelayFee:          minRelayFee,
@@ -457,9 +467,9 @@ func (calc *CoinTypeFeeCalculator) GetFeeStats(coinType cointype.CoinType) (*Coi
 		PendingTxCount:       stats.PendingTxCount,
 		PendingTxSize:        stats.PendingTxSize,
 		BlockSpaceUsed:       stats.BlockSpaceUsed,
-		FastFee:              percentileFees[0], // 90th percentile
-		NormalFee:            percentileFees[1], // 50th percentile
-		SlowFee:              percentileFees[2], // 10th percentile
+		FastFee:              capAtMax(percentileFees[0]), // 90th percentile
+		NormalFee:            capAtMax(percentileFees[1]), // 50th percentile
+		SlowFee:              capAtMax(percentileFees[2]), // 10th percentile
 		LastUpdated:          feeRate.LastUpdated,
 	}, nil
 }

@@ -13,7 +13,7 @@
         "",
         0,
         1,
-        "66951eea08e08888ad33f128e2b562e56c59be2e6b9ad71231e3cea63468cf29",
+        "24a2a1606d7a8ed9e4834778ec39595a7e76c83205253d108804bfe65b6a526e",
         "OK",
         "block 2 coinbase, SigHashAll"
     ],
@@ -40,7 +40,7 @@
         "ba76a9140f91dcf59d7a03649112ba0a2a3a3beca66a473888ac",
         1,
         1,
-        "fa82c089367438879299258f26b4cfd8cedee3ebbb3f9c4a3e14aad530613899",
+        "dc9575270527499284920dade1e912485de273c87076475dfba3fc61d808ffff",
         "OK",
         "block 4096 vote, SigHashAll"
     ],

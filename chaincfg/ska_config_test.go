@@ -85,7 +85,7 @@ func TestParamsIsSKACoinTypeActive(t *testing.T) {
 		name     string
 	}{
 		{1, true, "SKA-1 should be active"},
-		{2, false, "SKA-2 should be inactive"},
+		{2, false, "SKA-2 should not be active (not configured on mainnet)"},
 		{99, false, "Non-existent coin type should be inactive"},
 		{0, false, "VAR coin type should not be considered SKA"},
 	}
@@ -140,12 +140,12 @@ func TestParamsGetAllSKATypes(t *testing.T) {
 
 	allTypes := params.GetAllSKATypes()
 
-	// Should have at least SKA-1 and SKA-2 configured
-	if len(allTypes) < 2 {
-		t.Fatalf("Expected at least 2 configured SKA types, got %d", len(allTypes))
+	// Mainnet currently configures SKA-1 only; SKA-2 is intentionally not
+	// configured until a real key ceremony produces a unique EmissionKey.
+	if len(allTypes) < 1 {
+		t.Fatalf("Expected at least 1 configured SKA type, got %d", len(allTypes))
 	}
 
-	// Check that both SKA-1 and SKA-2 are in the list
 	foundSKA1 := false
 	foundSKA2 := false
 	for _, coinType := range allTypes {
@@ -159,8 +159,8 @@ func TestParamsGetAllSKATypes(t *testing.T) {
 	if !foundSKA1 {
 		t.Error("Expected SKA-1 to be in all types list")
 	}
-	if !foundSKA2 {
-		t.Error("Expected SKA-2 to be in all types list")
+	if foundSKA2 {
+		t.Error("Expected SKA-2 to NOT be in all types list on mainnet")
 	}
 }
 
@@ -194,30 +194,9 @@ func TestMainNetParamsSKAConfigs(t *testing.T) {
 		t.Error("SKA-1: Expected to be active")
 	}
 
-	// Test SKA-2 configuration
-	ska2Config := params.GetSKACoinConfig(2)
-	if ska2Config == nil {
-		t.Fatal("Expected SKA-2 to be configured")
-	}
-	if ska2Config.CoinType != 2 {
-		t.Errorf("SKA-2: Expected CoinType 2, got %d", ska2Config.CoinType)
-	}
-	if ska2Config.Name != "Skarb-2" {
-		t.Errorf("SKA-2: Expected name 'Skarb-2', got %s", ska2Config.Name)
-	}
-	if ska2Config.Symbol != "SKA-2" {
-		t.Errorf("SKA-2: Expected symbol 'SKA-2', got %s", ska2Config.Symbol)
-	}
-	// SKA-2 mainnet: 5 million coins * 1e18 atoms/coin
-	expectedSKA2MaxSupply, _ := new(big.Int).SetString("5000000000000000000000000", 10)
-	if ska2Config.MaxSupply == nil || ska2Config.MaxSupply.Cmp(expectedSKA2MaxSupply) != 0 {
-		t.Errorf("SKA-2: Expected MaxSupply %s, got %v", expectedSKA2MaxSupply.String(), ska2Config.MaxSupply)
-	}
-	if ska2Config.EmissionHeight != 150000 {
-		t.Errorf("SKA-2: Expected EmissionHeight 150000, got %d", ska2Config.EmissionHeight)
-	}
-	if ska2Config.Active {
-		t.Error("SKA-2: Expected to be inactive (proof of concept)")
+	// SKA-2 is intentionally not configured on mainnet (see mainnetparams.go).
+	if ska2Config := params.GetSKACoinConfig(2); ska2Config != nil {
+		t.Errorf("SKA-2: Expected to be unconfigured on mainnet, got %+v", ska2Config)
 	}
 
 	// Test InitialSKATypes

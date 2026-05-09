@@ -511,13 +511,13 @@ func MainNetParams() *Params {
 		PrivateKeyID:         [2]byte{0x22, 0xdc}, // starts with Pm
 
 		// BIP32 hierarchical deterministic extended key magics
-		HDPrivateKeyID: [4]byte{0x02, 0xfd, 0xa4, 0xe8}, // starts with dprv
-		HDPublicKeyID:  [4]byte{0x02, 0xfd, 0xa9, 0x26}, // starts with dpub
+		HDPrivateKeyID: [4]byte{0x03, 0xa3, 0xf9, 0x88}, // starts with mprv
+		HDPublicKeyID:  [4]byte{0x03, 0xa3, 0xfd, 0xc2}, // starts with mpub
 
 		// BIP44 coin type used in the hierarchical deterministic path for
 		// address generation.
-		SLIP0044CoinType: 42, // SLIP0044, Decred
-		LegacyCoinType:   20, // for backwards compatibility
+		SLIP0044CoinType: 9508, // SLIP0044, Monetarium (https://github.com/satoshilabs/slips/pull/2013)
+		LegacyCoinType:   42,   // previously SLIP0044, retained so existing wallets can migrate to 9508
 
 		// Decred PoS parameters
 		MinimumStakeDiff:        2 * 1e8, // 2 Coin
@@ -598,29 +598,11 @@ func MainNetParams() *Params {
 				// Production deployment MUST generate secure keys with proper key ceremony
 				EmissionKey: mustParseHexPubKey("03f45735292ccc672ddf51869e69c67520f2213c73b924e8b2ff0c9f1877b99a8f"),
 			},
-			2: {
-				CoinType:         2,
-				Name:             "Skarb-2",
-				Symbol:           "SKA-2",
-				MaxSupply:        mustParseBigInt("5000000000000000000000000"), // 5 million * 1e18 atoms
-				AtomsPerCoin:     mustParseBigInt("1000000000000000000"),       // 1e18
-				EmissionHeight:   150000,                                       // Future emission height
-				EmissionWindow:   4320,                                         // 30-day emission window (~144 blocks/day * 30)
-				Active:           false,                                        // Inactive until governance vote
-				Description:      "Secondary SKA coin type for proof of concept testing",
-				MinRelayTxFee:    mustParseBigInt("4000000000000000000"), // 4 SKA per KB (4e18 atoms/KB)
-				MaxFeeMultiplier: 2500,                                   // Max fee is 2500x min fee
-				// Governance-approved emission distribution (TO BE REPLACED WITH REAL ADDRESSES)
-				EmissionAddresses: []string{
-					"MsRKhYVjnqebpbVhFzSVoa9wJzMBmhLsqLL", // Full amount to treasury
-				},
-				EmissionAmounts: bigIntSlice(
-					"5000000000000000000000000", // 5 million * 1e18 atoms to treasury
-				),
-				// SECURITY NOTE: This is a placeholder key for development ONLY
-				// Production deployment MUST generate secure keys with proper key ceremony
-				EmissionKey: mustParseHexPubKey("03f45735292ccc672ddf51869e69c67520f2213c73b924e8b2ff0c9f1877b99a8f"),
-			},
+			// SKA-2 is intentionally not configured on mainnet. It will be added
+			// back only after a real key ceremony produces an EmissionKey that
+			// is independent of SKA-1's. Until then, registering it here would
+			// share SKA-1's historical EmissionKey and let any party who
+			// observed that key mint SKA-2 the moment it activates.
 		},
 
 		// Initial SKA types to activate at network genesis

@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"math/big"
 
 	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 	"github.com/monetarium/monetarium-node/wire"
@@ -162,9 +163,28 @@ func putUint64LE(buf []byte, val uint64) int {
 	return 8
 }
 
+// skaValueSighashBytes returns the big-endian byte representation of the given
+// SKA atom amount as it should appear in the signature hash prefix.  Negative
+// or nil values produce a zero-length result so the SigHashSingle "value=-1"
+// substitution and VAR-only inputs/outputs both encode as a single 0x00
+// length byte with no following bytes.
+func skaValueSighashBytes(v *big.Int) []byte {
+	if v == nil || v.Sign() <= 0 {
+		return nil
+	}
+	return v.Bytes()
+}
+
 // sigHashPrefixSerializeSize returns the number of bytes the passed parameters
 // would take when encoded with the format used by the prefix hash portion of
 // the overall signature hash.
+//
+// Monetarium extension: the prefix commits to per-input SKAValueIn and
+// per-output CoinType + SKAValue so that an offline signer can detect a
+// falsified SKA atom amount before signing.  SKA byte payloads are
+// length-prefixed with a single byte; both fields are appended after the
+// existing per-input/per-output fields so the wire layout is a strict
+// superset of the upstream Decred encoding.
 func sigHashPrefixSerializeSize(hashType SigHashType, txIns []*wire.TxIn, txOuts []*wire.TxOut, signIdx int) int {
 	// 1) 4 bytes version/serialization type
 	// 2) number of inputs varint
@@ -173,27 +193,36 @@ func sigHashPrefixSerializeSize(hashType SigHashType, txIns []*wire.TxIn, txOuts
 	//    b) 4 bytes prevout index
 	//    c) 1 byte prevout tree
 	//    d) 4 bytes sequence
+	//    e) 1 byte SKAValueIn length + N bytes SKAValueIn (Monetarium)
 	// 4) number of outputs varint
 	// 5) per output:
 	//    a) 8 bytes amount
 	//    b) 2 bytes script version
 	//    c) pkscript len varint (1 byte if not SigHashSingle output)
 	//    d) N bytes pkscript (0 bytes if not SigHashSingle output)
+	//    e) 1 byte CoinType (Monetarium)
+	//    f) 1 byte SKAValue length + N bytes SKAValue (Monetarium)
 	// 6) 4 bytes lock time
 	// 7) 4 bytes expiry
 	numTxIns := len(txIns)
 	numTxOuts := len(txOuts)
 	size := 4 + varIntSerializeSize(uint64(numTxIns)) +
-		numTxIns*(chainhash.HashSize+4+1+4) +
+		numTxIns*(chainhash.HashSize+4+1+4+1) +
 		varIntSerializeSize(uint64(numTxOuts)) +
-		numTxOuts*(8+2) + 4 + 4
+		numTxOuts*(8+2+1+1) + 4 + 4
+	for _, txIn := range txIns {
+		size += len(skaValueSighashBytes(txIn.SKAValueIn))
+	}
 	for txOutIdx, txOut := range txOuts {
 		pkScript := txOut.PkScript
+		skaBytes := skaValueSighashBytes(txOut.SKAValue)
 		if hashType&sigHashMask == SigHashSingle && txOutIdx != signIdx {
 			pkScript = nil
+			skaBytes = nil
 		}
 		size += varIntSerializeSize(uint64(len(pkScript)))
 		size += len(pkScript)
+		size += len(skaBytes)
 	}
 	return size
 }
@@ -284,12 +313,17 @@ func calcSignatureHash(signScript []byte, hashType SigHashType, tx *wire.MsgTx, 
 	//    b) prevout index (as little-endian uint32)
 	//    c) prevout tree (as single byte)
 	//    d) sequence (as little-endian uint32)
+	//    e) SKAValueIn length (as single byte; 0 for VAR inputs) [Monetarium]
+	//    f) SKAValueIn bytes (big-endian; 0 bytes when length is 0) [Monetarium]
 	// 4) number of outputs (as varint)
 	// 5) per output:
 	//    a) output amount (as little-endian uint64)
 	//    b) pkscript version (as little-endian uint16)
 	//    c) pkscript length (as varint)
 	//    d) pkscript (as unmodified bytes)
+	//    e) coin type (as single byte) [Monetarium]
+	//    f) SKAValue length (as single byte; 0 for VAR outputs) [Monetarium]
+	//    g) SKAValue bytes (big-endian; 0 bytes when length is 0) [Monetarium]
 	// 6) transaction lock time (as little-endian uint32)
 	// 7) transaction expiry (as little-endian uint32)
 	//
@@ -355,6 +389,14 @@ func calcSignatureHash(signScript []byte, hashType SigHashType, tx *wire.MsgTx, 
 				sequence = 0
 			}
 			offset += putUint32LE(prefixBuf[offset:], sequence)
+
+			// Monetarium: commit to SKAValueIn so an offline signer
+			// can detect a falsified SKA input amount.  Encoded as a
+			// 1-byte length prefix followed by the big-endian magnitude
+			// bytes; absent values produce a single 0x00 length byte.
+			skaValueIn := skaValueSighashBytes(txIn.SKAValueIn)
+			offset += putByte(prefixBuf[offset:], byte(len(skaValueIn)))
+			offset += copy(prefixBuf[offset:], skaValueIn)
 		}
 
 		// Commit to the relevant transaction outputs.
@@ -367,14 +409,27 @@ func calcSignatureHash(signScript []byte, hashType SigHashType, tx *wire.MsgTx, 
 			// corresponding to the input being signed instead.
 			value := txOut.Value
 			pkScript := txOut.PkScript
+			coinType := txOut.CoinType
+			skaValue := skaValueSighashBytes(txOut.SKAValue)
 			if hashType&sigHashMask == SigHashSingle && txOutIdx != idx {
 				value = -1
 				pkScript = nil
+				coinType = 0
+				skaValue = nil
 			}
 			offset += putUint64LE(prefixBuf[offset:], uint64(value))
 			offset += putUint16LE(prefixBuf[offset:], txOut.Version)
 			offset += putVarInt(prefixBuf[offset:], uint64(len(pkScript)))
 			offset += copy(prefixBuf[offset:], pkScript)
+
+			// Monetarium: commit to CoinType + SKAValue so the signer
+			// can verify the displayed coin and atom amount match the
+			// digest.  CoinType is a single byte; SKAValue uses the same
+			// 1-byte length prefix encoding as the wire format
+			// (0x00 + no following bytes for VAR or zero-value SKA).
+			offset += putByte(prefixBuf[offset:], byte(coinType))
+			offset += putByte(prefixBuf[offset:], byte(len(skaValue)))
+			offset += copy(prefixBuf[offset:], skaValue)
 		}
 
 		// Commit to the lock time and expiry.

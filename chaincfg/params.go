@@ -300,8 +300,24 @@ type SKACoinConfig struct {
 	MinRelayTxFee *big.Int
 
 	// MaxFeeMultiplier is the multiplier applied to MinRelayTxFee to determine
-	// the maximum allowed fee for transactions of this coin type. Default is 2500.
+	// the maximum allowed fee for transactions of this coin type. Default is
+	// DefaultSKAMaxFeeMultiplier when zero or negative.
 	MaxFeeMultiplier int64
+}
+
+// DefaultSKAMaxFeeMultiplier is the multiplier applied to MinRelayTxFee to
+// determine the high-fee threshold when SKACoinConfig.MaxFeeMultiplier is
+// unset or non-positive. Single source of truth for the wallet's high-fee
+// gate (txrules.PaysHighFeesSKA) and the sweepaccount CLI's upper bound.
+const DefaultSKAMaxFeeMultiplier = 2500
+
+// EffectiveMaxFeeMultiplier returns MaxFeeMultiplier when configured, else
+// the package default. Use this everywhere the high-fee multiplier is read.
+func (c *SKACoinConfig) EffectiveMaxFeeMultiplier() int64 {
+	if c != nil && c.MaxFeeMultiplier > 0 {
+		return c.MaxFeeMultiplier
+	}
+	return DefaultSKAMaxFeeMultiplier
 }
 
 // IsActive returns true if this SKA coin type is active.

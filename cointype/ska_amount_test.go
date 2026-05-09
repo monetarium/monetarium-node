@@ -315,7 +315,10 @@ func TestSKAAmountBytes(t *testing.T) {
 	t.Run("SignedBytes round-trip positive", func(t *testing.T) {
 		original := SKAAmountFromInt64(123456789)
 		bytes := original.SignedBytes()
-		restored := SKAAmountFromSignedBytes(bytes)
+		restored, err := SKAAmountFromSignedBytes(bytes)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if original.Cmp(restored) != 0 {
 			t.Errorf("round-trip failed: got %s, want %s", restored.String(), original.String())
 		}
@@ -324,7 +327,10 @@ func TestSKAAmountBytes(t *testing.T) {
 	t.Run("SignedBytes round-trip negative", func(t *testing.T) {
 		original := SKAAmountFromInt64(-123456789)
 		bytes := original.SignedBytes()
-		restored := SKAAmountFromSignedBytes(bytes)
+		restored, err := SKAAmountFromSignedBytes(bytes)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if original.Cmp(restored) != 0 {
 			t.Errorf("round-trip failed: got %s, want %s", restored.String(), original.String())
 		}
@@ -336,9 +342,49 @@ func TestSKAAmountBytes(t *testing.T) {
 		if len(bytes) != 1 || bytes[0] != 0 {
 			t.Errorf("zero should serialize to [0], got %v", bytes)
 		}
-		restored := SKAAmountFromSignedBytes(bytes)
+		restored, err := SKAAmountFromSignedBytes(bytes)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if !restored.IsZero() {
 			t.Error("restored zero should be zero")
+		}
+	})
+
+	t.Run("SignedBytes invalid sign byte 0x02 multi-byte", func(t *testing.T) {
+		// Corrupt sign byte must surface as an error rather than silently
+		// returning a positive amount.
+		corrupt := []byte{0x02, 0x01, 0x00}
+		got, err := SKAAmountFromSignedBytes(corrupt)
+		if err == nil {
+			t.Fatalf("expected error on sign byte 0x02, got %s", got.String())
+		}
+	})
+
+	t.Run("SignedBytes invalid sign byte 0xFF multi-byte", func(t *testing.T) {
+		corrupt := []byte{0xFF, 0xDE, 0xAD, 0xBE, 0xEF}
+		got, err := SKAAmountFromSignedBytes(corrupt)
+		if err == nil {
+			t.Fatalf("expected error on sign byte 0xFF, got %s", got.String())
+		}
+	})
+
+	t.Run("SignedBytes invalid sign byte 0x02 single-byte", func(t *testing.T) {
+		// Single-byte input with a non-zero sign is also corruption.
+		corrupt := []byte{0x02}
+		got, err := SKAAmountFromSignedBytes(corrupt)
+		if err == nil {
+			t.Fatalf("expected error on single-byte sign 0x02, got %s", got.String())
+		}
+	})
+
+	t.Run("SignedBytes empty stays zero with no error", func(t *testing.T) {
+		got, err := SKAAmountFromSignedBytes(nil)
+		if err != nil {
+			t.Fatalf("unexpected error on empty bytes: %v", err)
+		}
+		if !got.IsZero() {
+			t.Errorf("expected zero, got %s", got.String())
 		}
 	})
 }
@@ -541,6 +587,77 @@ func BenchmarkSKAAmountAdd(b *testing.B) {
 	}
 }
 
+// TestDecimalStringToAtoms verifies the public decimal-string parser used by
+// CLI tools and RPC handlers. Round-trips against AtomsToDecimalString and
+// pins the precision-preservation contract for SKA (atoms > MaxInt64).
+func TestDecimalStringToAtoms(t *testing.T) {
+	atomsPerSKA := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+	atomsPerVAR := big.NewInt(1e8)
+
+	tests := []struct {
+		name         string
+		input        string
+		atomsPerCoin *big.Int
+		want         string
+		wantErr      bool
+	}{
+		{"VAR whole", "1", atomsPerVAR, "100000000", false},
+		{"VAR fraction", "1.5", atomsPerVAR, "150000000", false},
+		{"VAR full precision", "0.12345678", atomsPerVAR, "12345678", false},
+		{"VAR over-precise rejected", "0.123456789", atomsPerVAR, "", true},
+		{"SKA whole", "1", atomsPerSKA, "1000000000000000000", false},
+		{"SKA fraction", "1.5", atomsPerSKA, "1500000000000000000", false},
+		{"SKA huge (above int64)", "50000000000", atomsPerSKA, "50000000000000000000000000000", false},
+		{"SKA fractional huge", "12345678901234.123456", atomsPerSKA, "12345678901234123456000000000000", false},
+		{"empty rejected", "", atomsPerSKA, "", true},
+		{"negative rejected", "-1", atomsPerSKA, "", true},
+		{"trailing space tolerated", " 2.5 ", atomsPerVAR, "250000000", false},
+		{"too many dots rejected", "1.2.3", atomsPerVAR, "", true},
+		{"non-numeric rejected", "abc", atomsPerVAR, "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := DecimalStringToAtoms(tt.input, tt.atomsPerCoin)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("want error, got %s", got.String())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.String() != tt.want {
+				t.Errorf("got %s, want %s", got.String(), tt.want)
+			}
+		})
+	}
+}
+
+// TestDecimalStringToAtomsRoundTrip verifies the parser is the inverse of
+// AtomsToDecimalString for both VAR and SKA scales.
+func TestDecimalStringToAtomsRoundTrip(t *testing.T) {
+	atomsPerSKA := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+	cases := []*big.Int{
+		big.NewInt(0),
+		big.NewInt(1),
+		big.NewInt(1500000000000000000),
+		mustParseBigInt("99999999999999999999999999999"),
+	}
+	for _, atoms := range cases {
+		s := AtomsToDecimalString(atoms, atomsPerSKA)
+		back, err := DecimalStringToAtoms(s, atomsPerSKA)
+		if err != nil {
+			t.Errorf("round-trip parse error for %s: %v", atoms.String(), err)
+			continue
+		}
+		if back.Cmp(atoms) != 0 {
+			t.Errorf("round-trip mismatch: got %s, want %s (via string %q)", back.String(), atoms.String(), s)
+		}
+	}
+}
+
 // BenchmarkSKAAmountFromBytes benchmarks deserialization.
 func BenchmarkSKAAmountFromBytes(b *testing.B) {
 	// Use a large amount similar to 900 trillion SKA
@@ -550,4 +667,50 @@ func BenchmarkSKAAmountFromBytes(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = SKAAmountFromBytes(bytes)
 	}
+}
+
+// TestSKAAmountBigIntReturnsFreshCopy pins the contract that BigInt() returns
+// a fresh *big.Int that does not alias the receiver's internal value. Multiple
+// call sites in the wallet rely on this (e.g. wire-tx SKAValueIn assignments
+// in monetarium-wallet/internal/rpc/jsonrpc/methods.go and wallet/multisig.go);
+// if BigInt()'s contract is ever weakened to alias the inner pointer, those
+// sites would silently corrupt wire-level transaction data.
+func TestSKAAmountBigIntReturnsFreshCopy(t *testing.T) {
+	t.Run("non-zero value", func(t *testing.T) {
+		original := mustParseBigInt("12345678901234567890")
+		amount := NewSKAAmount(original)
+
+		got := amount.BigInt()
+		if got.Cmp(original) != 0 {
+			t.Fatalf("initial mismatch: got %s, want %s", got, original)
+		}
+
+		// Mutate the returned value.
+		got.SetInt64(0)
+
+		// Receiver must still hold the original value.
+		again := amount.BigInt()
+		if again.Cmp(original) != 0 {
+			t.Fatalf("BigInt() aliases inner value: after mutation got %s, want %s",
+				again, original)
+		}
+	})
+
+	t.Run("zero value", func(t *testing.T) {
+		var amount SKAAmount // zero value (internal value == nil)
+
+		got := amount.BigInt()
+		if got.Sign() != 0 {
+			t.Fatalf("zero amount should yield zero big.Int, got %s", got)
+		}
+
+		// Mutate the returned value; receiver must still be zero.
+		got.SetInt64(42)
+
+		again := amount.BigInt()
+		if again.Sign() != 0 {
+			t.Fatalf("BigInt() aliases inner value for zero amount: got %s after mutation",
+				again)
+		}
+	})
 }
