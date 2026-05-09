@@ -16,6 +16,26 @@ import (
 	"github.com/monetarium/monetarium-node/dcrutil"
 )
 
+// feeSampleWindow bounds how far back recorded fee samples influence
+// the percentile estimator. Strict count-based FIFO without time decay
+// allowed stale samples (from prior congestion or a misconfigured wallet)
+// to dominate the median for weeks on sparse chains; bounding by wall time
+// guarantees today's traffic dominates tomorrow regardless of activity rate.
+const feeSampleWindow = 24 * time.Hour
+
+// feeSampleCap is the hard memory ceiling on recorded samples per coin type.
+// On a busy chain the time window normally bounds the slice; the cap protects
+// against pathological growth (e.g. spam) without affecting normal operation.
+const feeSampleCap = 1000
+
+// feeSample is a single observed transaction fee with the time it was recorded.
+// Stored per-coin-type in UtilizationStats.RecentTxFees so calculatePercentileFees
+// can drop samples older than feeSampleWindow.
+type feeSample struct {
+	t    time.Time
+	rate *big.Int
+}
+
 // CoinTypeFeeRate represents fee rate configuration for a specific coin type
 type CoinTypeFeeRate struct {
 	// MinRelayFee is the minimum fee rate for relay (atoms per KB)
@@ -75,9 +95,12 @@ type UtilizationStats struct {
 	// AvgConfirmationTime is the average time to confirmation
 	AvgConfirmationTime time.Duration
 
-	// RecentTxFees tracks recent transaction fee rates (atoms/KB) for this coin type.
-	// Uses *big.Int to support both VAR (int64 range) and SKA (bigint).
-	RecentTxFees []*big.Int
+	// RecentTxFees tracks recent transaction fee rates (atoms/KB) for this coin
+	// type, each tagged with the time the sample was observed. Bounded by
+	// feeSampleWindow (time) and feeSampleCap (count); samples older than the
+	// window are dropped lazily on every Record call. Uses big.Int rates to
+	// support both VAR (int64 range) and SKA (bigint).
+	RecentTxFees []feeSample
 
 	// LastBlockIncluded tracks when transactions were last included in blocks
 	LastBlockIncluded time.Time
@@ -114,7 +137,7 @@ func (calc *CoinTypeFeeCalculator) initializeDefaultFeeRates() {
 
 	// Initialize VAR utilization stats
 	calc.utilizationStats[cointype.CoinTypeVAR] = &UtilizationStats{
-		RecentTxFees:      make([]*big.Int, 0, 100),
+		RecentTxFees:      make([]feeSample, 0, 64),
 		LastBlockIncluded: now,
 	}
 
@@ -123,7 +146,7 @@ func (calc *CoinTypeFeeCalculator) initializeDefaultFeeRates() {
 		if config.Active {
 			calc.feeRates[coinType] = calc.getDefaultSKAFeeRate(coinType, config)
 			calc.utilizationStats[coinType] = &UtilizationStats{
-				RecentTxFees:      make([]*big.Int, 0, 100),
+				RecentTxFees:      make([]feeSample, 0, 64),
 				LastBlockIncluded: now,
 			}
 		}
@@ -305,7 +328,12 @@ func (calc *CoinTypeFeeCalculator) calculateConfirmationMultiplier(targetConfirm
 	return multiplier
 }
 
-// UpdateUtilization updates network utilization stats for dynamic fee calculation
+// UpdateUtilization updates network utilization stats for dynamic fee calculation.
+// Called per-block from the mining/template path (see internal/mining), which is
+// also the right semantic moment to refresh LastBlockIncluded — recording sites
+// no longer set this field, since each accepted tx now records exactly once at
+// mempool acceptance and the confirmed=true distinction was driving an asymmetry
+// where high-hashrate nodes over-weighted their own wallet's traffic.
 func (calc *CoinTypeFeeCalculator) UpdateUtilization(coinType cointype.CoinType, pendingTxCount int,
 	pendingTxSize int64, blockSpaceUsed float64) {
 	calc.mu.Lock()
@@ -314,7 +342,7 @@ func (calc *CoinTypeFeeCalculator) UpdateUtilization(coinType cointype.CoinType,
 	stats, exists := calc.utilizationStats[coinType]
 	if !exists {
 		stats = &UtilizationStats{
-			RecentTxFees: make([]*big.Int, 0, 100),
+			RecentTxFees: make([]feeSample, 0, 64),
 		}
 		calc.utilizationStats[coinType] = stats
 	}
@@ -322,6 +350,7 @@ func (calc *CoinTypeFeeCalculator) UpdateUtilization(coinType cointype.CoinType,
 	stats.PendingTxCount = pendingTxCount
 	stats.PendingTxSize = pendingTxSize
 	stats.BlockSpaceUsed = blockSpaceUsed
+	stats.LastBlockIncluded = time.Now()
 
 	// Update dynamic fee multiplier based on utilization
 	calc.updateDynamicFeeMultiplier(coinType, stats)
@@ -384,6 +413,16 @@ func (calc *CoinTypeFeeCalculator) RecordTransactionFee(coinType cointype.CoinTy
 
 // RecordTransactionFeeBig records a transaction fee for fee estimation using big.Int.
 // This supports SKA transactions with fees that exceed int64.
+//
+// The recorded sample reflects the wallet's *paid* per-kB rate, not the raw
+// fee/size ratio: wallets pay in whole-kB units (fee = relayFee × ceil(size/1000)),
+// so a 300-byte tx at relayFee 10000 atoms/kB pays 10000 atoms but the naive
+// fee×1000/size formula would record 33333 atoms/kB and silently bias the
+// median upward. Recording fee/billedKb gives back the wallet's intent.
+//
+// The confirmed flag is retained for caller compatibility but no longer drives
+// LastBlockIncluded; that field is updated from UpdateUtilization which fires
+// per-block from mining.
 func (calc *CoinTypeFeeCalculator) RecordTransactionFeeBig(coinType cointype.CoinType, fee *big.Int, size int64, confirmed bool) {
 	calc.mu.Lock()
 	defer calc.mu.Unlock()
@@ -391,28 +430,44 @@ func (calc *CoinTypeFeeCalculator) RecordTransactionFeeBig(coinType cointype.Coi
 	stats, exists := calc.utilizationStats[coinType]
 	if !exists {
 		stats = &UtilizationStats{
-			RecentTxFees: make([]*big.Int, 0, 100),
+			RecentTxFees: make([]feeSample, 0, 64),
 		}
 		calc.utilizationStats[coinType] = stats
 	}
 
-	// Calculate fee rate (atoms per KB): feeRate = (fee * 1000) / size
 	if size <= 0 {
 		return // Invalid size, skip recording
 	}
-	feeRate := new(big.Int).Mul(fee, cointype.KilobyteInt)
-	feeRate.Div(feeRate, big.NewInt(size))
 
-	// Add to recent fees (keep last 100)
-	stats.RecentTxFees = append(stats.RecentTxFees, feeRate)
-	if len(stats.RecentTxFees) > 100 {
-		stats.RecentTxFees = stats.RecentTxFees[1:]
+	// billedKb is the number of whole kilobytes the wallet paid for; the recorded
+	// per-kB rate is fee/billedKb. For multi-kB txs this matches fee×1000/size to
+	// within rounding; for sub-kB txs it removes the upward inflation.
+	billedKb := (size + 999) / 1000
+	if billedKb < 1 {
+		billedKb = 1
+	}
+	feeRate := new(big.Int).Quo(fee, big.NewInt(billedKb))
+
+	now := time.Now()
+
+	// Drop samples older than the window (lazy GC at write time).
+	cutoff := now.Add(-feeSampleWindow)
+	dropTo := 0
+	for dropTo < len(stats.RecentTxFees) && stats.RecentTxFees[dropTo].t.Before(cutoff) {
+		dropTo++
+	}
+	if dropTo > 0 {
+		stats.RecentTxFees = stats.RecentTxFees[dropTo:]
 	}
 
-	// Update last block inclusion time if confirmed
-	if confirmed {
-		stats.LastBlockIncluded = time.Now()
+	stats.RecentTxFees = append(stats.RecentTxFees, feeSample{t: now, rate: feeRate})
+
+	// Hard memory cap: drop oldest if we somehow exceed feeSampleCap.
+	if len(stats.RecentTxFees) > feeSampleCap {
+		stats.RecentTxFees = stats.RecentTxFees[len(stats.RecentTxFees)-feeSampleCap:]
 	}
+
+	_ = confirmed // retained for API compatibility; LastBlockIncluded now sourced from UpdateUtilization
 }
 
 // GetFeeStats returns current fee statistics for a coin type.
@@ -494,8 +549,23 @@ type CoinTypeFeeStats struct {
 // The minRelayFee parameter should be the coin-type-specific minimum relay fee,
 // ensuring SKA coins use their own fee rate rather than VAR's default.
 // All values use *big.Int to support both VAR and SKA.
-func (calc *CoinTypeFeeCalculator) calculatePercentileFees(recentFees []*big.Int, minRelayFee *big.Int) [3]*big.Int {
-	if len(recentFees) == 0 {
+//
+// Samples older than feeSampleWindow are ignored, so old high-fee bursts
+// stop influencing the median once the window has passed regardless of
+// activity rate.
+func (calc *CoinTypeFeeCalculator) calculatePercentileFees(recentFees []feeSample, minRelayFee *big.Int) [3]*big.Int {
+	cutoff := time.Now().Add(-feeSampleWindow)
+	// Filter to in-window samples; copy rates so the sort doesn't disturb
+	// the slice held under utilizationStats.
+	sortedFees := make([]*big.Int, 0, len(recentFees))
+	for _, s := range recentFees {
+		if s.t.Before(cutoff) {
+			continue
+		}
+		sortedFees = append(sortedFees, new(big.Int).Set(s.rate))
+	}
+
+	if len(sortedFees) == 0 {
 		// Return default fees based on coin-type-specific minRelayFee
 		// All fees must be >= minRelayFee to be accepted by mempool
 		return [3]*big.Int{
@@ -503,12 +573,6 @@ func (calc *CoinTypeFeeCalculator) calculatePercentileFees(recentFees []*big.Int
 			new(big.Int).Set(minRelayFee),                // Normal: 1x min
 			new(big.Int).Set(minRelayFee),                // Slow: 1x min (can't go lower)
 		}
-	}
-
-	// Sort fees for percentile calculation
-	sortedFees := make([]*big.Int, len(recentFees))
-	for i, f := range recentFees {
-		sortedFees[i] = new(big.Int).Set(f)
 	}
 
 	// Simple insertion sort for small arrays (using big.Int comparison)

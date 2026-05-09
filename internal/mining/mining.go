@@ -2576,20 +2576,9 @@ nextPriorityQueueItem:
 			// Update block space allocation tracking
 			transactionTracker.AddTransaction(bundledTx)
 
-			// Record transaction fee for coin-type-specific fee estimation
-			// Skip feeless system transactions (votes and revocations) from fee statistics
-			if g.cfg.FeeCalculator != nil && bundledTxDesc.Type != stake.TxTypeSSGen && bundledTxDesc.Type != stake.TxTypeSSRtx {
-				bundledCoinType := blockalloc.GetTransactionCoinType(bundledTx)
-				bundledSize := int64(bundledTx.MsgTx().SerializeSize())
-				// Use SKAFee for SKA transactions
-				if bundledCoinType.IsSKA() && bundledTxDesc.SKAFee != nil {
-					g.cfg.FeeCalculator.RecordTransactionFeeBig(bundledCoinType,
-						bundledTxDesc.SKAFee, bundledSize, true)
-				} else {
-					g.cfg.FeeCalculator.RecordTransactionFee(bundledCoinType,
-						bundledTxDesc.Fee, bundledSize, true)
-				}
-			}
+			// Fee recording for this tx happened at mempool acceptance; recording
+			// again here would over-weight self-mined txs on high-hashrate nodes
+			// (the asymmetry that previously poisoned testnode1's median).
 
 			// Accumulate the SStxs in the block, because only a certain number
 			// are allowed.

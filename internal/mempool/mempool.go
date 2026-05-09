@@ -2780,46 +2780,6 @@ func (mp *TxPool) GetFeeCalculator() *fees.CoinTypeFeeCalculator {
 	return mp.feeCalculator
 }
 
-// ProcessConfirmedTransactions records confirmed transactions in the dual-coin fee calculator
-// This should be called during block processing before removing transactions from the mempool
-func (mp *TxPool) ProcessConfirmedTransactions(block *dcrutil.Block, isTreasuryEnabled bool) {
-	processConfirmedTxs := func(txns []*dcrutil.Tx) {
-		for _, tx := range txns {
-			mp.mtx.RLock()
-			if poolTxDesc, exists := mp.pool[*tx.Hash()]; exists {
-				// Skip feeless system transactions (votes and revocations) from fee statistics
-				if poolTxDesc.Type != stake.TxTypeSSGen && poolTxDesc.Type != stake.TxTypeSSRtx {
-					// Determine coin type from outputs (inputs and outputs always match)
-					primaryCoinType := mp.determinePrimaryCoinType(tx.MsgTx())
-					txSize := int64(tx.MsgTx().SerializeSize())
-					// Use SKAFee for SKA transactions
-					if primaryCoinType.IsSKA() && poolTxDesc.SKAFee != nil {
-						mp.feeCalculator.RecordTransactionFeeBig(primaryCoinType, poolTxDesc.SKAFee, txSize, true)
-					} else {
-						mp.feeCalculator.RecordTransactionFee(primaryCoinType, poolTxDesc.Fee, txSize, true)
-					}
-				}
-			}
-			mp.mtx.RUnlock()
-		}
-	}
-
-	// Process regular transactions (skip coinbase at index 0)
-	if len(block.Transactions()) > 1 {
-		processConfirmedTxs(block.Transactions()[1:])
-	}
-
-	// Process stake transactions
-	if isTreasuryEnabled {
-		// Skip treasurybase at index 0 if treasury is enabled
-		if len(block.STransactions()) > 1 {
-			processConfirmedTxs(block.STransactions()[1:])
-		}
-	} else {
-		processConfirmedTxs(block.STransactions())
-	}
-}
-
 // validateCoinTypeConsistency ensures that transactions don't mix coin types
 // (VAR inputs can only produce VAR outputs, SKA inputs can only produce SKA outputs)
 func (mp *TxPool) validateCoinTypeConsistency(tx *dcrutil.Tx, utxoView *blockchain.UtxoViewpoint) error {
