@@ -1,8 +1,8 @@
-github.com/monetarium/monetarium-node/chaincfg/chainhash v1.0.11/go.mod h1:cqnSD4BRqRNBWsMMUERlzpQWHJdF7TPYvmZUBnCXEYo=
-github.com/monetarium/monetarium-node/chaincfg/chainhash v1.2.0 h1:lpOjfcwcB+liedNGo1oF/5SmTVJxJWeR7iFtpSWM7+w=
-github.com/monetarium/monetarium-node/chaincfg/chainhash v1.2.0/go.mod h1:cqnSD4BRqRNBWsMMUERlzpQWHJdF7TPYvmZUBnCXEYo=
-github.com/monetarium/monetarium-node/crypto/blake256 v1.0.11/go.mod h1:+dUk+/kJYZCEfhySioeBRQD7l8yHVm3Q3g7Gd3lRjHk=
-github.com/monetarium/monetarium-node/crypto/blake256 v1.2.0 h1:Vhq/EOcpKq/Bi8s8W6X+RHg3roF+KP8fsAzMPURorcg=
-github.com/monetarium/monetarium-node/crypto/blake256 v1.2.0/go.mod h1:+dUk+/kJYZCEfhySioeBRQD7l8yHVm3Q3g7Gd3lRjHk=
-github.com/monetarium/monetarium-node/dcrjson v1.2.0 h1:RtYSoZA/+ueXiKVgG/CZWCMmlUnRKzXUjSJlHKtbn/g=
-github.com/monetarium/monetarium-node/dcrjson v1.2.0/go.mod h1:6cS7FAAiGxv6WPR1t4T20BuGQ0+7PfVADx+cXHDubWw=
+github.com/monetarium/monetarium-node/chaincfg/chainhash v1.3.3/go.mod h1:oF6e/AFlXRjvWxMWzW8EedXndr4mwssm+6s1HaMH9qE=
+github.com/monetarium/monetarium-node/chaincfg/chainhash v1.3.5 h1:azyhZx0J0xD1B0rVHkDDKZZ8INIr1q0VZkhFLprKzzM=
+github.com/monetarium/monetarium-node/chaincfg/chainhash v1.3.5/go.mod h1:oF6e/AFlXRjvWxMWzW8EedXndr4mwssm+6s1HaMH9qE=
+github.com/monetarium/monetarium-node/crypto/blake256 v1.3.3/go.mod h1:+dUk+/kJYZCEfhySioeBRQD7l8yHVm3Q3g7Gd3lRjHk=
+github.com/monetarium/monetarium-node/crypto/blake256 v1.3.5 h1:LEJLXshLWYKV+/8YLRq9xe9W23GIQyPPHu/njB6aiL4=
+github.com/monetarium/monetarium-node/crypto/blake256 v1.3.5/go.mod h1:+dUk+/kJYZCEfhySioeBRQD7l8yHVm3Q3g7Gd3lRjHk=
+github.com/monetarium/monetarium-node/dcrjson v1.3.5 h1:bM0VCcIL874QdgbBEjue514eJ/dfS/MJLnPbBXeAeQA=
+github.com/monetarium/monetarium-node/dcrjson v1.3.5/go.mod h1:PVLmeA6apyht+5sxEimzoZFIkENTLl/LihOEz9blNyg=
