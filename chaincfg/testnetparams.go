@@ -134,10 +134,16 @@ func TestNet3Params() *Params {
 		//
 		// The miner confirmation window is defined as:
 		//   target proof of work timespan / target proof of work spacing
-		RuleChangeActivationQuorum:     2520, // 10 % of RuleChangeActivationInterval * TicketsPerBlock
+		// Testnet shortens the rule-change cycle vs mainnet (mainnet uses
+		// RCAI=8064 ≈ 4 weeks at 5-min blocks). At testnet's 2-min block
+		// time, RCAI=2016 ≈ 67 h, so a full Defined→Started→LockedIn→Active
+		// agenda cycle takes ~3 RCAI ≈ 8.4 days. This keeps testnet vote
+		// rehearsals (e.g. SKA2 activation) tractable while still exercising
+		// the real threshold-state machine.
+		RuleChangeActivationQuorum:     1008, // 10 % of RuleChangeActivationInterval * TicketsPerBlock (2016 * 5 / 10)
 		RuleChangeActivationMultiplier: 3,    // 75%
 		RuleChangeActivationDivisor:    4,
-		RuleChangeActivationInterval:   5040, // 1 week
+		RuleChangeActivationInterval:   2016, // ~67 h at 2-min blocks (testnet-only; mainnet=8064)
 		Deployments: map[uint32][]ConsensusDeployment{
 			4: {{
 				Vote: Vote{
@@ -477,6 +483,42 @@ func TestNet3Params() *Params {
 				StartTime:  1682294400, // Apr 24th, 2023
 				ExpireTime: 1745452800, // Apr 24th, 2025
 			}},
+			// Version 11 carries the SKA2 activation agenda. Once it
+			// reaches ThresholdActive, ska_emission.go's gate
+			// (`hasVotePassed("activateska2", prevNode)`) opens and an
+			// emission tx for SKA2 becomes valid inside its emission
+			// window (testnet: blocks 30000–30999). Real stakeholder
+			// voting is required — no ForcedChoiceID — so this exercises
+			// the same vote path that mainnet will use when SKA2 is
+			// finally proposed there.
+			11: {{
+				Vote: Vote{
+					Id:          VoteIDActivateSKA2,
+					Description: "Activate SKA2 (Skarb-2) coin type for transactions",
+					Mask:        0x0006, // Bits 1 and 2
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain from voting",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep SKA2 inactive",
+						Bits:        0x0002, // Bit 1
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "activate SKA2 for use",
+						Bits:        0x0004, // Bit 2
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  1767225600, // Jan 1, 2026 UTC — agenda eligible from genesis on a fresh testnet relaunch
+				ExpireTime: 1798761600, // Jan 1, 2027 UTC — 1-year window for stakers to converge
+			}},
 		},
 
 		// Enforce current block version once majority of the network has
@@ -512,21 +554,26 @@ func TestNet3Params() *Params {
 		LegacyCoinType:   11, // for backwards compatibility
 
 		// Decred PoS parameters
-		MinimumStakeDiff:        2 * 1e8, // 2 Coin (same as mainnet)
-		TicketPoolSize:          1024,
-		TicketsPerBlock:         5,
-		TicketMaturity:          16,
-		TicketExpiry:            6144, // 6*TicketPoolSize
-		CoinbaseMaturity:        16,
-		SStxChangeMaturity:      1,
-		TicketPoolSizeWeight:    4,
-		StakeDiffAlpha:          1,
-		StakeDiffWindowSize:     144,
-		StakeDiffWindows:        20,
-		StakeVersionInterval:    144 * 2 * 7, // ~1 week
-		MaxFreshStakePerBlock:   20,          // 4*TicketsPerBlock
-		StakeEnabledHeight:      16 + 16,     // CoinbaseMaturity + TicketMaturity
-		StakeValidationHeight:   768,         // Arbitrary
+		MinimumStakeDiff:     2 * 1e8, // 2 Coin (same as mainnet)
+		TicketPoolSize:       1024,
+		TicketsPerBlock:      5,
+		TicketMaturity:       16,
+		TicketExpiry:         6144, // 6*TicketPoolSize
+		CoinbaseMaturity:     16,
+		SStxChangeMaturity:   1,
+		TicketPoolSizeWeight: 4,
+		StakeDiffAlpha:       1,
+		StakeDiffWindowSize:  144,
+		StakeDiffWindows:     20,
+		// Testnet shortens SVI vs mainnet so the chain's stake version can
+		// advance fast enough to gate on-chain agenda voting (e.g. SKA2
+		// activation). First SVI window closes at StakeValidationHeight+SVI
+		// = 768 + 504 = 1272 (~17 h after stake validation begins). Mainnet
+		// uses 2016 (~1 week at 5-min blocks).
+		StakeVersionInterval:    504,     // ~17 h at 2-min blocks (testnet-only; mainnet=2016)
+		MaxFreshStakePerBlock:   20,      // 4*TicketsPerBlock
+		StakeEnabledHeight:      16 + 16, // CoinbaseMaturity + TicketMaturity
+		StakeValidationHeight:   768,     // Arbitrary
 		StakeBaseSigScript:      []byte{0x00, 0x00},
 		StakeMajorityMultiplier: 3,
 		StakeMajorityDivisor:    4,
@@ -586,13 +633,25 @@ func TestNet3Params() *Params {
 				EmissionKey: mustParseHexPubKeyTestnet("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"),
 			},
 			2: {
-				CoinType:         2,
-				Name:             "Skarb-2",
-				Symbol:           "SKA2",
-				MaxSupply:        mustParseBigInt("5000000000000000000000000"), // 5 million * 1e18 atoms
-				AtomsPerCoin:     mustParseBigInt("1000000000000000000"),       // 1e18
-				EmissionHeight:   1000,                                         // After stake validation (768)
-				EmissionWindow:   100,                                          // 100 block window for testing
+				CoinType:     2,
+				Name:         "Skarb-2",
+				Symbol:       "SKA2",
+				MaxSupply:    mustParseBigInt("5000000000000000000000000"), // 5 million * 1e18 atoms
+				AtomsPerCoin: mustParseBigInt("1000000000000000000"),       // 1e18
+				// EmissionHeight is set just past the best-case vote-cycle
+				// completion (~block 7400 = ~1 SVI of 504 blocks for
+				// stake-version upgrade + 3 RCAI of 2016 blocks each for
+				// Defined→Started→LockedIn→Active). 10,000 keeps "happy
+				// path" emission within ~14 days of testnet genesis while
+				// still giving ~3.6 d of buffer between best-case
+				// activation and the window opening.
+				EmissionHeight: 10000, // ~14 d post-genesis at 2-min blocks
+				// 30,000-block window (~42 d) absorbs up to ~16 failed
+				// RCAI vote windows (each adds 2016 blocks of slip)
+				// without losing the emission opportunity. The window is
+				// purely permissive — wider just means more deadline
+				// slack; no security/correctness scaling with width.
+				EmissionWindow:   30000,
 				Active:           false,
 				Description:      "Secondary SKA coin type for testnet testing",
 				MinRelayTxFee:    mustParseBigInt("4000000000000000000"), // 4 SKA per KB (4e18 atoms/KB)
