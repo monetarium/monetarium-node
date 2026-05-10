@@ -652,7 +652,7 @@ func TestNet3Params() *Params {
 				// purely permissive — wider just means more deadline
 				// slack; no security/correctness scaling with width.
 				EmissionWindow:   30000,
-				Active:           false,
+				Active:           true,
 				Description:      "Secondary SKA coin type for testnet testing",
 				MinRelayTxFee:    mustParseBigInt("4000000000000000000"), // 4 SKA per KB (4e18 atoms/KB)
 				MaxFeeMultiplier: 2500,                                   // Max fee is 2500x min fee
