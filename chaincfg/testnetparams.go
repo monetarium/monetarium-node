@@ -630,7 +630,7 @@ func TestNet3Params() *Params {
 					"900000000000000000000000000000000", // 900 trillion * 1e18 atoms
 				),
 				// SECURITY NOTE: This is a placeholder key for development ONLY
-				EmissionKey: mustParseHexPubKeyTestnet("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"),
+				EmissionKey: mustParseHexPubKeyTestnet("029e89de8077c4105d826a608e1830d2ee625c8f567de644f3ca1748406915cefb"),
 			},
 			2: {
 				CoinType:     2,
@@ -663,7 +663,7 @@ func TestNet3Params() *Params {
 					"5000000000000000000000000", // 5 million * 1e18 atoms
 				),
 				// SECURITY NOTE: This is a placeholder key for development ONLY
-				EmissionKey: mustParseHexPubKeyTestnet("0316e57ce5fdb617dc192576d9c860f57e7e7a95592aa32e25941731a2eb2c57d6"),
+				EmissionKey: mustParseHexPubKeyTestnet("03f8b95a72b0bbe48836733e4c044f5d07230ee99028815928ce4910d33b1ee204"),
 			},
 		},
 
