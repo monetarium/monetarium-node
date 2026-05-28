@@ -596,7 +596,7 @@ func MainNetParams() *Params {
 					"900000000000000000000000000000000", // 900 trillion * 1e18 atoms to treasury
 				),
 				// Production deployment MUST generate secure keys with proper key ceremony
-				EmissionKey: mustParseHexPubKey("03f45735292ccc672ddf51869e69c67520f2213c73b924e8b2ff0c9f1877b99a8f"),
+				EmissionKey: mustParseHexPubKey("0306bcb59a42b19a7b80586fc1c63912d5fc8e0ab77c85ee8bea4c833181558316"),
 			},
 			// SKA2 is intentionally not configured on mainnet. It will be added
 			// back only after a real key ceremony produces an EmissionKey that
