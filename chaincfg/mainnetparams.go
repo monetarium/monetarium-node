@@ -590,7 +590,7 @@ func MainNetParams() *Params {
 				MaxFeeMultiplier: 2500,                                   // Max fee is 2500x min fee
 				// Governance-approved emission distribution
 				EmissionAddresses: []string{
-					"MsRKhYVjnqebpbVhFzSVoa9wJzMBmhLsqLL",
+					"MseeBSzs6hjnUKrCCF7yPWinksWEprWHJwL",
 				},
 				EmissionAmounts: bigIntSlice(
 					"900000000000000000000000000000000", // 900 trillion * 1e18 atoms to treasury
