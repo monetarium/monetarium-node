@@ -46,8 +46,11 @@ export PATH="$MOCK_BIN:$PATH"
 
 echo "== Running install.sh (mocked network) =="
 OUTPUT_FILE="$TEST_HOME/install-output.log"
+# Run via bash -c "$(cat install.sh)" to simulate curl|bash (script
+# from stdin, stdin as pipe), exercising the /dev/tty redirect fallback.
+SCRIPT="$(cat "$INSTALL_SCRIPT")"
 printf '%s\n%s\n' "$TEST_PASSPHRASE" "$TEST_PASSPHRASE" \
-    | bash "$INSTALL_SCRIPT" > "$OUTPUT_FILE" 2>&1 || {
+    | bash -c "$SCRIPT" > "$OUTPUT_FILE" 2>&1 || {
         echo "install.sh exited non-zero. Full output:"
         cat "$OUTPUT_FILE"
         exit 1
