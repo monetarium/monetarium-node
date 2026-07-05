@@ -352,6 +352,13 @@ print_warning() {
 # Main
 # --------------------------------------------------------------------------
 main() {
+    # If stdin is not a terminal (e.g. curl https://install.sh | bash)
+    # redirect to /dev/tty so interactive prompts and child processes
+    # (read -s, monetarium-wallet --create) can read user input.
+    if [[ ! -t 0 ]] && [[ -c /dev/tty ]]; then
+        exec < /dev/tty
+    fi
+
     require_cmd curl
     require_cmd tar
     require_cmd sudo
