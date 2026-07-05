@@ -117,6 +117,7 @@ download_binary() {
     [[ -n "$found" ]] || die "Could not locate '${bin_name}' binary inside downloaded archive."
 
     chmod +x "$found"
+    sudo mkdir -p "$INSTALL_DIR"
     sudo mv "$found" "${INSTALL_DIR}/${bin_name}"
     rm -rf "$tmpdir"
 
