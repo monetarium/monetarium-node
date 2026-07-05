@@ -6,7 +6,7 @@ rpctests
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
 [![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/internal/integration/rpctests)
 
-Package rpctests provides integration-level tests for dcrd that rely on its RPC
+Package rpctests provides integration-level tests for mond that rely on its RPC
 service. The tests in this package exercise features and behaviors of the fully
 compiled binary.
 

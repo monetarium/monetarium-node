@@ -803,7 +803,7 @@ func (c *Client) epochTicker(ctx context.Context) error {
 		// XXX: This needs a better solution; it may remove runs that have
 		// all confirm messages but with invalid signatures.  This eventually
 		// results in "expired PR" errors.
-		// Ideally, we would behave like dcrd and only remove sessions that have
+		// Ideally, we would behave like mond and only remove sessions that have
 		// mined mix transactions or are otherwise double spent in a block.
 		c.mixpool.RemoveConfirmedSessions()
 		c.expireMessages()

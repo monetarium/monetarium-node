@@ -728,7 +728,7 @@ func (r *FutureNotifyTSpendResult) Receive() error {
 //
 // See NotifyBlocks for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension and requires a websocket connection.
+// NOTE: This is a mond extension and requires a websocket connection.
 func (c *Client) NotifyBlocksAsync(ctx context.Context) *FutureNotifyBlocksResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
@@ -751,7 +751,7 @@ func (c *Client) NotifyBlocksAsync(ctx context.Context) *FutureNotifyBlocksResul
 //
 // See NotifyWork for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension and requires a websocket connection.
+// NOTE: This is a mond extension and requires a websocket connection.
 func (c *Client) NotifyWorkAsync(ctx context.Context) *FutureNotifyWorkResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
@@ -774,7 +774,7 @@ func (c *Client) NotifyWorkAsync(ctx context.Context) *FutureNotifyWorkResult {
 //
 // See NotifyTSpend for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension and requires a websocket connection.
+// NOTE: This is a mond extension and requires a websocket connection.
 func (c *Client) NotifyTSpendAsync(ctx context.Context) *FutureNotifyTSpendResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
@@ -800,7 +800,7 @@ func (c *Client) NotifyTSpendAsync(ctx context.Context) *FutureNotifyTSpendResul
 // The notifications delivered as a result of this call will be via one of
 // OnBlockConnected or OnBlockDisconnected.
 //
-// NOTE: This is a dcrd extension and requires a websocket connection.
+// NOTE: This is a mond extension and requires a websocket connection.
 func (c *Client) NotifyBlocks(ctx context.Context) error {
 	return c.NotifyBlocksAsync(ctx).Receive()
 }
@@ -810,7 +810,7 @@ func (c *Client) NotifyBlocks(ctx context.Context) error {
 //
 // The notifications delivered as a result of this call will be via OnWork.
 //
-// NOTE: This is a dcrd extension and requires a websocket connection.
+// NOTE: This is a mond extension and requires a websocket connection.
 func (c *Client) NotifyWork(ctx context.Context) error {
 	return c.NotifyWorkAsync(ctx).Receive()
 }
@@ -821,7 +821,7 @@ func (c *Client) NotifyWork(ctx context.Context) error {
 // The notifications delivered as a result of this call will be via one of
 // OnTSpend.
 //
-// NOTE: This is a dcrd extension and requires a websocket connection.
+// NOTE: This is a mond extension and requires a websocket connection.
 func (c *Client) NotifyTSpend(ctx context.Context) error {
 	return c.NotifyTSpendAsync(ctx).Receive()
 }
@@ -843,7 +843,7 @@ func (r *FutureNotifyWinningTicketsResult) Receive() error {
 //
 // See NotifyWinningTickets for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension and requires a websocket connection.
+// NOTE: This is a mond extension and requires a websocket connection.
 func (c *Client) NotifyWinningTicketsAsync(ctx context.Context) *FutureNotifyWinningTicketsResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
@@ -871,7 +871,7 @@ func (c *Client) NotifyWinningTicketsAsync(ctx context.Context) *FutureNotifyWin
 // The notifications delivered as a result of this call will be those from
 // OnWinningTickets.
 //
-// NOTE: This is a dcrd extension and requires a websocket connection.
+// NOTE: This is a mond extension and requires a websocket connection.
 func (c *Client) NotifyWinningTickets(ctx context.Context) error {
 	return c.NotifyWinningTicketsAsync(ctx).Receive()
 }
@@ -893,7 +893,7 @@ func (r *FutureNotifyNewTicketsResult) Receive() error {
 //
 // See NotifyNewTickets for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension and requires a websocket connection.
+// NOTE: This is a mond extension and requires a websocket connection.
 func (c *Client) NotifyNewTicketsAsync(ctx context.Context) *FutureNotifyNewTicketsResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
@@ -919,7 +919,7 @@ func (c *Client) NotifyNewTicketsAsync(ctx context.Context) *FutureNotifyNewTick
 //
 // The notifications delivered as a result of this call will be via OnNewTickets.
 //
-// NOTE: This is a dcrd extension and requires a websocket connection.
+// NOTE: This is a mond extension and requires a websocket connection.
 func (c *Client) NotifyNewTickets(ctx context.Context) error {
 	return c.NotifyNewTicketsAsync(ctx).Receive()
 }
@@ -941,7 +941,7 @@ func (r *FutureNotifyNewTransactionsResult) Receive() error {
 //
 // See NotifyNewTransactions for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension and requires a websocket connection.
+// NOTE: This is a mond extension and requires a websocket connection.
 func (c *Client) NotifyNewTransactionsAsync(ctx context.Context, verbose bool) *FutureNotifyNewTransactionsResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
@@ -968,7 +968,7 @@ func (c *Client) NotifyNewTransactionsAsync(ctx context.Context, verbose bool) *
 // OnTxAccepted (when verbose is false) or OnTxAcceptedVerbose (when verbose is
 // true).
 //
-// NOTE: This is a dcrd extension and requires a websocket connection.
+// NOTE: This is a mond extension and requires a websocket connection.
 func (c *Client) NotifyNewTransactions(ctx context.Context, verbose bool) error {
 	return c.NotifyNewTransactionsAsync(ctx, verbose).Receive()
 }
@@ -990,7 +990,7 @@ func (r *FutureLoadTxFilterResult) Receive() error {
 //
 // See LoadTxFilter for the blocking version and more details.
 //
-// NOTE: This is a dcrd extension and requires a websocket connection.
+// NOTE: This is a mond extension and requires a websocket connection.
 func (c *Client) LoadTxFilterAsync(ctx context.Context, reload bool, addresses []stdaddr.Address,
 	outPoints []wire.OutPoint) *FutureLoadTxFilterResult {
 
@@ -1015,7 +1015,7 @@ func (c *Client) LoadTxFilterAsync(ctx context.Context, reload bool, addresses [
 // filter.  The filter is consistently updated based on inspected transactions
 // during mempool acceptance, block acceptance, and for all rescanned blocks.
 //
-// NOTE: This is a dcrd extension and requires a websocket connection.
+// NOTE: This is a mond extension and requires a websocket connection.
 func (c *Client) LoadTxFilter(ctx context.Context, reload bool, addresses []stdaddr.Address, outPoints []wire.OutPoint) error {
 	return c.LoadTxFilterAsync(ctx, reload, addresses, outPoints).Receive()
 }

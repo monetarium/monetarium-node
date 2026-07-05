@@ -308,7 +308,7 @@ const (
 
 	// coinbaseFlags is some extra data appended to the coinbase script
 	// sig.
-	coinbaseFlags = "/dcrd/"
+	coinbaseFlags = "/mond/"
 
 	// kilobyte is the size of a kilobyte.
 	kilobyte = 1000
@@ -751,7 +751,7 @@ func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, nextBlockHeight
 // - Single input: either null input (creating new UTXO) or real UTXO input (augmenting existing)
 // - Single OP_RETURN output with SSFee marker (height + voter sequence)
 // - Single payment output to the consolidation address (with fee proportional to total stake)
-// - The payment output has the specified coin type (VAR, SKA-1, SKA-2, etc.)
+// - The payment output has the specified coin type (VAR, SKA1, SKA2, etc.)
 //
 // UTXO Augmentation:
 // If ssfeeIndex is provided, the function will look up existing UTXOs matching the consolidation
@@ -760,7 +760,7 @@ func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, nextBlockHeight
 // existing UTXOs. If no matching UTXO exists, falls back to null input (creates new UTXO).
 //
 // Parameters:
-//   - coinType: The coin type for the fees (VAR=0, SKA-1=1, SKA-2=2, etc.)
+//   - coinType: The coin type for the fees (VAR=0, SKA1=1, SKA2=2, etc.)
 //   - totalFee: Total fee to distribute across all voters
 //   - voters: Vote transactions to extract consolidation addresses from
 //   - nextBlockHeight: Height of the block being created
@@ -2576,20 +2576,9 @@ nextPriorityQueueItem:
 			// Update block space allocation tracking
 			transactionTracker.AddTransaction(bundledTx)
 
-			// Record transaction fee for coin-type-specific fee estimation
-			// Skip feeless system transactions (votes and revocations) from fee statistics
-			if g.cfg.FeeCalculator != nil && bundledTxDesc.Type != stake.TxTypeSSGen && bundledTxDesc.Type != stake.TxTypeSSRtx {
-				bundledCoinType := blockalloc.GetTransactionCoinType(bundledTx)
-				bundledSize := int64(bundledTx.MsgTx().SerializeSize())
-				// Use SKAFee for SKA transactions
-				if bundledCoinType.IsSKA() && bundledTxDesc.SKAFee != nil {
-					g.cfg.FeeCalculator.RecordTransactionFeeBig(bundledCoinType,
-						bundledTxDesc.SKAFee, bundledSize, true)
-				} else {
-					g.cfg.FeeCalculator.RecordTransactionFee(bundledCoinType,
-						bundledTxDesc.Fee, bundledSize, true)
-				}
-			}
+			// Fee recording for this tx happened at mempool acceptance; recording
+			// again here would over-weight self-mined txs on high-hashrate nodes
+			// (the asymmetry that previously poisoned testnode1's median).
 
 			// Accumulate the SStxs in the block, because only a certain number
 			// are allowed.
@@ -3006,14 +2995,30 @@ nextPriorityQueueItem:
 	}
 
 	// Distribute fees once stake validation height is reached.
-	// Note: Unlike subsidies, fees are NOT scaled by voter count.
-	// Fees are distributed fully among actual voters since we know the
-	// exact voter count at block template time. This differs from subsidies
-	// where wallets create vote transactions before knowing the final count.
+	// VAR fees are scaled by voters/TicketsPerBlock so that missing voters
+	// cause the unclaimed VAR share to burn (matches validate.go:4886-4907).
+	// SKA fees are distributed in full to the voters that actually voted.
 	// Track miner's VAR fee share for coinbase (captured early to prevent loss)
 	var minerVARFeeForCoinbase int64
 
 	if nextBlockHeight >= stakeValidationHeight {
+		// Scale VAR fees by voter participation to mirror validator's fee-burn
+		// behavior (validate.go:4886-4907). When voters < TicketsPerBlock, the
+		// unclaimed VAR share is burned. SKA fees are distributed in full.
+		bigVoters := new(big.Int).SetInt64(int64(voters))
+		bigTickets := new(big.Int).SetInt64(int64(g.cfg.ChainParams.TicketsPerBlock))
+		for coinType, fee := range totalFees {
+			if fee == nil || fee.Sign() <= 0 {
+				continue
+			}
+			if coinType.IsSKA() {
+				continue
+			}
+			scaledBig := new(big.Int).Mul(fee, bigVoters)
+			scaledBig.Div(scaledBig, bigTickets)
+			totalFees[coinType] = scaledBig
+		}
+
 		// Get subsidy proportions for fee splitting
 		work, stake, _, _ := standalone.GetSubsidyProportions(subsidySplitVariant)
 

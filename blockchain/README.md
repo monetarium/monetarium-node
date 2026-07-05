@@ -19,7 +19,7 @@ module are also available:
 
 * [standalone](./standalone/README.md) - Provides standalone functions useful
   for working with the Decred blockchain consensus rules.
-* [stake](./stake/doc.go) - Contains code for all of dcrd's stake transaction
+* [stake](./stake/doc.go) - Contains code for all of mond's stake transaction
   chain handling and other portions related to the Proof-of-Stake (PoS) system.
 
 

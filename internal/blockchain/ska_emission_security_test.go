@@ -24,9 +24,13 @@ import (
 // TestSKAEmissionSignatureVerification tests that signature verification
 // properly prevents unauthorized emissions and tampering.
 func TestSKAEmissionSignatureVerification(t *testing.T) {
-	// Setup test chain params
+	const emissionAddr = "SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"
+
+	// Setup test chain params (minimal but with testnet AddrID so emission
+	// addresses can be decoded into payment scripts during validation)
 	params := &chaincfg.Params{
-		Net: wire.TestNet3,
+		Net:              wire.TestNet3,
+		PubKeyHashAddrID: [2]byte{0x0e, 0x91}, // simnet "Ss" prefix
 		SKACoins: map[cointype.CoinType]*chaincfg.SKACoinConfig{
 			1: {
 				CoinType:       1,
@@ -34,7 +38,7 @@ func TestSKAEmissionSignatureVerification(t *testing.T) {
 				EmissionHeight: 100,
 				EmissionWindow: 100,
 				EmissionAddresses: []string{
-					"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc", // Test address
+					emissionAddr,
 				},
 				EmissionAmounts: []*big.Int{
 					big.NewInt(1000000000), // 10 million atoms
@@ -53,10 +57,9 @@ func TestSKAEmissionSignatureVerification(t *testing.T) {
 	// Set up emission key in per-coin configuration
 	params.SKACoins[1].EmissionKey = pubKey
 
-	// Create test addresses and amounts - match the config amounts
-	addresses := []string{
-		"TsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc",
-	}
+	// Create test addresses and amounts - match the config so the tx outputs
+	// pay the governance-configured emission distribution
+	addresses := []string{emissionAddr}
 	amounts := []*big.Int{big.NewInt(1000000000)} // Match EmissionAmounts[0]
 
 	// Create a valid emission transaction
@@ -134,7 +137,7 @@ func TestSKAEmissionMinerRedirectProtection(t *testing.T) {
 
 	// Original legitimate addresses
 	legitAddresses := []string{
-		"TsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc",
+		"SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc",
 	}
 	amounts := []*big.Int{big.NewInt(1000000)}
 
@@ -256,14 +259,17 @@ func TestSKAEmissionNetworkReplayProtection(t *testing.T) {
 // TestSKAEmissionDuplicateProtection tests that the same coin type
 // cannot be emitted twice.
 func TestSKAEmissionDuplicateProtection(t *testing.T) {
+	const emissionAddr = "SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"
+
 	params := &chaincfg.Params{
-		// SKAMaxAmount removed - using per-coin limits in cointype package
-		// 10000000000,
-		Net: wire.TestNet3,
+		Net:              wire.TestNet3,
+		PubKeyHashAddrID: [2]byte{0x0e, 0x91}, // simnet "Ss" prefix
 		SKACoins: map[cointype.CoinType]*chaincfg.SKACoinConfig{
 			1: {
-				EmissionHeight: 100,
-				EmissionWindow: 100,
+				EmissionHeight:    100,
+				EmissionWindow:    100,
+				EmissionAddresses: []string{emissionAddr},
+				EmissionAmounts:   []*big.Int{big.NewInt(1000000)},
 			},
 		},
 	}
@@ -280,7 +286,7 @@ func TestSKAEmissionDuplicateProtection(t *testing.T) {
 	chain.skaEmissionState.emitted[1] = true
 
 	// Try to emit again with nonce 2
-	addresses := []string{"TsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"}
+	addresses := []string{emissionAddr}
 	amounts := []*big.Int{big.NewInt(1000000)}
 
 	tx := createTestEmissionTx(t, addresses, amounts, 1, params)
@@ -318,14 +324,17 @@ func TestSKAEmissionDuplicateProtection(t *testing.T) {
 
 // TestSKAEmissionNonceValidation tests nonce-based replay protection.
 func TestSKAEmissionNonceValidation(t *testing.T) {
+	const emissionAddr = "SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"
+
 	params := &chaincfg.Params{
-		// SKAMaxAmount removed - using per-coin limits in cointype package
-		// 10000000000,
-		Net: wire.TestNet3,
+		Net:              wire.TestNet3,
+		PubKeyHashAddrID: [2]byte{0x0e, 0x91}, // simnet "Ss" prefix
 		SKACoins: map[cointype.CoinType]*chaincfg.SKACoinConfig{
 			1: {
-				EmissionHeight: 100,
-				EmissionWindow: 100,
+				EmissionHeight:    100,
+				EmissionWindow:    100,
+				EmissionAddresses: []string{emissionAddr},
+				EmissionAmounts:   []*big.Int{big.NewInt(1000000)},
 			},
 		},
 	}
@@ -336,7 +345,7 @@ func TestSKAEmissionNonceValidation(t *testing.T) {
 
 	chain := createMockChain(t, params)
 
-	addresses := []string{"TsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"}
+	addresses := []string{emissionAddr}
 	amounts := []*big.Int{big.NewInt(1000000)}
 
 	// Test 1: Nonce 0 should fail (must start at 1)
@@ -391,14 +400,17 @@ func TestSKAEmissionNonceValidation(t *testing.T) {
 // TestSKAEmissionWindowValidation tests that emissions are only
 // valid within their configured windows.
 func TestSKAEmissionWindowValidation(t *testing.T) {
+	const emissionAddr = "SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"
+
 	params := &chaincfg.Params{
-		// SKAMaxAmount removed - using per-coin limits in cointype package
-		// 10000000000,
-		Net: wire.TestNet3,
+		Net:              wire.TestNet3,
+		PubKeyHashAddrID: [2]byte{0x0e, 0x91}, // simnet "Ss" prefix
 		SKACoins: map[cointype.CoinType]*chaincfg.SKACoinConfig{
 			1: {
-				EmissionHeight: 100,
-				EmissionWindow: 50, // Window: 100-150
+				EmissionHeight:    100,
+				EmissionWindow:    50, // Window: 100-150
+				EmissionAddresses: []string{emissionAddr},
+				EmissionAmounts:   []*big.Int{big.NewInt(1000000)},
 			},
 		},
 	}
@@ -409,7 +421,7 @@ func TestSKAEmissionWindowValidation(t *testing.T) {
 
 	chain := createMockChain(t, params)
 
-	addresses := []string{"TsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc"}
+	addresses := []string{emissionAddr}
 	amounts := []*big.Int{big.NewInt(1000000)}
 
 	tests := []struct {

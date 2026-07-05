@@ -255,9 +255,9 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"version":                  handleVersion,
 }
 
-// list of commands that we recognize, but for which dcrd has no support because
+// list of commands that we recognize, but for which mond has no support because
 // it lacks support for wallet functionality. For these commands the user
-// should ask a connected instance of dcrwallet.
+// should ask a connected instance of monwallet.
 var rpcAskWallet = map[string]struct{}{
 	"abandontransaction":        {},
 	"accountaddressindex":       {},
@@ -2965,7 +2965,7 @@ func generateCoinTypeName(coinType cointype.CoinType) string {
 		return "VAR"
 	default:
 		if coinType >= 1 && coinType <= 255 {
-			return fmt.Sprintf("SKA-%d", coinType)
+			return fmt.Sprintf("SKA%d", coinType)
 		}
 		return fmt.Sprintf("Unknown-%d", coinType)
 	}
@@ -5144,7 +5144,7 @@ func handleStop(_ context.Context, s *Server, _ interface{}) (interface{}, error
 	case s.requestProcessShutdown <- struct{}{}:
 	default:
 	}
-	return "dcrd stopping.", nil
+	return "mond stopping.", nil
 }
 
 // handleStopProfiler implements the stopprofiler command.
@@ -6442,7 +6442,7 @@ func (s *Server) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *htt
 
 // jsonAuthFail sends a message back to the client if the http auth is rejected.
 func jsonAuthFail(w http.ResponseWriter) {
-	w.Header().Add("WWW-Authenticate", `Basic realm="dcrd RPC"`)
+	w.Header().Add("WWW-Authenticate", `Basic realm="mond RPC"`)
 	http.Error(w, "401 Unauthorized.", http.StatusUnauthorized)
 }
 

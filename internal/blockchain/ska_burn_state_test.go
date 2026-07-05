@@ -33,7 +33,7 @@ func TestSKABurnStateConnectDisconnect(t *testing.T) {
 
 	// Initial state should be empty (nil)
 	if amount := state.GetBurnedAmount(1); amount != nil {
-		t.Errorf("Expected nil burned for SKA-1, got %v", amount)
+		t.Errorf("Expected nil burned for SKA1, got %v", amount)
 	}
 
 	// Create burn records
@@ -57,7 +57,7 @@ func TestSKABurnStateConnectDisconnect(t *testing.T) {
 
 	// Verify amount was tracked
 	if amount := state.GetBurnedAmount(1); amount == nil || amount.Cmp(bigInt(100000000000)) != 0 {
-		t.Errorf("Expected 100000000000 burned for SKA-1, got %v", amount)
+		t.Errorf("Expected 100000000000 burned for SKA1, got %v", amount)
 	}
 
 	// Disconnect the burns (reorg)
@@ -70,7 +70,7 @@ func TestSKABurnStateConnectDisconnect(t *testing.T) {
 
 	// Verify amount was rolled back (should be nil after removal)
 	if amount := state.GetBurnedAmount(1); amount != nil {
-		t.Errorf("Expected nil burned for SKA-1 after disconnect, got %v", amount)
+		t.Errorf("Expected nil burned for SKA1 after disconnect, got %v", amount)
 	}
 
 	// Verify coin type was removed from map
@@ -178,13 +178,13 @@ func TestSKABurnStateMultipleCoinTypes(t *testing.T) {
 
 	// Verify each coin type
 	if amount := state.GetBurnedAmount(1); amount == nil || amount.Cmp(bigInt(100000000000)) != 0 {
-		t.Errorf("SKA-1: expected 100000000000, got %v", amount)
+		t.Errorf("SKA1: expected 100000000000, got %v", amount)
 	}
 	if amount := state.GetBurnedAmount(2); amount == nil || amount.Cmp(bigInt(50000000000)) != 0 {
-		t.Errorf("SKA-2: expected 50000000000, got %v", amount)
+		t.Errorf("SKA2: expected 50000000000, got %v", amount)
 	}
 	if amount := state.GetBurnedAmount(255); amount == nil || amount.Cmp(bigInt(25000000000)) != 0 {
-		t.Errorf("SKA-255: expected 25000000000, got %v", amount)
+		t.Errorf("SKA255: expected 25000000000, got %v", amount)
 	}
 
 	// Verify GetAllBurnedAmounts
@@ -203,13 +203,13 @@ func TestSKABurnStateMultipleCoinTypes(t *testing.T) {
 
 	// Verify all coin types rolled back
 	if amount := state.GetBurnedAmount(1); amount != nil {
-		t.Errorf("SKA-1 after disconnect: expected nil, got %v", amount)
+		t.Errorf("SKA1 after disconnect: expected nil, got %v", amount)
 	}
 	if amount := state.GetBurnedAmount(2); amount != nil {
-		t.Errorf("SKA-2 after disconnect: expected nil, got %v", amount)
+		t.Errorf("SKA2 after disconnect: expected nil, got %v", amount)
 	}
 	if amount := state.GetBurnedAmount(255); amount != nil {
-		t.Errorf("SKA-255 after disconnect: expected nil, got %v", amount)
+		t.Errorf("SKA255 after disconnect: expected nil, got %v", amount)
 	}
 
 	all = state.GetAllBurnedAmounts()
@@ -250,10 +250,10 @@ func TestSKABurnStatePersistence(t *testing.T) {
 
 	// Verify state was loaded from database
 	if amount := state2.GetBurnedAmount(1); amount == nil || amount.Cmp(bigInt(100000000000)) != 0 {
-		t.Errorf("SKA-1 after reload: expected 100000000000, got %v", amount)
+		t.Errorf("SKA1 after reload: expected 100000000000, got %v", amount)
 	}
 	if amount := state2.GetBurnedAmount(2); amount == nil || amount.Cmp(bigInt(50000000000)) != 0 {
-		t.Errorf("SKA-2 after reload: expected 50000000000, got %v", amount)
+		t.Errorf("SKA2 after reload: expected 50000000000, got %v", amount)
 	}
 }
 
@@ -270,9 +270,9 @@ func TestSKABurnStateReorgScenario(t *testing.T) {
 	}
 
 	// Scenario:
-	// 1. Block 100: Burn 1000 SKA-1
-	// 2. Block 101: Burn 500 SKA-1
-	// 3. Block 102: Burn 200 SKA-2
+	// 1. Block 100: Burn 1000 SKA1
+	// 2. Block 101: Burn 500 SKA1
+	// 3. Block 102: Burn 200 SKA2
 	// 4. Reorg: Disconnect blocks 102, 101
 	// 5. Verify state matches block 100 only
 
@@ -311,10 +311,10 @@ func TestSKABurnStateReorgScenario(t *testing.T) {
 
 	// Verify state before reorg
 	if amount := state.GetBurnedAmount(1); amount == nil || amount.Cmp(bigInt(150000000000)) != 0 {
-		t.Errorf("SKA-1 before reorg: expected 150000000000, got %v", amount)
+		t.Errorf("SKA1 before reorg: expected 150000000000, got %v", amount)
 	}
 	if amount := state.GetBurnedAmount(2); amount == nil || amount.Cmp(bigInt(20000000000)) != 0 {
-		t.Errorf("SKA-2 before reorg: expected 20000000000, got %v", amount)
+		t.Errorf("SKA2 before reorg: expected 20000000000, got %v", amount)
 	}
 
 	// Reorg: Disconnect blocks 102 and 101 (in reverse order)
@@ -330,19 +330,19 @@ func TestSKABurnStateReorgScenario(t *testing.T) {
 
 	// Verify state after reorg (should match block 100 only)
 	if amount := state.GetBurnedAmount(1); amount == nil || amount.Cmp(bigInt(100000000000)) != 0 {
-		t.Errorf("SKA-1 after reorg: expected 100000000000, got %v", amount)
+		t.Errorf("SKA1 after reorg: expected 100000000000, got %v", amount)
 	}
 	if amount := state.GetBurnedAmount(2); amount != nil {
-		t.Errorf("SKA-2 after reorg: expected nil, got %v", amount)
+		t.Errorf("SKA2 after reorg: expected nil, got %v", amount)
 	}
 
-	// Verify SKA-2 was removed from map
+	// Verify SKA2 was removed from map
 	all := state.GetAllBurnedAmounts()
 	if len(all) != 1 {
 		t.Errorf("After reorg: expected 1 coin type, got %d", len(all))
 	}
 	if _, exists := all[cointype.CoinType(2)]; exists {
-		t.Error("SKA-2 should not exist in map after reorg")
+		t.Error("SKA2 should not exist in map after reorg")
 	}
 }
 

@@ -1,6 +1,8 @@
-github.com/decred/dcrd/chaincfg/chainhash v1.0.4 h1:zRCv6tdncLfLTKYqu7hrXvs7hW+8FO/NvwoFvGsrluU=
-github.com/decred/dcrd/chaincfg/chainhash v1.0.4/go.mod h1:hA86XxlBWwHivMvxzXTSD0ZCG/LoYsFdWnCekkTMCqY=
-github.com/decred/dcrd/crypto/blake256 v1.0.1 h1:7PltbUIQB7u/FfZ39+DGa/ShuMyJ5ilcvdfma9wOH6Y=
-github.com/decred/dcrd/crypto/blake256 v1.0.1/go.mod h1:2OfgNZ5wDpcsFmHmCK5gZTPcCXqlm2ArzUIkw9czNJo=
-github.com/decred/dcrd/dcrjson/v4 v4.1.0 h1:WJVogRnYnNxB5hWoGHODvP4fNTG1JycTuHHKt/XucHk=
-github.com/decred/dcrd/dcrjson/v4 v4.1.0/go.mod h1:2qVikafVF9/X3PngQVmqkbUbyAl32uik0k/kydgtqMc=
+github.com/monetarium/monetarium-node/chaincfg/chainhash v1.3.8/go.mod h1:ONzNJnw+HxHh9hpaumB7CdDNWTMrzd4v7JcUionMDDA=
+github.com/monetarium/monetarium-node/chaincfg/chainhash v1.3.9 h1:pWhdl17VlgxzyKBZgQxabuUc0VeP8B2YlEHle9+5qlY=
+github.com/monetarium/monetarium-node/chaincfg/chainhash v1.3.9/go.mod h1:ONzNJnw+HxHh9hpaumB7CdDNWTMrzd4v7JcUionMDDA=
+github.com/monetarium/monetarium-node/crypto/blake256 v1.3.8/go.mod h1:+dUk+/kJYZCEfhySioeBRQD7l8yHVm3Q3g7Gd3lRjHk=
+github.com/monetarium/monetarium-node/crypto/blake256 v1.3.9 h1:xIDJwnIOH0KxMKQFZjVs94RpKAIiiwAlOtLF66OthrU=
+github.com/monetarium/monetarium-node/crypto/blake256 v1.3.9/go.mod h1:+dUk+/kJYZCEfhySioeBRQD7l8yHVm3Q3g7Gd3lRjHk=
+github.com/monetarium/monetarium-node/dcrjson v1.3.9 h1:aClwOrSE3KUeO55Sk6dNR0s8POlR2xZkpP73TmLIXdA=
+github.com/monetarium/monetarium-node/dcrjson v1.3.9/go.mod h1:LOzmooRTVuDwHAo36z1JIuXxprV1wFyJpP/l3S6toUk=

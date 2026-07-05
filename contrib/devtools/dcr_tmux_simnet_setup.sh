@@ -4,28 +4,28 @@
 # Use of this source code is governed by an ISC
 # license that can be found in the LICENSE file.
 #
-# Tmux script to create 2 dcrd nodes (named dcrd1 and dcrd2) connected in series
+# Tmux script to create 2 mond nodes (named monn1 and monn2) connected in series
 # along with 2 wallets (named wallet1 and wallet2) configured such that wallet1
-# is connected via JSON-RPC to dcrd1 and, likewise, wallet2 to dcrd2.
+# is connected via JSON-RPC to monn1 and, likewise, wallet2 to monn2.
 #
 # Both wallet1 and wallet2 use the same seed, however, wallet1 is configured to
 # automatically buy tickets and vote, while wallet2 is only configured to vote.
 #
-# The primary dcrd node (dcrd1) is configured as the primary mining node.
+# The primary mond node (monn1) is configured as the primary mining node.
 #
 # Network layout:
-# dcrd1 (p2p: localhost:19555) <-- dcrd2 (p2p: localhost:19565)
+# monn1 (p2p: localhost:18955) <-- monn2 (p2p: localhost:18965)
 #
 # RPC layout:
-# dcrd1 (JSON-RPC: localhost:19556)
-#     ^--- wallet1 (JSON-RPC: locahost:19557, gRPC: localhost:19558)
-# dcrd2 (JSON-RPC: localhost:19566)
-#     ^--- wallet2 (JSON-RPC: locahost:19567, gRPC: None)
+# monn1 (JSON-RPC: localhost:19956)
+#     ^--- wallet1 (JSON-RPC: localhost:19957, gRPC: localhost:19958)
+# monn2 (JSON-RPC: localhost:19966)
+#     ^--- wallet2 (JSON-RPC: localhost:19967, gRPC: None)
 
 set -e
 
-SESSION="dcrd-simnet-nodes"
-NODES_ROOT=${VAR_SIMNET_ROOT:-/Users/wenzel/projects/monetarium}
+SESSION="mond-simnet-nodes"
+NODES_ROOT=${MONETARIUM_SIMNET_ROOT:-${HOME}/.monetarium-simnet}
 RPCUSER="test"
 RPCPASS="test"
 WALLET_SEED="b280922d2cffda44648346412c5ec97f429938105003730414f10b01e1402eac"
@@ -43,8 +43,8 @@ if [ -d "${NODES_ROOT}" ] ; then
   rm -R "${NODES_ROOT}"
 fi
 
-PRIMARY_VAR_NAME=dcrd1
-SECONDARY_VAR_NAME=dcrd2
+PRIMARY_VAR_NAME=monn1
+SECONDARY_VAR_NAME=monn2
 PRIMARY_WALLET_NAME=wallet1
 SECONDARY_WALLET_NAME=wallet2
 mkdir -p "${NODES_ROOT}/${PRIMARY_VAR_NAME}"
@@ -52,7 +52,7 @@ mkdir -p "${NODES_ROOT}/${SECONDARY_VAR_NAME}"
 mkdir -p "${NODES_ROOT}/${PRIMARY_WALLET_NAME}"
 mkdir -p "${NODES_ROOT}/${SECONDARY_WALLET_NAME}"
 
-cat > "${NODES_ROOT}/dcrd.conf" <<EOF
+cat > "${NODES_ROOT}/mond.conf" <<EOF
 rpcuser=${RPCUSER}
 rpcpass=${RPCPASS}
 simnet=1
@@ -62,7 +62,7 @@ debuglevel=TXMP=debug,MINR=debug
 txindex=1
 EOF
 
-cat > "${NODES_ROOT}/dcrctl.conf" <<EOF
+cat > "${NODES_ROOT}/monctl.conf" <<EOF
 rpcuser=${RPCUSER}
 rpcpass=${RPCPASS}
 simnet=1
@@ -81,23 +81,23 @@ EOF
 cd ${NODES_ROOT} && tmux -2 new-session -d -s $SESSION
 
 ################################################################################
-# Setup the primary dcrd node
+# Setup the primary mond node
 ################################################################################
 
-PRIMARY_VAR_P2P=127.0.0.1:19555
-PRIMARY_VAR_RPC=127.0.0.1:19556
+PRIMARY_VAR_P2P=127.0.0.1:18955
+PRIMARY_VAR_RPC=127.0.0.1:19956
 tmux rename-window -t $SESSION:0 "${PRIMARY_VAR_NAME}"
 tmux split-window -v
 tmux select-pane -t 0
 tmux send-keys "cd ${NODES_ROOT}/${PRIMARY_VAR_NAME}" C-m
-tmux send-keys "dcrd -C ../dcrd.conf --listen ${PRIMARY_VAR_P2P} --miningaddr=${WALLET_MINING_ADDR}" C-m
+tmux send-keys "mond -C ../mond.conf --listen ${PRIMARY_VAR_P2P} --miningaddr=${WALLET_MINING_ADDR}" C-m
 tmux resize-pane -D 15
 tmux select-pane -t 1
 tmux send-keys "cd ${NODES_ROOT}/${PRIMARY_VAR_NAME}" C-m
 
 cat > "${NODES_ROOT}/${PRIMARY_VAR_NAME}/ctl" <<EOF
 #!/usr/bin/env bash
-dcrctl -C ../dcrctl.conf "\$@"
+monctl -C ../monctl.conf "\$@"
 EOF
 chmod +x "${NODES_ROOT}/${PRIMARY_VAR_NAME}/ctl"
 
@@ -124,22 +124,22 @@ tmux send-keys "./ctl generate 32" C-m
 # Setup the primary wallet
 ################################################################################
 
-PRIMARY_WALLET_RPC=127.0.0.1:19557
-PRIMARY_WALLET_GRPC=127.0.0.1:19558
+PRIMARY_WALLET_RPC=127.0.0.1:19957
+PRIMARY_WALLET_GRPC=127.0.0.1:19958
 tmux new-window -t $SESSION:1 -n "${PRIMARY_WALLET_NAME}"
 tmux split-window -v
 tmux select-pane -t 0
 tmux resize-pane -D 15
 tmux send-keys "cd ${NODES_ROOT}/${PRIMARY_WALLET_NAME}" C-m
-tmux send-keys "echo \"${WALLET_CREATE_CONFIG}\" | dcrwallet -C ../wallet.conf --create; tmux wait-for -S ${PRIMARY_WALLET_NAME}" C-m
+tmux send-keys "echo \"${WALLET_CREATE_CONFIG}\" | monw -C ../wallet.conf --create; tmux wait-for -S ${PRIMARY_WALLET_NAME}" C-m
 tmux wait-for ${PRIMARY_WALLET_NAME}
-tmux send-keys "dcrwallet -C ../wallet.conf --enableticketbuyer --ticketbuyer.limit=10" C-m
+tmux send-keys "monw -C ../wallet.conf --enableticketbuyer --ticketbuyer.limit=10" C-m
 tmux select-pane -t 1
 tmux send-keys "cd ${NODES_ROOT}/${PRIMARY_WALLET_NAME}" C-m
 
 cat > "${NODES_ROOT}/${PRIMARY_WALLET_NAME}/ctl" <<EOF
 #!/usr/bin/env bash
-dcrctl -C ../dcrctl.conf --wallet -c ./data/rpc.cert "\$@"
+monctl -C ../monctl.conf --wallet -c ./data/rpc.cert "\$@"
 EOF
 chmod +x "${NODES_ROOT}/${PRIMARY_WALLET_NAME}/ctl"
 
@@ -180,14 +180,14 @@ sleep 1
 tmux send-keys "./ctl importprivkey ${TSPEND_PRIMARY_WIF} imported false; ./ctl importprivkey ${TSPEND_SECONDARY_WIF} imported false" C-m
 
 ################################################################################
-# Setup the serially connected secondary dcrd node
+# Setup the serially connected secondary mond node
 ################################################################################
 
-SECONDARY_VAR_P2P=127.0.0.1:19565
-SECONDARY_VAR_RPC=127.0.0.1:19566
+SECONDARY_VAR_P2P=127.0.0.1:18965
+SECONDARY_VAR_RPC=127.0.0.1:19966
 cat > "${NODES_ROOT}/${SECONDARY_VAR_NAME}/ctl" <<EOF
 #!/usr/bin/env bash
-dcrctl -C ../dcrctl.conf -s ${SECONDARY_VAR_RPC} "\$@"
+monctl -C ../monctl.conf -s ${SECONDARY_VAR_RPC} "\$@"
 EOF
 chmod +x "${NODES_ROOT}/${SECONDARY_VAR_NAME}/ctl"
 
@@ -211,7 +211,7 @@ tmux split-window -v
 tmux select-pane -t 0
 tmux resize-pane -D 15
 tmux send-keys "cd ${NODES_ROOT}/${SECONDARY_VAR_NAME}" C-m
-tmux send-keys "dcrd -C ../dcrd.conf --listen ${SECONDARY_VAR_P2P} --rpclisten ${SECONDARY_VAR_RPC} --connect ${PRIMARY_VAR_P2P}  --miningaddr=${WALLET_MINING_ADDR}" C-m
+tmux send-keys "mond -C ../mond.conf --listen ${SECONDARY_VAR_P2P} --rpclisten ${SECONDARY_VAR_RPC} --connect ${PRIMARY_VAR_P2P}  --miningaddr=${WALLET_MINING_ADDR}" C-m
 tmux select-pane -t 1
 tmux send-keys "cd ${NODES_ROOT}/${SECONDARY_VAR_NAME}" C-m
 
@@ -219,21 +219,21 @@ tmux send-keys "cd ${NODES_ROOT}/${SECONDARY_VAR_NAME}" C-m
 # Setup the secondary wallet
 ################################################################################
 
-SECONDARY_WALLET_RPC=127.0.0.1:19567
+SECONDARY_WALLET_RPC=127.0.0.1:19967
 tmux new-window -t $SESSION:3 -n "${SECONDARY_WALLET_NAME}"
 tmux split-window -v
 tmux select-pane -t 0
 tmux resize-pane -D 15
 tmux send-keys "cd ${NODES_ROOT}/${SECONDARY_WALLET_NAME}" C-m
-tmux send-keys "echo \"${WALLET_CREATE_CONFIG}\" | dcrwallet -C ../wallet.conf --create; tmux wait-for -S ${SECONDARY_WALLET_NAME}" C-m
+tmux send-keys "echo \"${WALLET_CREATE_CONFIG}\" | monw -C ../wallet.conf --create; tmux wait-for -S ${SECONDARY_WALLET_NAME}" C-m
 tmux wait-for ${SECONDARY_WALLET_NAME}
-tmux send-keys "dcrwallet -C ../wallet.conf --rpcconnect=${SECONDARY_VAR_RPC} --rpclisten=${SECONDARY_WALLET_RPC} --nogrpc" C-m
+tmux send-keys "monw -C ../wallet.conf --rpcconnect=${SECONDARY_VAR_RPC} --rpclisten=${SECONDARY_WALLET_RPC} --nogrpc" C-m
 tmux select-pane -t 1
 tmux send-keys "cd ${NODES_ROOT}/${SECONDARY_WALLET_NAME}" C-m
 
 cat > "${NODES_ROOT}/${SECONDARY_WALLET_NAME}/ctl" <<EOF
 #!/usr/bin/env bash
-dcrctl -C ../dcrctl.conf -c ./data/rpc.cert -s ${SECONDARY_WALLET_RPC} "\$@"
+monctl -C ../monctl.conf -c ./data/rpc.cert -s ${SECONDARY_WALLET_RPC} "\$@"
 EOF
 chmod +x "${NODES_ROOT}/${SECONDARY_WALLET_NAME}/ctl"
 

@@ -231,6 +231,14 @@ func serializeUtxoEntry(entry *UtxoEntry) []byte {
 // This function automatically detects whether the entry is in version 3 format
 // (without coin type) or version 4+ format (with coin type) and handles both.
 // SKA entries use big.Int for amounts, while VAR entries use int64.
+//
+// Historical note: Monetarium mainnet/testnet/simnet all launched directly on
+// UTXO database version 4, so no V3-formatted entry has ever existed on a
+// Monetarium network. The V3 fallback path below is inherited from the upstream
+// Decred codebase and is effectively dead code on every running node. It is
+// retained for historical reference and as a safety net for any developer
+// datadir created with a pre-launch build; it can be removed (along with
+// upgradeUtxoDbToVersion4) once we are confident no such datadirs remain.
 func deserializeUtxoEntry(serialized []byte, txOutIndex uint32) (*UtxoEntry, error) {
 	// Deserialize the block height.
 	blockHeight, bytesRead := deserializeVLQ(serialized)

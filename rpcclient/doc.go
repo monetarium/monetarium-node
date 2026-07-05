@@ -8,18 +8,18 @@ Package rpcclient implements a websocket-enabled Decred JSON-RPC client.
 
 This client provides a robust and easy to use client for interfacing
 with a Decred RPC server that uses a mostly btcd/bitcoin core
-style Decred JSON-RPC API.  This client has been tested with dcrd
-(https://github.com/monetarium/monetarium-node) and dcrwallet
+style Decred JSON-RPC API.  This client has been tested with mond
+(https://github.com/monetarium/monetarium-node) and monwallet
 (https://github.com/decred/dcrwallet).
 
-In addition to the compatible standard HTTP POST JSON-RPC API, dcrd and
-dcrwallet provide a websocket interface that is more efficient than the standard
+In addition to the compatible standard HTTP POST JSON-RPC API, mond and
+monwallet provide a websocket interface that is more efficient than the standard
 HTTP POST method of accessing RPC.  The section below discusses the differences
 between HTTP POST and websockets.
 
 By default, this client assumes the RPC server supports websockets and has
 TLS enabled.  In practice, this currently means it assumes you are talking to
-dcrd or dcrwallet by default.  However, configuration options are provided to
+mond or monwallet by default.  However, configuration options are provided to
 fall back to HTTP POST and disable TLS to support talking with inferior bitcoin
 core style RPC servers.
 
@@ -30,8 +30,8 @@ issues the call, waits for the response, and closes the connection.  This adds
 quite a bit of overhead to every call and lacks flexibility for features such as
 notifications.
 
-In contrast, the websocket-based JSON-RPC interface provided by dcrd and
-dcrwallet only uses a single connection that remains open and allows
+In contrast, the websocket-based JSON-RPC interface provided by mond and
+monwallet only uses a single connection that remains open and allows
 asynchronous bi-directional communication.
 
 The websocket interface supports all of the same commands as HTTP POST, but they
@@ -62,7 +62,7 @@ The first important part of notifications is to realize that they will only
 work when connected via websockets.  This should intuitively make sense
 because HTTP POST mode does not keep a connection open!
 
-All notifications provided by dcrd require registration to opt-in.  For example,
+All notifications provided by mond require registration to opt-in.  For example,
 if you want to be notified when funds are received by a set of addresses, you
 register the addresses via the NotifyReceived (or NotifyReceivedAsync) function.
 
@@ -99,36 +99,36 @@ commands.
 The automatic reconnection can be disabled by setting the DisableAutoReconnect
 flag to true in the connection config when creating the client.
 
-# Interacting with Dcrwallet
+# Interacting with Monwallet
 
-This package only provides methods for dcrd RPCs.  Using the websocket
+This package only provides methods for mond RPCs.  Using the websocket
 connection and request-response mapping provided by rpcclient with arbitrary
 methods or different servers is possible through the generic RawRequest and
 RawRequestAsync methods (each of which deal with json.RawMessage for parameters
 and return results).
 
-Previous versions of this package provided methods for dcrwallet's JSON-RPC
-server in addition to dcrd.  These were removed in major version 6 of this
+Previous versions of this package provided methods for monwallet's JSON-RPC
+server in addition to mond.  These were removed in major version 6 of this
 module.  Projects depending on these calls are advised to use the
-decred.org/dcrwallet/rpc/client/dcrwallet package which is able to wrap
+decred.org/dcrwallet/rpc/client/monwallet package which is able to wrap
 rpcclient.Client using the aforementioned RawRequest method:
 
-	var _ *rpcclient.Client = client // Should be connected to dcrwallet
+	var _ *rpcclient.Client = client // Should be connected to monwallet
 	var _ *chaincfg.Params = params
-	var walletClient = dcrwallet.NewClient(dcrwallet.RawRequestCaller(client), params)
+	var walletClient = monwallet.NewClient(monwallet.RawRequestCaller(client), params)
 
 Using struct embedding, it is possible to create a single variable with the
-combined method sets of both rpcclient.Client and dcrwallet.Client:
+combined method sets of both rpcclient.Client and monwallet.Client:
 
-	type WalletClient = dcrwallet.Client // Avoids naming clash for selectors
+	type WalletClient = monwallet.Client // Avoids naming clash for selectors
 	type MyClient struct {
 		*rpcclient.Client
 		*WalletClient
 	}
 	var myClient = MyClient{Client: client, WalletClient: walletClient}
 
-This technique is valuable as dcrwallet (syncing in RPC mode) will passthrough
-any unknown RPCs to the backing dcrd server, proxying requests and responses for
+This technique is valuable as monwallet (syncing in RPC mode) will passthrough
+any unknown RPCs to the backing mond server, proxying requests and responses for
 the client.
 
 # Errors
@@ -178,8 +178,8 @@ detect if a command is unimplemented by the remote RPC server:
 
 The following full-blown client examples are in the examples directory:
 
-  - dcrdwebsockets
-    Connects to a dcrd RPC server using TLS-secured websockets, registers for
+  - mondwebsockets
+    Connects to a mond RPC server using TLS-secured websockets, registers for
     block connected and block disconnected notifications, and gets the current
     block count
 */

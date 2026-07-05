@@ -1,0 +1,20 @@
+FROM ubuntu:24.04
+
+# systemd container setup
+ENV container=docker
+
+# Install systemd so that systemctl is available.
+# The install script calls systemctl daemon-reload and enable.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends systemd && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# The install script also needs sudo (present by default) and curl
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends sudo curl ca-certificates && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+STOPSIGNAL SIGRTMIN+3
+CMD ["/lib/systemd/systemd"]

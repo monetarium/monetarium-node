@@ -60,22 +60,22 @@ func TestSKACoinTypeValidation(t *testing.T) {
 			shouldError: false,
 		},
 		{
-			name: "Valid active SKA-1 output",
+			name: "Valid active SKA1 output",
 			outputs: []wire.TxOut{
 				{
-					Value:    100000000,                // 1 SKA-1
-					CoinType: cointype.CoinType(1),     // SKA-1 = 1
+					Value:    100000000,                // 1 SKA1
+					CoinType: cointype.CoinType(1),     // SKA1 = 1
 					PkScript: []byte{0x76, 0xa9, 0x14}, // Mock script
 				},
 			},
 			shouldError: false,
 		},
 		{
-			name: "Invalid inactive SKA-2 output",
+			name: "Invalid inactive SKA2 output",
 			outputs: []wire.TxOut{
 				{
-					Value:    100000000,                // 1 SKA-2
-					CoinType: cointype.CoinType(2),     // SKA-2 is configured but inactive
+					Value:    100000000,                // 1 SKA2
+					CoinType: cointype.CoinType(2),     // SKA2 is configured but inactive
 					PkScript: []byte{0x76, 0xa9, 0x14}, // Mock script
 				},
 			},
@@ -83,11 +83,11 @@ func TestSKACoinTypeValidation(t *testing.T) {
 			errorSubstr: "inactive SKA coin type",
 		},
 		{
-			name: "Invalid unconfigured SKA-99 output",
+			name: "Invalid unconfigured SKA99 output",
 			outputs: []wire.TxOut{
 				{
-					Value:    100000000,                // 1 SKA-99
-					CoinType: cointype.CoinType(99),    // SKA-99 is not configured
+					Value:    100000000,                // 1 SKA99
+					CoinType: cointype.CoinType(99),    // SKA99 is not configured
 					PkScript: []byte{0x76, 0xa9, 0x14}, // Mock script
 				},
 			},
@@ -115,7 +115,7 @@ func TestSKACoinTypeValidation(t *testing.T) {
 					PkScript: []byte{0x76, 0xa9, 0x14},
 				},
 				{
-					Value:    50000000, // 0.5 SKA-1
+					Value:    50000000, // 0.5 SKA1
 					CoinType: cointype.CoinType(1),
 					PkScript: []byte{0x76, 0xa9, 0x14},
 				},
@@ -131,7 +131,7 @@ func TestSKACoinTypeValidation(t *testing.T) {
 					PkScript: []byte{0x76, 0xa9, 0x14},
 				},
 				{
-					Value:    50000000, // 0.5 SKA-2 (inactive)
+					Value:    50000000, // 0.5 SKA2 (inactive)
 					CoinType: cointype.CoinType(2),
 					PkScript: []byte{0x76, 0xa9, 0x14},
 				},
@@ -193,10 +193,10 @@ func TestSKACoinTypeStringRepresentation(t *testing.T) {
 		expected string
 	}{
 		{cointype.CoinTypeVAR, "VAR"},
-		{cointype.CoinType(1), "SKA-1"},
-		{cointype.CoinType(2), "SKA-2"},
-		{cointype.CoinType(25), "SKA-25"},
-		{cointype.CoinType(255), "SKA-255"},
+		{cointype.CoinType(1), "SKA1"},
+		{cointype.CoinType(2), "SKA2"},
+		{cointype.CoinType(25), "SKA25"},
+		{cointype.CoinType(255), "SKA255"},
 	}
 
 	for _, test := range tests {
@@ -302,10 +302,10 @@ func TestCoinTypeValidationRange(t *testing.T) {
 		name     string
 	}{
 		{0, true, "VAR (0)"},
-		{1, true, "SKA-1 (1)"},
-		{2, true, "SKA-2 (2)"},
-		{99, true, "SKA-99 (99)"},
-		{255, true, "SKA-255 (255)"},
+		{1, true, "SKA1 (1)"},
+		{2, true, "SKA2 (2)"},
+		{99, true, "SKA99 (99)"},
+		{255, true, "SKA255 (255)"},
 	}
 
 	for _, test := range tests {

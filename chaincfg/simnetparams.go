@@ -499,7 +499,7 @@ func SimNetParams() *Params {
 			12: {{
 				Vote: Vote{
 					Id:          VoteIDActivateSKA2,
-					Description: "Activate SKA-2 (Skarb-2) coin type for transactions",
+					Description: "Activate SKA2 (Skarb-2) coin type for transactions",
 					Mask:        0x0006, // Bits 1 and 2
 					Choices: []Choice{{
 						Id:          "abstain",
@@ -509,13 +509,13 @@ func SimNetParams() *Params {
 						IsNo:        false,
 					}, {
 						Id:          "no",
-						Description: "keep SKA-2 inactive",
+						Description: "keep SKA2 inactive",
 						Bits:        0x0002, // Bit 1
 						IsAbstain:   false,
 						IsNo:        true,
 					}, {
 						Id:          "yes",
-						Description: "activate SKA-2 for use",
+						Description: "activate SKA2 for use",
 						Bits:        0x0004, // Bit 2
 						IsAbstain:   false,
 						IsNo:        false,
@@ -647,7 +647,7 @@ func SimNetParams() *Params {
 			1: {
 				CoinType:         1,
 				Name:             "Skarb-1",
-				Symbol:           "SKA-1",
+				Symbol:           "SKA1",
 				MaxSupply:        mustParseBigInt("900000000000000000000000000000000"), // 900T * 1e18 atoms (900 trillion SKA coins)
 				AtomsPerCoin:     mustParseBigInt("1000000000000000000"),               // 1e18
 				EmissionHeight:   150,                                                  // After stake validation (144)
@@ -670,7 +670,7 @@ func SimNetParams() *Params {
 			2: {
 				CoinType:         2,
 				Name:             "Skarb-2",
-				Symbol:           "SKA-2",
+				Symbol:           "SKA2",
 				MaxSupply:        mustParseBigInt("500000000000000000"),  // 5e17 atoms (0.5 SKA for testing)
 				AtomsPerCoin:     mustParseBigInt("1000000000000000000"), // 1e18
 				EmissionHeight:   200,                                    // After vote activation and test script completion
@@ -692,7 +692,7 @@ func SimNetParams() *Params {
 		},
 
 		// Initial SKA types to activate at simnet genesis
-		InitialSKATypes: []cointype.CoinType{1}, // Only SKA-1 initially active
+		InitialSKATypes: []cointype.CoinType{1}, // Only SKA1 initially active
 	}
 }
 

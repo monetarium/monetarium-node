@@ -68,7 +68,7 @@ func (ct CoinType) String() string {
 	case ct == CoinTypeVAR:
 		return "VAR"
 	case ct >= 1 && ct <= CoinTypeMax:
-		return fmt.Sprintf("SKA-%d", uint8(ct))
+		return fmt.Sprintf("SKA%d", uint8(ct))
 	default:
 		return fmt.Sprintf("Unknown(%d)", uint8(ct))
 	}
@@ -118,7 +118,7 @@ func ParseCoinType(s string) (CoinType, error) {
 	case "VAR", "var":
 		return CoinTypeVAR, nil
 	case "SKA", "ska":
-		return CoinType(1), nil // Default to SKA-1 for backward compatibility
+		return CoinType(1), nil // Default to SKA1 for backward compatibility
 	default:
 		return 0, fmt.Errorf("unknown coin type: %s", s)
 	}

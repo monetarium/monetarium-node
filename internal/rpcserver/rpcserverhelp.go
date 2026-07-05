@@ -231,7 +231,7 @@ var helpDescsEnUS = map[string]string{
 	"getblock--synopsis":   "Returns information about a block given its hash.",
 	"getblock-hash":        "The hash of the block",
 	"getblock-verbose":     "Specifies the block is returned as a JSON object instead of hex-encoded string",
-	"getblock-verbosetx":   "Specifies that each transaction is returned as a JSON object and only applies if the verbose flag is true (dcrd extension)",
+	"getblock-verbosetx":   "Specifies that each transaction is returned as a JSON object and only applies if the verbose flag is true (mond extension)",
 	"getblock--condition0": "verbose=false",
 	"getblock--condition1": "verbose=true",
 	"getblock--result0":    "Hex-encoded bytes of the serialized block",
@@ -372,7 +372,7 @@ var helpDescsEnUS = map[string]string{
 
 	// GetBurnedCoinsStat help.
 	"getburnedcoinsstat-cointype":    "The coin type number (1-255)",
-	"getburnedcoinsstat-name":        "The name of the coin type (e.g., 'SKA-1', 'SKA-2')",
+	"getburnedcoinsstat-name":        "The name of the coin type (e.g., 'SKA1', 'SKA2')",
 	"getburnedcoinsstat-totalburned": "Total amount of coins burned",
 
 	// GetCFilterV2Cmd help.
@@ -542,13 +542,13 @@ var helpDescsEnUS = map[string]string{
 	"getmempoolfeesinfo-cointype":               "Optional: filter results to a specific coin type (0 for VAR, 1-255 for SKA variants).",
 	"getmempoolfeesinforesult-cointypes":        "Map of coin type fee information keyed by coin type name.",
 	"getmempoolfeesinforesult-cointypes--desc":  "Coin type fee information keyed by coin type name.",
-	"getmempoolfeesinforesult-cointypes--key":   "Coin type name (e.g., 'VAR', 'SKA-1').",
+	"getmempoolfeesinforesult-cointypes--key":   "Coin type name (e.g., 'VAR', 'SKA1').",
 	"getmempoolfeesinforesult-cointypes--value": "Detailed fee information for this coin type.",
 	"getmempoolfeesinforesult-totaltxcount":     "Total number of transactions across all coin types.",
 	"getmempoolfeesinforesult-totalsize":        "Total size of all transactions (bytes).",
 	"getmempoolfeesinforesult-lastupdated":      "Unix timestamp when this data was collected.",
 	"mempoolcointypefeeinfo-cointype":           "The numeric coin type.",
-	"mempoolcointypefeeinfo-name":               "The coin type name (e.g., 'VAR', 'SKA-1').",
+	"mempoolcointypefeeinfo-name":               "The coin type name (e.g., 'VAR', 'SKA1').",
 	"mempoolcointypefeeinfo-txcount":            "Number of transactions in mempool for this coin type.",
 	"mempoolcointypefeeinfo-totalsize":          "Total size of transactions (bytes).",
 	"mempoolcointypefeeinfo-averagesize":        "Average transaction size (bytes).",
@@ -789,7 +789,7 @@ var helpDescsEnUS = map[string]string{
 	// SendRawTransactionCmd help.
 	"sendrawtransaction--synopsis":     "Submits the serialized, hex-encoded transaction to the local peer and relays it to the network.",
 	"sendrawtransaction-hextx":         "Serialized, hex-encoded signed transaction",
-	"sendrawtransaction-allowhighfees": "Whether or not to allow insanely high fees (dcrd does not yet implement this parameter, so it has no effect)",
+	"sendrawtransaction-allowhighfees": "Whether or not to allow insanely high fees (mond does not yet implement this parameter, so it has no effect)",
 	"sendrawtransaction--result0":      "The hash of the transaction",
 
 	// SetGenerateCmd help.
@@ -804,8 +804,8 @@ var helpDescsEnUS = map[string]string{
 	"startprofilerresult-listeners":  "List of normalized listening addresses the profile server is listening on",
 
 	// StopCmd help.
-	"stop--synopsis": "Shutdown dcrd.",
-	"stop--result0":  "The string 'dcrd stopping.'",
+	"stop--synopsis": "Shutdown mond.",
+	"stop--result0":  "The string 'mond stopping.'",
 
 	// StopProfilerCmd help.
 	"stopprofiler--synopsis": "Stops the running HTTP profile server.",
@@ -833,7 +833,7 @@ var helpDescsEnUS = map[string]string{
 	// VerifyChainCmd help.
 	"verifychain--synopsis": "Verifies the block chain database.\n" +
 		"The actual checks performed by the checklevel parameter are implementation specific.\n" +
-		"For dcrd this is:\n" +
+		"For mond this is:\n" +
 		"checklevel=0 - Look up each block and ensure it can be loaded from the database.\n" +
 		"checklevel=1 - Perform basic context-free sanity checks on each block.",
 	"verifychain-checklevel": "How thorough the block verification is",

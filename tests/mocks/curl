@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Mock `curl` used in CI to test install.sh without touching the real
+# GitHub releases (which may not exist/match yet) or the network.
+#
+# Handles both linux-{amd64,arm64} and darwin-{amd64,arm64} platforms
+# by matching whatever platform string appears in the URL.
+set -euo pipefail
+
+url=""
+outfile=""
+args=("$@")
+for ((i = 0; i < ${#args[@]}; i++)); do
+    case "${args[$i]}" in
+        -o) outfile="${args[$((i + 1))]}" ;;
+        http*) url="${args[$i]}" ;;
+    esac
+done
+
+# 1) GitHub "latest release" API call -> return fake asset URLs for
+#    all platform variants so the grep in latest_release_url() finds
+#    whatever platform the script is running on.
+if [[ "$url" == *"api.github.com"* && "$url" == *"/releases/latest" ]]; then
+    repo="$(echo "$url" | sed -E 's#.*/repos/[^/]+/([^/]+)/releases/latest#\1#')"
+    cat <<EOF
+{
+  "assets": [
+    {
+      "name": "${repo}-linux-amd64",
+      "browser_download_url": "https://fixtures.test/${repo}-linux-amd64.tar.gz"
+    },
+    {
+      "name": "${repo}-linux-arm64",
+      "browser_download_url": "https://fixtures.test/${repo}-linux-arm64.tar.gz"
+    },
+    {
+      "name": "${repo}-darwin-amd64",
+      "browser_download_url": "https://fixtures.test/${repo}-darwin-amd64.tar.gz"
+    },
+    {
+      "name": "${repo}-darwin-arm64",
+      "browser_download_url": "https://fixtures.test/${repo}-darwin-arm64.tar.gz"
+    }
+  ]
+}
+EOF
+    exit 0
+fi
+
+# 2) "Download" of the release tarball -> build a fake tarball on the fly.
+#    Matches URLs like: https://fixtures.test/monetarium-node-linux-amd64.tar.gz
+if [[ "$url" == *"fixtures.test"* ]]; then
+    # Extract binary name: everything before the first dash after the last /
+    # e.g. "monetarium-node-linux-amd64.tar.gz" -> "monetarium-node"
+    base="$(basename "$url")"              # monetarium-node-linux-amd64.tar.gz
+    base="${base%.tar.gz}"                 # monetarium-node-linux-amd64
+    bin="${base%-linux-*}"                 # monetarium-node
+    bin="${bin%-darwin-*}"                 # monetarium-node (in case of darwin)
+    tmp="$(mktemp -d)"
+    if [[ "$bin" == "monetarium-wallet" ]]; then
+        cat > "$tmp/$bin" <<'MOCKWALLET'
+#!/usr/bin/env bash
+# Mock monetarium-wallet that handles --create for CI testing.
+# Real wallet is interactive; the mock just creates the DB and prints
+# a fake seed so install.sh's post-create check can pass.
+if [[ "$*" == *--create* ]]; then
+    db="$HOME/.monetarium-wallet/mainnet/wallet.db"
+    mkdir -p "$(dirname "$db")"
+    touch "$db"
+    echo "Your wallet generation seed is:"
+    echo "mock seed phrase for CI testing only"
+    echo ""
+    echo "Hex: 0000000000000000000000000000000000000000000000000000000000000000"
+    echo ""
+    echo "The wallet has been created successfully."
+    exit 0
+fi
+echo "mock monetarium-wallet called with: $@"
+MOCKWALLET
+    else
+        cat > "$tmp/$bin" <<EOS
+#!/usr/bin/env bash
+echo "mock ${bin} called with: \$@"
+EOS
+    fi
+    chmod +x "$tmp/$bin"
+    [[ -n "$outfile" ]] || { echo "mock curl: no -o output file given" >&2; exit 1; }
+    tar -czf "$outfile" -C "$tmp" "$bin"
+    rm -rf "$tmp"
+    exit 0
+fi
+
+echo "mock curl: unhandled URL: $url" >&2
+exit 1

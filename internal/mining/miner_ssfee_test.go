@@ -36,7 +36,7 @@ func TestCreateMinerSSFeeTx(t *testing.T) {
 		validateTx   func(*testing.T, *wire.MsgTx)
 	}{
 		{
-			name:         "Valid SKA-1 miner fee",
+			name:         "Valid SKA1 miner fee",
 			coinType:     cointype.CoinType(1),
 			totalFee:     big.NewInt(100000),
 			minerAddress: mockAddr,
@@ -79,7 +79,7 @@ func TestCreateMinerSSFeeTx(t *testing.T) {
 			},
 		},
 		{
-			name:         "Valid SKA-2 miner fee",
+			name:         "Valid SKA2 miner fee",
 			coinType:     cointype.CoinType(2),
 			totalFee:     big.NewInt(50000),
 			minerAddress: mockAddr,
@@ -244,9 +244,9 @@ func TestMinerSSFeeDistribution(t *testing.T) {
 		coinType  cointype.CoinType
 		feeAmount *big.Int
 	}{
-		{cointype.CoinType(1), big.NewInt(1000000)}, // 0.01 SKA-1
-		{cointype.CoinType(2), big.NewInt(500000)},  // 0.005 SKA-2
-		{cointype.CoinType(3), big.NewInt(250000)},  // 0.0025 SKA-3
+		{cointype.CoinType(1), big.NewInt(1000000)}, // 0.01 SKA1
+		{cointype.CoinType(2), big.NewInt(500000)},  // 0.005 SKA2
+		{cointype.CoinType(3), big.NewInt(250000)},  // 0.0025 SKA3
 	}
 
 	for _, tc := range testCases {

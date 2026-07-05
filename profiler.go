@@ -140,14 +140,14 @@ func (s *profileServer) Start(listenAddr string, allowNonLoopback bool) error {
 	}
 	for listenerIdx := range listeners {
 		listener := listeners[listenerIdx]
-		dcrdLog.Infof("Profiling server listening on %s", listener.Addr())
+		mondLog.Infof("Profiling server listening on %s", listener.Addr())
 		s.wg.Add(1)
 		go func(httpServer *http.Server) {
 			defer s.wg.Done()
 
 			err := httpServer.Serve(listener)
 			if !errors.Is(err, http.ErrServerClosed) {
-				dcrdLog.Errorf("Profiling server listening on %s exited with "+
+				mondLog.Errorf("Profiling server listening on %s exited with "+
 					"unexpected error: %v", listener.Addr(), err)
 			}
 		}(s.server)
@@ -177,12 +177,12 @@ func (s *profileServer) Stop() error {
 	s.listeners = nil
 	s.wg.Wait()
 	if err != nil {
-		dcrdLog.Errorf("Profiling server stopped with unexpected error: %v",
+		mondLog.Errorf("Profiling server stopped with unexpected error: %v",
 			err)
 		return err
 	}
 
-	dcrdLog.Info("Profiling server stopped")
+	mondLog.Info("Profiling server stopped")
 	return nil
 }
 

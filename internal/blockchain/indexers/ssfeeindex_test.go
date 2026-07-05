@@ -42,7 +42,7 @@ func TestSSFeeIndexKey(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name:     "valid staker SKA-1 coin type",
+			name:     "valid staker SKA1 coin type",
 			feeType:  ssfeeTypeStaker,
 			coinType: cointype.CoinType(1),
 			hash160:  make([]byte, 20),
@@ -50,7 +50,7 @@ func TestSSFeeIndexKey(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name:     "valid miner SKA-2 coin type",
+			name:     "valid miner SKA2 coin type",
 			feeType:  ssfeeTypeMiner,
 			coinType: cointype.CoinType(2),
 			hash160:  make([]byte, 20),

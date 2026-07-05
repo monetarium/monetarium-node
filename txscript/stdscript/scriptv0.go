@@ -878,7 +878,7 @@ type AtomicSwapDataPushesV0 struct {
 // ExtractAtomicSwapDataPushesV0 returns the data pushes from an atomic swap
 // contract using version 0 scripts if it is one.  It will return nil otherwise.
 //
-// NOTE: Atomic swaps are not considered standard script types by the dcrd
+// NOTE: Atomic swaps are not considered standard script types by the mond
 // mempool policy and should be used with P2SH.  The atomic swap format is also
 // expected to change to use a more secure hash function in the future.
 func ExtractAtomicSwapDataPushesV0(redeemScript []byte) *AtomicSwapDataPushesV0 {

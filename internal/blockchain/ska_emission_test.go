@@ -17,6 +17,7 @@ import (
 	"github.com/monetarium/monetarium-node/cointype"
 	"github.com/monetarium/monetarium-node/dcrec/secp256k1"
 	"github.com/monetarium/monetarium-node/dcrec/secp256k1/ecdsa"
+	"github.com/monetarium/monetarium-node/txscript/stdaddr"
 	"github.com/monetarium/monetarium-node/wire"
 )
 
@@ -32,7 +33,7 @@ func TestSKAActivation(t *testing.T) {
 	}{
 		{
 			name:     "Active SKA coin type",
-			coinType: 1, // SKA-1 is active in simnet params
+			coinType: 1, // SKA1 is active in simnet params
 			expected: true,
 		},
 		{
@@ -58,10 +59,10 @@ func TestSKAActivation(t *testing.T) {
 func TestCreateAuthorizedSKAEmissionTransactionValidation(t *testing.T) {
 	params := chaincfg.SimNetParams()
 
-	// Get emission key for SKA-1 from chain params
+	// Get emission key for SKA1 from chain params
 	emissionKey := params.GetSKAEmissionKey(cointype.CoinType(1))
 	if emissionKey == nil {
-		t.Fatal("No emission key configured for SKA-1 in test params")
+		t.Fatal("No emission key configured for SKA1 in test params")
 	}
 
 	// Helper function to create authorization
@@ -76,7 +77,7 @@ func TestCreateAuthorizedSKAEmissionTransactionValidation(t *testing.T) {
 			Nonce:       1,
 			CoinType:    cointype.CoinType(1),
 			Amount:      totalAmount,
-			Height:      10, // Valid height for SKA-1 in simnet
+			Height:      10, // Valid height for SKA1 in simnet
 		}
 	}
 
@@ -308,10 +309,14 @@ func TestValidateAuthorizedSKAEmissionTransactionBasic(t *testing.T) {
 		Timestamp:   time.Now().Unix(),
 	}
 
-	// Create a test script for output
-	testScript := []byte{0x76, 0xa9, 0x14}                             // OP_DUP OP_HASH160 OP_DATA_20
-	testScript = append(testScript, bytes.Repeat([]byte{0x01}, 20)...) // 20-byte hash
-	testScript = append(testScript, 0x88, 0xac)                        // OP_EQUALVERIFY OP_CHECKSIG
+	// Derive the test script from the governance-configured emission address so
+	// the tx outputs pay the configured destination (the validator binds outputs
+	// to EmissionAddresses).
+	emissionAddr, err := stdaddr.DecodeAddress(params.SKACoins[1].EmissionAddresses[0], params)
+	if err != nil {
+		t.Fatalf("Failed to decode configured emission address: %v", err)
+	}
+	_, testScript := emissionAddr.PaymentScript()
 
 	// Calculate Expiry (emission window end)
 	emissionWindow := int64(params.SKACoins[1].EmissionWindow)
@@ -469,77 +474,77 @@ func TestSKAEmissionWindow(t *testing.T) {
 		coinType    cointype.CoinType
 		expected    bool
 	}{
-		// SKA-1 tests (emission window 100-150)
+		// SKA1 tests (emission window 100-150)
 		{
-			name:        "SKA-1 before window",
+			name:        "SKA1 before window",
 			blockHeight: 99,
 			coinType:    1,
 			expected:    false,
 		},
 		{
-			name:        "SKA-1 at window start",
+			name:        "SKA1 at window start",
 			blockHeight: 100,
 			coinType:    1,
 			expected:    true,
 		},
 		{
-			name:        "SKA-1 in window middle",
+			name:        "SKA1 in window middle",
 			blockHeight: 125,
 			coinType:    1,
 			expected:    true,
 		},
 		{
-			name:        "SKA-1 at window end",
+			name:        "SKA1 at window end",
 			blockHeight: 150,
 			coinType:    1,
 			expected:    true,
 		},
 		{
-			name:        "SKA-1 after window",
+			name:        "SKA1 after window",
 			blockHeight: 151,
 			coinType:    1,
 			expected:    false,
 		},
-		// SKA-2 tests (exact height only)
+		// SKA2 tests (exact height only)
 		{
-			name:        "SKA-2 before height",
+			name:        "SKA2 before height",
 			blockHeight: 199,
 			coinType:    2,
 			expected:    false,
 		},
 		{
-			name:        "SKA-2 at exact height",
+			name:        "SKA2 at exact height",
 			blockHeight: 200,
 			coinType:    2,
 			expected:    true,
 		},
 		{
-			name:        "SKA-2 after height",
+			name:        "SKA2 after height",
 			blockHeight: 201,
 			coinType:    2,
 			expected:    false,
 		},
-		// SKA-3 tests (emission window 300-400)
+		// SKA3 tests (emission window 300-400)
 		{
-			name:        "SKA-3 before window",
+			name:        "SKA3 before window",
 			blockHeight: 299,
 			coinType:    3,
 			expected:    false,
 		},
 		{
-			name:        "SKA-3 at window start",
+			name:        "SKA3 at window start",
 			blockHeight: 300,
 			coinType:    3,
 			expected:    true,
 		},
 		{
-			name:        "SKA-3 at window end",
+			name:        "SKA3 at window end",
 			blockHeight: 400,
 			coinType:    3,
 			expected:    true,
 		},
 		{
-			name:        "SKA-3 after window",
+			name:        "SKA3 after window",
 			blockHeight: 401,
 			coinType:    3,
 			expected:    false,
@@ -598,17 +603,17 @@ func TestSKAEmissionWindowActive(t *testing.T) {
 			expected:    false,
 		},
 		{
-			name:        "SKA-1 window active",
+			name:        "SKA1 window active",
 			blockHeight: 125,
 			expected:    true,
 		},
 		{
-			name:        "SKA-2 exact height active",
+			name:        "SKA2 exact height active",
 			blockHeight: 200,
 			expected:    true,
 		},
 		{
-			name:        "SKA-3 window active",
+			name:        "SKA3 window active",
 			blockHeight: 350,
 			expected:    true,
 		},

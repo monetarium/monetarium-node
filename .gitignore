@@ -2,7 +2,7 @@
 *~
 
 # Databases
-dcrd.db
+mond.db
 *-shm
 *-wal
 
@@ -47,7 +47,7 @@ _testmain.go
 
 # Binaries
 *.exe
-dcrd
+mond
 monetarium
 monetarium-node
 cmd/addblock/addblock

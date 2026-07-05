@@ -7,9 +7,11 @@ package txscript
 
 import (
 	"bytes"
+	"math/big"
 	"testing"
 
 	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
+	"github.com/monetarium/monetarium-node/cointype"
 	"github.com/monetarium/monetarium-node/wire"
 )
 
@@ -95,8 +97,13 @@ func TestCalcSignatureHash(t *testing.T) {
 		tx.AddTxOut(txOut)
 	}
 
-	want := hexToBytes("4ce2cd042d64e35b36fdbd16aff0d38a5abebff0e5e8f6b6b" +
-		"31fcd4ac6957905")
+	// Digest reflects the Monetarium sighash extension that commits to
+	// per-input SKAValueIn and per-output CoinType + SKAValue.  The test
+	// transaction has all-VAR inputs and outputs, so each input contributes
+	// a single 0x00 SKA-length byte and each output contributes a 0x00
+	// CoinType byte plus a 0x00 SKA-length byte.
+	want := hexToBytes("c7cf006916b72cc99fecd59e9cde4bbc09d1cfe9ff496610" +
+		"b63ca2106c89d74f")
 	script := hexToBytes("51")
 
 	// Test prefix caching.
@@ -140,4 +147,118 @@ func TestCalcSignatureHash(t *testing.T) {
 			"returned when using a cached prefix but different indices",
 			msg1, msg3)
 	}
+}
+
+// buildSKATestTx constructs a transaction with one SKA input and one SKA
+// output for use in the sighash-binding tests below.  The exact field values
+// are not consensus-meaningful here; only the SKA atom amounts are.
+func buildSKATestTx(skaIn, skaOut *big.Int) *wire.MsgTx {
+	tx := new(wire.MsgTx)
+	tx.SerType = wire.TxSerializeFull
+	tx.Version = 1
+	txIn := new(wire.TxIn)
+	txIn.Sequence = 0xFFFFFFFF
+	txIn.PreviousOutPoint.Hash = chainhash.HashH([]byte{0x42})
+	txIn.PreviousOutPoint.Index = 0
+	txIn.PreviousOutPoint.Tree = 0
+	txIn.SKAValueIn = new(big.Int).Set(skaIn)
+	tx.AddTxIn(txIn)
+	txOut := new(wire.TxOut)
+	txOut.PkScript = hexToBytes("51")
+	txOut.CoinType = cointype.CoinType(1)
+	txOut.SKAValue = new(big.Int).Set(skaOut)
+	tx.AddTxOut(txOut)
+	return tx
+}
+
+// TestCalcSignatureHashSKAOutput verifies the sighash digest changes when an
+// SKA output amount is tampered with — the property that protects offline
+// signers from a host that lies about the SKA amount being authorized.
+func TestCalcSignatureHashSKAOutput(t *testing.T) {
+	script := hexToBytes("51")
+	original := buildSKATestTx(big.NewInt(1_000_000), big.NewInt(900_000))
+	tampered := buildSKATestTx(big.NewInt(1_000_000), big.NewInt(900_001))
+
+	digestOriginal, err := CalcSignatureHash(script, SigHashAll, original, 0, nil)
+	if err != nil {
+		t.Fatalf("digest original: %v", err)
+	}
+	digestTampered, err := CalcSignatureHash(script, SigHashAll, tampered, 0, nil)
+	if err != nil {
+		t.Fatalf("digest tampered: %v", err)
+	}
+	if bytes.Equal(digestOriginal, digestTampered) {
+		t.Fatalf("sighash did not change when SKAValue was tampered: %x", digestOriginal)
+	}
+}
+
+// TestCalcSignatureHashSKAInput verifies the sighash digest changes when an
+// SKA input amount is tampered with — symmetric coverage to the output case.
+func TestCalcSignatureHashSKAInput(t *testing.T) {
+	script := hexToBytes("51")
+	original := buildSKATestTx(big.NewInt(1_000_000), big.NewInt(900_000))
+	tampered := buildSKATestTx(big.NewInt(2_000_000), big.NewInt(900_000))
+
+	digestOriginal, err := CalcSignatureHash(script, SigHashAll, original, 0, nil)
+	if err != nil {
+		t.Fatalf("digest original: %v", err)
+	}
+	digestTampered, err := CalcSignatureHash(script, SigHashAll, tampered, 0, nil)
+	if err != nil {
+		t.Fatalf("digest tampered: %v", err)
+	}
+	if bytes.Equal(digestOriginal, digestTampered) {
+		t.Fatalf("sighash did not change when SKAValueIn was tampered: %x", digestOriginal)
+	}
+}
+
+// TestCalcSignatureHashCoinTypeBinding verifies the sighash digest changes
+// when only the per-output CoinType byte is altered.  This prevents an
+// attacker from re-tagging a VAR output as SKA (or swapping SKA1 for SKA2)
+// without invalidating any prior signature on the transaction.
+func TestCalcSignatureHashCoinTypeBinding(t *testing.T) {
+	script := hexToBytes("51")
+	original := buildSKATestTx(big.NewInt(1_000_000), big.NewInt(900_000))
+	tampered := buildSKATestTx(big.NewInt(1_000_000), big.NewInt(900_000))
+	tampered.TxOut[0].CoinType = cointype.CoinType(2)
+
+	digestOriginal, err := CalcSignatureHash(script, SigHashAll, original, 0, nil)
+	if err != nil {
+		t.Fatalf("digest original: %v", err)
+	}
+	digestTampered, err := CalcSignatureHash(script, SigHashAll, tampered, 0, nil)
+	if err != nil {
+		t.Fatalf("digest tampered: %v", err)
+	}
+	if bytes.Equal(digestOriginal, digestTampered) {
+		t.Fatalf("sighash did not change when CoinType was tampered: %x", digestOriginal)
+	}
+}
+
+// TestCalcSignatureHashSKADeterministic locks in the on-wire encoding so a
+// future refactor cannot silently change the sighash format.  If the digest
+// here drifts, every previously-signed SKA transaction would need to be
+// resigned — that is a consensus break and demands an explicit decision.
+func TestCalcSignatureHashSKADeterministic(t *testing.T) {
+	script := hexToBytes("51")
+	tx := buildSKATestTx(big.NewInt(1_000_000), big.NewInt(900_000))
+
+	want := "c6d345434cc91115f9171841acc2e908dd1cdb89cceef5b06aa58228da8dc47d"
+	got, err := CalcSignatureHash(script, SigHashAll, tx, 0, nil)
+	if err != nil {
+		t.Fatalf("digest: %v", err)
+	}
+	if hex := bytesToHex(got); hex != want {
+		t.Fatalf("digest drift: got %s, want %s", hex, want)
+	}
+}
+
+func bytesToHex(b []byte) string {
+	const hexdigits = "0123456789abcdef"
+	out := make([]byte, len(b)*2)
+	for i, c := range b {
+		out[i*2] = hexdigits[c>>4]
+		out[i*2+1] = hexdigits[c&0xf]
+	}
+	return string(out)
 }

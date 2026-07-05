@@ -112,24 +112,36 @@ func SKAAmountFromBytes(b []byte) SKAAmount {
 // SKAAmountFromSignedBytes creates an SKAAmount from a signed big-endian byte slice.
 // The first byte indicates the sign: 0 for positive/zero, 1 for negative.
 // This is the inverse of SignedBytes() and handles negative values.
-func SKAAmountFromSignedBytes(b []byte) SKAAmount {
+// Returns an error when the sign byte is anything other than 0 or 1, so that
+// stored-blob corruption surfaces as an explicit parse failure rather than a
+// silently-wrong amount.
+func SKAAmountFromSignedBytes(b []byte) (SKAAmount, error) {
 	if len(b) == 0 {
-		return Zero()
+		return Zero(), nil
 	}
 
 	if len(b) == 1 {
-		// Single byte with sign only means zero
-		return Zero()
+		// Single byte with sign only means zero. Reject anything other than
+		// 0 (the canonical encoder output) to surface corruption.
+		if b[0] != 0 {
+			return Zero(), fmt.Errorf("invalid sign byte 0x%02x in SKAAmount signed-bytes", b[0])
+		}
+		return Zero(), nil
 	}
 
 	sign := b[0]
 	magnitude := new(big.Int).SetBytes(b[1:])
 
-	if sign == 1 {
+	switch sign {
+	case 0:
+		// positive — keep magnitude as-is
+	case 1:
 		magnitude.Neg(magnitude)
+	default:
+		return Zero(), fmt.Errorf("invalid sign byte 0x%02x in SKAAmount signed-bytes", sign)
 	}
 
-	return SKAAmount{value: magnitude}
+	return SKAAmount{value: magnitude}, nil
 }
 
 // Zero returns a new SKAAmount with value zero.
@@ -359,6 +371,57 @@ func (a SKAAmount) ToCoins() *big.Int {
 // Example: atoms=1500000000000000000, atomsPerCoin=1e18 -> "1.5"
 func (a SKAAmount) ToDecimalString(atomsPerCoin *big.Int) string {
 	return AtomsToDecimalString(a.value, atomsPerCoin)
+}
+
+// DecimalStringToAtoms parses a non-negative decimal coin amount (e.g.
+// "1.5", "50000000000.123") into atoms using the supplied atomsPerCoin
+// scale. Returns ErrSKAAmountInvalidString for malformed input,
+// ErrSKAAmountNegative for negative values, and a generic error if the
+// fractional part is more precise than atomsPerCoin allows.
+//
+// This is the inverse of AtomsToDecimalString and is intended for use by
+// CLI tools, RPC handlers, and other callers that consume coin amounts as
+// strings (the precision-preserving wire form for SKA).
+func DecimalStringToAtoms(s string, atomsPerCoin *big.Int) (*big.Int, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, ErrSKAAmountInvalidString
+	}
+	if atomsPerCoin == nil || atomsPerCoin.Sign() <= 0 {
+		return nil, fmt.Errorf("invalid atomsPerCoin")
+	}
+	if strings.HasPrefix(s, "-") {
+		return nil, ErrSKAAmountNegative
+	}
+
+	parts := strings.Split(s, ".")
+	if len(parts) > 2 {
+		return nil, fmt.Errorf("%w: %s", ErrSKAAmountInvalidString, s)
+	}
+	intPart := parts[0]
+	var fracPart string
+	if len(parts) == 2 {
+		fracPart = parts[1]
+	}
+
+	// atomsPerCoin = 10^decimals — derive decimals from string length.
+	decimals := len(atomsPerCoin.String()) - 1
+	if len(fracPart) > decimals {
+		return nil, fmt.Errorf("amount has more than %d fractional digits: %s", decimals, s)
+	}
+	if len(fracPart) < decimals {
+		fracPart += strings.Repeat("0", decimals-len(fracPart))
+	}
+
+	atomsStr := intPart + fracPart
+	if atomsStr == "" {
+		return nil, fmt.Errorf("%w: %s", ErrSKAAmountInvalidString, s)
+	}
+	atoms, ok := new(big.Int).SetString(atomsStr, 10)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrSKAAmountInvalidString, s)
+	}
+	return atoms, nil
 }
 
 // AtomsToDecimalString converts a big.Int amount in atoms to a decimal string

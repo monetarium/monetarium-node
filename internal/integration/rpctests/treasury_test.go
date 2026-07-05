@@ -30,7 +30,7 @@ import (
 	"github.com/monetarium/monetarium-node/txscript/sign"
 	"github.com/monetarium/monetarium-node/txscript/stdaddr"
 	"github.com/monetarium/monetarium-node/wire"
-	"github.com/monetarium/monetarium-test/dcrdtest"
+	"github.com/monetarium/monetarium-test/mondtest"
 )
 
 // timeoutCtx returns a context with the given timeout and automatically calls
@@ -204,7 +204,7 @@ func assertTBaseAmount(t *testing.T, node *rpcclient.Client, amount int64) {
 }
 
 // TestTreasury performs a test of treasury functionality across the entire
-// dcrd stack.
+// mond stack.
 func TestTreasury(t *testing.T) {
 	defer useTestLogger(t)()
 
@@ -214,7 +214,7 @@ func TestTreasury(t *testing.T) {
 	defaultFeeRate := dcrutil.Amount(1e4)
 
 	// Setup the log dir for tests to ease debugging after failures.
-	logDir := filepath.Join(os.TempDir(), t.Name(), ".dcrdlogs")
+	logDir := filepath.Join(os.TempDir(), t.Name(), ".mondlogs")
 	t.Logf("Logdir: %s", logDir)
 	extraArgs := []string{
 		"--rejectnonstd",
@@ -235,9 +235,9 @@ func TestTreasury(t *testing.T) {
 		}
 	}
 
-	// Create the dcrdtest harness and mine outputs for the voting wallet to
+	// Create the mondtest harness and mine outputs for the voting wallet to
 	// use.
-	hn, err := dcrdtest.New(t, net, handlers, extraArgs)
+	hn, err := mondtest.New(t, net, handlers, extraArgs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,13 +250,13 @@ func TestTreasury(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer hn.TearDown()
-	_, err = dcrdtest.AdjustedSimnetMiner(timeoutCtx(t, time.Minute), hn.Node, 64)
+	_, err = mondtest.AdjustedSimnetMiner(timeoutCtx(t, time.Minute), hn.Node, 64)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Create the voting wallet.
-	vw, err := dcrdtest.NewVotingWallet(ctx, hn)
+	vw, err := mondtest.NewVotingWallet(ctx, hn)
 	if err != nil {
 		t.Fatalf("unable to create voting wallet for test: %v", err)
 	}
@@ -268,7 +268,7 @@ func TestTreasury(t *testing.T) {
 		t.Fatalf("voting wallet errored: %v", vwerr)
 	})
 	vw.SetMiner(func(ctx context.Context, nb uint32) ([]*chainhash.Hash, error) {
-		return dcrdtest.AdjustedSimnetMiner(ctx, hn.Node, nb)
+		return mondtest.AdjustedSimnetMiner(ctx, hn.Node, nb)
 	})
 
 	// Create a privkey and p2pkh addr we control for use in the tests.

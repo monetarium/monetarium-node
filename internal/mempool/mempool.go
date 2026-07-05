@@ -107,7 +107,7 @@ type Config struct {
 	GetSKAEmissionNonce func(cointype.CoinType) uint64
 
 	// HasVotePassedAtHeight checks if a consensus vote has passed and is active
-	// at the specified block height. This is used to validate SKA-2+ emissions
+	// at the specified block height. This is used to validate SKA2+ emissions
 	// which require stakeholder approval before they can be mined.
 	// Returns false if the vote doesn't exist or hasn't activated yet.
 	HasVotePassedAtHeight func(voteID string, height int64) bool
@@ -1396,7 +1396,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 				return nil, txRuleError(ErrDuplicate, str)
 			}
 
-			// SKA-2 and higher require stakeholder vote activation
+			// SKA2 and higher require stakeholder vote activation
 			// Only accept to mempool if vote has passed (ready to mine)
 			if coinType >= 2 {
 				voteID := fmt.Sprintf("activateska%d", coinType)
@@ -1873,7 +1873,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 
 		coinTypeStr := ""
 		if primaryCoinType.IsSKA() {
-			coinTypeStr = fmt.Sprintf(" (SKA-%d)", primaryCoinType)
+			coinTypeStr = fmt.Sprintf(" (SKA%d)", primaryCoinType)
 		}
 
 		// Validate fee using the fee calculator
@@ -2780,46 +2780,6 @@ func (mp *TxPool) GetFeeCalculator() *fees.CoinTypeFeeCalculator {
 	return mp.feeCalculator
 }
 
-// ProcessConfirmedTransactions records confirmed transactions in the dual-coin fee calculator
-// This should be called during block processing before removing transactions from the mempool
-func (mp *TxPool) ProcessConfirmedTransactions(block *dcrutil.Block, isTreasuryEnabled bool) {
-	processConfirmedTxs := func(txns []*dcrutil.Tx) {
-		for _, tx := range txns {
-			mp.mtx.RLock()
-			if poolTxDesc, exists := mp.pool[*tx.Hash()]; exists {
-				// Skip feeless system transactions (votes and revocations) from fee statistics
-				if poolTxDesc.Type != stake.TxTypeSSGen && poolTxDesc.Type != stake.TxTypeSSRtx {
-					// Determine coin type from outputs (inputs and outputs always match)
-					primaryCoinType := mp.determinePrimaryCoinType(tx.MsgTx())
-					txSize := int64(tx.MsgTx().SerializeSize())
-					// Use SKAFee for SKA transactions
-					if primaryCoinType.IsSKA() && poolTxDesc.SKAFee != nil {
-						mp.feeCalculator.RecordTransactionFeeBig(primaryCoinType, poolTxDesc.SKAFee, txSize, true)
-					} else {
-						mp.feeCalculator.RecordTransactionFee(primaryCoinType, poolTxDesc.Fee, txSize, true)
-					}
-				}
-			}
-			mp.mtx.RUnlock()
-		}
-	}
-
-	// Process regular transactions (skip coinbase at index 0)
-	if len(block.Transactions()) > 1 {
-		processConfirmedTxs(block.Transactions()[1:])
-	}
-
-	// Process stake transactions
-	if isTreasuryEnabled {
-		// Skip treasurybase at index 0 if treasury is enabled
-		if len(block.STransactions()) > 1 {
-			processConfirmedTxs(block.STransactions()[1:])
-		}
-	} else {
-		processConfirmedTxs(block.STransactions())
-	}
-}
-
 // validateCoinTypeConsistency ensures that transactions don't mix coin types
 // (VAR inputs can only produce VAR outputs, SKA inputs can only produce SKA outputs)
 func (mp *TxPool) validateCoinTypeConsistency(tx *dcrutil.Tx, utxoView *blockchain.UtxoViewpoint) error {
@@ -2902,11 +2862,16 @@ func (mp *TxPool) validateCoinTypeConsistency(tx *dcrutil.Tx, utxoView *blockcha
 			continue
 		}
 
-		// Get the UTXO being spent
+		// Get the UTXO being spent. By the time this function runs, the
+		// missing-input/orphan check in maybeAcceptTransaction has already
+		// returned for any tx with absent UTXOs, so a nil entry here would
+		// indicate a control-flow regression. Fail loudly rather than rely
+		// on that upstream invariant.
 		entry := utxoView.LookupEntry(txIn.PreviousOutPoint)
 		if entry == nil {
-			// This will be caught by other validation, skip for now
-			continue
+			return txRuleError(ErrInvalid, fmt.Sprintf(
+				"missing input UTXO %v during coin-type validation",
+				txIn.PreviousOutPoint))
 		}
 
 		inputCoinType := entry.CoinType()

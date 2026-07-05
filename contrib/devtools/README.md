@@ -3,7 +3,7 @@ devtools
 
 ## Overview
 
-This consists of developer tools which may be useful when working with dcrd and
+This consists of developer tools which may be useful when working with mond and
 related software.
 
 ## Contents
@@ -16,7 +16,7 @@ with a private test network where the developer has full control since the
 difficulty levels are low enough to generate blocks on demand and the developer
 owns all of the tickets and votes on the private network.
 
-The environment will be housed in the `$HOME/dcrdsimnetnodes` directory by
+The environment will be housed in the `$HOME/mondsimnetnodes` directory by
 default.  This can be overridden with the `VAR_SIMNET_ROOT` environment variable
 if desired.
 
@@ -27,7 +27,7 @@ for more details.
 
 The [dcr_setup_go_workspace.sh](./dcr_setup_go_workspace.sh)
 script initializes a Go multi-module workspace (via `go work init`) and adds all
-of the modules provided by the dcrd repository to it (via `go work use`) on an
+of the modules provided by the mond repository to it (via `go work use`) on an
 as needed basis.  Note that workspaces require Go 1.18+.
 
 This is useful when developing across multiple modules in the repository and
@@ -50,28 +50,28 @@ instructions for others to verify the digest.
 ### Assumed Valid Block Bump Script
 
 The [bump_assumevalid.sh](./bump_assumevalid.sh) script queries the main and
-test networks with `dcrctl` to determine suitable updated blocks to use for
+test networks with `monctl` to determine suitable updated blocks to use for
 their assumevalid block and then creates a `git` commit on a new branch that
 updates the [chaincfg/mainnetparams.go](../../chaincfg/mainnetparams.go) and
 [chaincfg/testnetparams.go](../../chaincfg/testnetparams.go) files accordingly.
 The commit description includes the relevant details and instructions for others
 to verify the results.
 
-**NOTE**: This script requires `dcrctl` to be configured such that `dcrctl` and
-`dcrctl --testnet` connect to up-to-date main and test network instances,
+**NOTE**: This script requires `monctl` to be configured such that `monctl` and
+`monctl --testnet` connect to up-to-date main and test network instances,
 respectively.
 
 ### Minimum Known Chain Work Bump Script
 
 The [bump_minknownchainwork.sh](./bump_minknownchainwork.sh) script queries the
-main and test networks with `dcrctl` and `jq` to determine their current best
+main and test networks with `monctl` and `jq` to determine their current best
 known chain work values and then creates a `git` commit on a new branch that
 updates the [chaincfg/mainnetparams.go](../../chaincfg/mainnetparams.go) and
 [chaincfg/testnetparams.go](../../chaincfg/testnetparams.go) files accordingly.
 The commit description includes the relevant details and instructions for others
 to verify the results.
 
-**NOTE**: This script requires `dcrctl` to be configured such that `dcrctl` and
-`dcrctl --testnet` connect to up-to-date main and test network instances,
+**NOTE**: This script requires `monctl` to be configured such that `monctl` and
+`monctl --testnet` connect to up-to-date main and test network instances,
 respectively.  It also requires the [jq](https://jqlang.github.io/jq/) utility
 to be available in the system path.

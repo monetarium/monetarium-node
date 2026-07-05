@@ -32,9 +32,9 @@ func makeReadBenches() []readBenchTest {
 	}
 }
 
-// BenchmarkDcrdRead benchmarks reading random values via the global Read method
+// BenchmarkMondRead benchmarks reading random values via the global Read method
 // with various size reads.
-func BenchmarkDcrdRead(b *testing.B) {
+func BenchmarkMondRead(b *testing.B) {
 	benches := makeReadBenches()
 	for benchIdx := range benches {
 		bench := benches[benchIdx]
@@ -68,9 +68,9 @@ func BenchmarkStdlibRead(b *testing.B) {
 	}
 }
 
-// BenchmarkDcrdReadPRNG benchmarks reading random values via a local PRNG
+// BenchmarkMondReadPRNG benchmarks reading random values via a local PRNG
 // instance with various size reads.
-func BenchmarkDcrdReadPRNG(b *testing.B) {
+func BenchmarkMondReadPRNG(b *testing.B) {
 	benches := makeReadBenches()
 	for benchIdx := range benches {
 		bench := benches[benchIdx]

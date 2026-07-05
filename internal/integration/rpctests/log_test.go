@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/decred/slog"
-	"github.com/monetarium/monetarium-test/dcrdtest"
+	"github.com/monetarium/monetarium-test/mondtest"
 )
 
 type testLog struct {
@@ -22,18 +22,18 @@ func (t *testLog) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-// useTestLogger sets the dcrdtest package-level logger to a backend that
+// useTestLogger sets the mondtest package-level logger to a backend that
 // writes trace-level logs to the test log.  A function is returned to set the
 // logger back to Disabled when finished.
 //
-// Due to dcrdtest's use of a global logger variable that must write to test
+// Due to mondtest's use of a global logger variable that must write to test
 // logs to individual test variables, it is not possible to parallelize tests.
 func useTestLogger(t *testing.T) func() {
 	backend := slog.NewBackend(&testLog{T: t})
 	l := backend.Logger("TEST")
 	l.SetLevel(slog.LevelTrace)
-	dcrdtest.UseLogger(l)
+	mondtest.UseLogger(l)
 	return func() {
-		dcrdtest.UseLogger(slog.Disabled)
+		mondtest.UseLogger(slog.Disabled)
 	}
 }

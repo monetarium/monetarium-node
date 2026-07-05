@@ -1,4 +1,4 @@
-dcrd allows you to bind to specific interfaces which enables you to setup
+mond allows you to bind to specific interfaces which enables you to setup
 configurations with varying levels of complexity.  The listen parameter can be
 specified on the command line as shown below with the -- prefix or in the
 configuration file without the -- prefix (as can all long command line options).
@@ -25,7 +25,7 @@ Command Line Examples:
 |--listen=127.0.0.1:8337 --listen=[::1]:9508|IPv4 localhost on port 8337 and IPv6 localhost on port 9508|
 |--listen=:9508 --listen=:8337|all interfaces on ports 9508 and 8337|
 
-The following config file would configure dcrd to only listen on localhost for both IPv4 and IPv6:
+The following config file would configure mond to only listen on localhost for both IPv4 and IPv6:
 
 ```text
 [Application Options]

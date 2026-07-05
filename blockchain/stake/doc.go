@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file.
 
 /*
-Package stake contains code for all of dcrd's stake transaction chain handling
+Package stake contains code for all of mond's stake transaction chain handling
 and other portions related to the Proof-of-Stake (PoS) system.
 
 At the heart of the PoS system are tickets, votes and revocations.  These 3

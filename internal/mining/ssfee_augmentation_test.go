@@ -78,12 +78,12 @@ func TestSSFeeAugmentation_SKA_Staker_NullInput(t *testing.T) {
 		fee      *big.Int
 	}{
 		{
-			name:     "SKA-1 staker null-input",
+			name:     "SKA1 staker null-input",
 			coinType: cointype.CoinType(1),
 			fee:      big.NewInt(1500),
 		},
 		{
-			name:     "SKA-2 staker null-input",
+			name:     "SKA2 staker null-input",
 			coinType: cointype.CoinType(2),
 			fee:      big.NewInt(2500),
 		},
@@ -145,12 +145,12 @@ func TestSSFeeAugmentation_SKA_Miner_NullInput(t *testing.T) {
 		fee      *big.Int
 	}{
 		{
-			name:     "SKA-1 miner null-input",
+			name:     "SKA1 miner null-input",
 			coinType: cointype.CoinType(1),
 			fee:      big.NewInt(3000),
 		},
 		{
-			name:     "SKA-2 miner null-input",
+			name:     "SKA2 miner null-input",
 			coinType: cointype.CoinType(2),
 			fee:      big.NewInt(4000),
 		},

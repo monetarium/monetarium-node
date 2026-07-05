@@ -52,7 +52,7 @@ func TestNewCoinTypeFeeCalculator(t *testing.T) {
 	for _, coinType := range supportedTypes {
 		if coinType == cointype.CoinTypeVAR {
 			varFound = true
-		} else if coinType == cointype.CoinType(1) { // SKA-1
+		} else if coinType == cointype.CoinType(1) { // SKA1
 			skaFound = true
 		}
 	}
@@ -87,7 +87,7 @@ func TestCalculateMinFee(t *testing.T) {
 		{
 			name:           "SKA transaction 250 bytes",
 			serializedSize: 250,
-			coinType:       cointype.CoinType(1), // SKA-1
+			coinType:       cointype.CoinType(1), // SKA1
 			expectedMin:    1000000000000000000,  // SKA fee rate 4e18/KB: (250 * 4e18) / 1000 = 1e18 atoms
 		},
 		{
@@ -99,7 +99,7 @@ func TestCalculateMinFee(t *testing.T) {
 		{
 			name:           "Large SKA transaction 1000 bytes",
 			serializedSize: 1000,
-			coinType:       cointype.CoinType(1), // SKA-1
+			coinType:       cointype.CoinType(1), // SKA1
 			expectedMin:    4000000000000000000,  // SKA fee rate 4e18/KB: (1000 * 4e18) / 1000 = 4e18 atoms
 		},
 		{
@@ -142,7 +142,7 @@ func TestEstimateFeeRate(t *testing.T) {
 		},
 		{
 			name:                "SKA fast confirmation",
-			coinType:            cointype.CoinType(1), // SKA-1
+			coinType:            cointype.CoinType(1), // SKA1
 			targetConfirmations: 3,
 			expectError:         false,
 		},
@@ -306,7 +306,7 @@ func TestValidateTransactionFees(t *testing.T) {
 			name:           "SKA sufficient fee",
 			txFee:          2000000000000000000, // 2 SKA - above min fee of 1 SKA for 250 bytes
 			serializedSize: 250,
-			coinType:       cointype.CoinType(1), // SKA-1
+			coinType:       cointype.CoinType(1), // SKA1
 			allowHighFees:  false,
 			expectError:    false,
 		},
@@ -314,7 +314,7 @@ func TestValidateTransactionFees(t *testing.T) {
 			name:           "SKA insufficient fee",
 			txFee:          100000000000000000, // 0.1 SKA - below min fee of 1 SKA for 250 bytes
 			serializedSize: 250,
-			coinType:       cointype.CoinType(1), // SKA-1 - min fee is (250*4e18)/1000=1e18 atoms
+			coinType:       cointype.CoinType(1), // SKA1 - min fee is (250*4e18)/1000=1e18 atoms
 			allowHighFees:  false,
 			expectError:    true,
 			errorContains:  "insufficient fee",
@@ -440,7 +440,7 @@ func TestSKASpecificFeeBehavior(t *testing.T) {
 	calc := NewCoinTypeFeeCalculator(params, defaultMinRelayFee)
 
 	// SKA should use custom fee rate
-	skaFee := calc.CalculateMinFee(1000, cointype.CoinType(1)) // 1KB transaction, SKA-1
+	skaFee := calc.CalculateMinFee(1000, cointype.CoinType(1)) // 1KB transaction, SKA1
 	expectedSKAFee := big.NewInt(500)                          // Should use SKACoinConfig.MinRelayTxFee
 
 	if skaFee.Cmp(expectedSKAFee) != 0 {
@@ -504,7 +504,7 @@ func TestInitializeActiveSKACoinsFromConfig(t *testing.T) {
 	}
 
 	// Check that active SKA coins from config are initialized
-	// Based on simnetparams.go: SKA-1 is active (Active: true), SKA-2 is inactive (Active: false)
+	// Based on simnetparams.go: SKA1 is active (Active: true), SKA2 is inactive (Active: false)
 	expectedActiveSKACoins := []cointype.CoinType{}
 	for coinType, config := range params.SKACoins {
 		if config.Active {
@@ -571,4 +571,259 @@ func TestInitializeActiveSKACoinsFromConfig(t *testing.T) {
 	}
 
 	t.Logf("Successfully verified %d active SKA coins are initialized from config", len(expectedActiveSKACoins))
+}
+
+// TestGetFeeStats_CapsAtMaxFeeRate verifies that GetFeeStats never returns a
+// percentile (Fast/Normal/Slow) above MaxFeeRate. A percentile of observed
+// network fees can climb above the node's max-fee policy when many recent txs
+// pay high per-kB rates; returning that uncapped value to wallets causes
+// deterministic self-rejection by ValidateTransactionFees.
+func TestGetFeeStats_CapsAtMaxFeeRate(t *testing.T) {
+	t.Run("VAR", func(t *testing.T) {
+		params := chaincfg.SimNetParams()
+		defaultMinRelayFee := dcrutil.Amount(1e4) // 10000 atoms/KB → MaxFeeRate = 1,000,000
+		calc := NewCoinTypeFeeCalculator(params, defaultMinRelayFee)
+
+		// Inject 30 observations at fee rate 1,200,000 atoms/KB — 20% above
+		// the VAR MaxFeeRate of 1,000,000. Use fee=1,200,000 with size=1000
+		// so RecordTransactionFeeBig computes feeRate = 1,200,000 * 1000 / 1000.
+		highFeeRate := int64(1_200_000)
+		for i := 0; i < 30; i++ {
+			calc.RecordTransactionFee(cointype.CoinTypeVAR, highFeeRate, 1000, true)
+		}
+
+		stats, err := calc.GetFeeStats(cointype.CoinTypeVAR)
+		if err != nil {
+			t.Fatalf("GetFeeStats(VAR): %v", err)
+		}
+
+		assertCappedBelowOrEqMax := func(name string, fee *big.Int) {
+			if fee == nil {
+				t.Errorf("VAR %s is nil", name)
+				return
+			}
+			if stats.MaxFeeRate == nil {
+				t.Fatal("VAR MaxFeeRate is nil — test setup wrong")
+			}
+			if fee.Cmp(stats.MaxFeeRate) > 0 {
+				t.Errorf("VAR %s = %s exceeds MaxFeeRate = %s",
+					name, fee.String(), stats.MaxFeeRate.String())
+			}
+		}
+		assertCappedBelowOrEqMax("FastFee", stats.FastFee)
+		assertCappedBelowOrEqMax("NormalFee", stats.NormalFee)
+		assertCappedBelowOrEqMax("SlowFee", stats.SlowFee)
+	})
+
+	t.Run("SKA", func(t *testing.T) {
+		params := chaincfg.SimNetParams()
+		defaultMinRelayFee := dcrutil.Amount(1e4)
+		calc := NewCoinTypeFeeCalculator(params, defaultMinRelayFee)
+
+		// Find an active SKA coin to test against.
+		var skaCoin cointype.CoinType
+		var found bool
+		for ct, cfg := range params.SKACoins {
+			if cfg.Active {
+				skaCoin = ct
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Skip("no active SKA coin in simnet params; cap-at-SKAMaxFeeRate path not exercised")
+		}
+
+		// Read the configured SKAMaxFeeRate so we can blow past it.
+		preStats, err := calc.GetFeeStats(skaCoin)
+		if err != nil {
+			t.Fatalf("GetFeeStats(SKA pre): %v", err)
+		}
+		if preStats.MaxFeeRate == nil || preStats.MaxFeeRate.Sign() == 0 {
+			t.Fatalf("SKA coin %d has no MaxFeeRate configured", skaCoin)
+		}
+
+		// Inject observations at 2x the SKA max — guaranteed to exceed any
+		// percentile cutoff.
+		highFeeRate := new(big.Int).Mul(preStats.MaxFeeRate, big.NewInt(2))
+		for i := 0; i < 30; i++ {
+			calc.RecordTransactionFeeBig(skaCoin, highFeeRate, 1000, true)
+		}
+
+		stats, err := calc.GetFeeStats(skaCoin)
+		if err != nil {
+			t.Fatalf("GetFeeStats(SKA): %v", err)
+		}
+
+		assertCappedBelowOrEqMax := func(name string, fee *big.Int) {
+			if fee == nil {
+				t.Errorf("SKA %s is nil", name)
+				return
+			}
+			if fee.Cmp(stats.MaxFeeRate) > 0 {
+				t.Errorf("SKA %s = %s exceeds MaxFeeRate = %s",
+					name, fee.String(), stats.MaxFeeRate.String())
+			}
+		}
+		assertCappedBelowOrEqMax("FastFee", stats.FastFee)
+		assertCappedBelowOrEqMax("NormalFee", stats.NormalFee)
+		assertCappedBelowOrEqMax("SlowFee", stats.SlowFee)
+	})
+}
+
+// TestRecordTransactionFee_PaidRateNotInflated verifies that recording a
+// sub-kB tx records the wallet's intended per-kB rate (fee/billedKb), not
+// the inflated raw fee×1000/size ratio. The old formula caused small txs
+// paying at relayFee X to be recorded at ~3.3X, silently biasing the median
+// upward and feeding the runaway estimator that blocked testnode1.
+func TestRecordTransactionFee_PaidRateNotInflated(t *testing.T) {
+	params := chaincfg.SimNetParams()
+	defaultMinRelayFee := dcrutil.Amount(1e4) // 10000 atoms/KB
+	calc := NewCoinTypeFeeCalculator(params, defaultMinRelayFee)
+
+	// 300-byte tx at relayFee 10000 atoms/kB pays 10000 atoms (full 1kB billing).
+	// Old formula: feeRate = 10000 × 1000 / 300 = 33,333 (inflated).
+	// New formula: feeRate = 10000 / 1 = 10,000 (correct intent).
+	calc.RecordTransactionFee(cointype.CoinTypeVAR, 10000, 300, false)
+
+	stats := calc.utilizationStats[cointype.CoinTypeVAR]
+	if got, want := len(stats.RecentTxFees), 1; got != want {
+		t.Fatalf("RecentTxFees len = %d, want %d", got, want)
+	}
+
+	rate := stats.RecentTxFees[0].rate
+	if rate.Cmp(big.NewInt(10000)) != 0 {
+		t.Errorf("sub-kB tx recorded at %s atoms/kB, want 10000 (paid rate, not inflated)",
+			rate.String())
+	}
+
+	// Multi-kB tx: size 1500, fee 20000 (rounds up to 2kB billing at 10000/kB).
+	// billedKb = ceil(1500/1000) = 2. recordedRate = 20000 / 2 = 10000. Same.
+	calc.RecordTransactionFee(cointype.CoinTypeVAR, 20000, 1500, false)
+	rate = stats.RecentTxFees[1].rate
+	if rate.Cmp(big.NewInt(10000)) != 0 {
+		t.Errorf("multi-kB tx recorded at %s atoms/kB, want 10000", rate.String())
+	}
+
+	// Exact-kB tx: size 1000, fee 10000. billedKb = 1. recordedRate = 10000.
+	calc.RecordTransactionFee(cointype.CoinTypeVAR, 10000, 1000, false)
+	rate = stats.RecentTxFees[2].rate
+	if rate.Cmp(big.NewInt(10000)) != 0 {
+		t.Errorf("exact-kB tx recorded at %s atoms/kB, want 10000", rate.String())
+	}
+}
+
+// TestRecordTransactionFee_TimeWindowExpiry verifies that samples older than
+// feeSampleWindow are dropped at write time and ignored when computing
+// percentiles. Without this, stale samples persisted in the FIFO indefinitely
+// on sparse chains and prevented the median from recovering.
+func TestRecordTransactionFee_TimeWindowExpiry(t *testing.T) {
+	params := chaincfg.SimNetParams()
+	defaultMinRelayFee := dcrutil.Amount(1e4)
+	calc := NewCoinTypeFeeCalculator(params, defaultMinRelayFee)
+
+	// Inject 50 samples timestamped beyond the window (simulating old stuck
+	// poison) and 10 fresh samples at the floor.
+	stats := calc.utilizationStats[cointype.CoinTypeVAR]
+	old := time.Now().Add(-2 * feeSampleWindow)
+	for i := 0; i < 50; i++ {
+		stats.RecentTxFees = append(stats.RecentTxFees, feeSample{
+			t:    old,
+			rate: big.NewInt(900_000), // would-be poison: near MaxFeeRate
+		})
+	}
+	for i := 0; i < 10; i++ {
+		stats.RecentTxFees = append(stats.RecentTxFees, feeSample{
+			t:    time.Now(),
+			rate: big.NewInt(10_000),
+		})
+	}
+
+	feeStats, err := calc.GetFeeStats(cointype.CoinTypeVAR)
+	if err != nil {
+		t.Fatalf("GetFeeStats: %v", err)
+	}
+
+	// With the old samples filtered out, the percentile is taken over the
+	// 10 fresh 10000-atom samples; NormalFee should be at the floor, not
+	// dragged up toward 900000 by the stuck poison.
+	if feeStats.NormalFee.Cmp(big.NewInt(20_000)) > 0 {
+		t.Errorf("NormalFee = %s; expected near minRelayFee (10000), stale samples leaking through",
+			feeStats.NormalFee.String())
+	}
+
+	// A fresh Record call should also lazily GC the stale samples from
+	// the underlying slice.
+	calc.RecordTransactionFee(cointype.CoinTypeVAR, 10000, 1000, false)
+	for _, s := range stats.RecentTxFees {
+		if s.t.Before(time.Now().Add(-feeSampleWindow - time.Minute)) {
+			t.Errorf("stale sample (t=%v) still present after Record", s.t)
+		}
+	}
+}
+
+// TestUpdateUtilization_AdvancesLastBlockIncluded confirms that LastBlockIncluded
+// gets refreshed from UpdateUtilization (which fires per-block from the mining
+// path). Previously it was set from confirmed=true recording calls; that
+// signal disappeared when those recording sites were removed, so the dynamic
+// multiplier would have always seen "no recent block" and over-boosted fees.
+func TestUpdateUtilization_AdvancesLastBlockIncluded(t *testing.T) {
+	params := chaincfg.SimNetParams()
+	defaultMinRelayFee := dcrutil.Amount(1e4)
+	calc := NewCoinTypeFeeCalculator(params, defaultMinRelayFee)
+
+	// Backdate so the test can detect a real refresh.
+	stats := calc.utilizationStats[cointype.CoinTypeVAR]
+	stats.LastBlockIncluded = time.Now().Add(-time.Hour)
+	before := stats.LastBlockIncluded
+
+	calc.UpdateUtilization(cointype.CoinTypeVAR, 10, 5_000, 0.1)
+
+	if !stats.LastBlockIncluded.After(before) {
+		t.Errorf("UpdateUtilization did not advance LastBlockIncluded: before=%v after=%v",
+			before, stats.LastBlockIncluded)
+	}
+}
+
+// TestSelfStabilizingMedian simulates the testnode1 incident in-memory:
+// a wallet's high-fee samples poison the FIFO; once the time window passes
+// and fresh low-fee activity arrives, the median snaps back to the floor
+// rather than staying stuck. Combined integration check for Changes 1+3.
+func TestSelfStabilizingMedian(t *testing.T) {
+	params := chaincfg.SimNetParams()
+	defaultMinRelayFee := dcrutil.Amount(1e4)
+	calc := NewCoinTypeFeeCalculator(params, defaultMinRelayFee)
+
+	stats := calc.utilizationStats[cointype.CoinTypeVAR]
+
+	// Phase 1: 100 stale poisoned samples just below the MaxFeeRate threshold,
+	// timestamped beyond the window.
+	old := time.Now().Add(-2 * feeSampleWindow)
+	for i := 0; i < 100; i++ {
+		stats.RecentTxFees = append(stats.RecentTxFees, feeSample{
+			t:    old,
+			rate: big.NewInt(950_000),
+		})
+	}
+
+	// Phase 2: 30 fresh samples at the relay-fee floor.
+	for i := 0; i < 30; i++ {
+		calc.RecordTransactionFee(cointype.CoinTypeVAR, 10_000, 1000, false)
+	}
+
+	feeStats, err := calc.GetFeeStats(cointype.CoinTypeVAR)
+	if err != nil {
+		t.Fatalf("GetFeeStats: %v", err)
+	}
+
+	// Median should reflect only the fresh samples.
+	if feeStats.NormalFee.Cmp(big.NewInt(20_000)) > 0 {
+		t.Errorf("NormalFee = %s; expected near minRelayFee — stale poison samples are still leaking through",
+			feeStats.NormalFee.String())
+	}
+	// And FastFee shouldn't blow up either; with all fresh samples at 10000,
+	// p90 is also 10000 (or floored to minRelayFee).
+	if feeStats.FastFee.Cmp(big.NewInt(20_000)) > 0 {
+		t.Errorf("FastFee = %s; expected near minRelayFee", feeStats.FastFee.String())
+	}
 }

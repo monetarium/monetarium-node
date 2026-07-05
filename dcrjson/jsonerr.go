@@ -163,7 +163,7 @@ var (
 	}
 )
 
-// Errors that are specific to dcrd.
+// Errors that are specific to mond.
 var (
 	ErrNoWallet = RPCError{
 		Code:    -1,

@@ -31,7 +31,7 @@ func TestShipCriticalSecurityFixes(t *testing.T) {
 	params.SKACoins = map[cointype.CoinType]*chaincfg.SKACoinConfig{
 		1: {
 			CoinType:          1,
-			Name:              "SKA-1",
+			Name:              "SKA1",
 			Symbol:            "SKA1",
 			MaxSupply:         big.NewInt(10000000),
 			Active:            true,

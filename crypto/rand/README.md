@@ -66,7 +66,7 @@ bytes as compared to standard library `crypto/rand`.  The benchmarks are from a
 Ryzen 7 5800X3D processor on Linux and are the result of feeding benchstat 10
 iterations of each.
 
-Operation     | `stdlib` Time / Op | `dcrd` Time / Op | Delta vs `stdlib`
+Operation     | `stdlib` Time / Op | `mond` Time / Op | Delta vs `stdlib`
 --------------|--------------------|------------------|------------------
 Read (4b)     |     470ns ± 7%     |     22ns ± 1%    | -95.32%
 Read (8b)     |     447ns ± 1%     |     28ns ± 1%    | -93.65%

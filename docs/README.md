@@ -3,7 +3,7 @@
 2. [Getting Started](#GettingStarted)
     1. [Installation](#Installation)
     2. [Configuration](#Configuration)
-    3. [Controlling and Querying dcrd via dcrctl](#DcrctlConfig)
+    3. [Controlling and Querying mond via monctl](#MonctlConfig)
     4. [Mining](#Mining)
 3. [Help](#Help)
     1. [Network Configuration](#NetworkConfig)
@@ -21,7 +21,7 @@
 
 ### 1. About
 
-dcrd is a full node Decred implementation written in [Go](https://golang.org),
+mond is a full node Decred implementation written in [Go](https://golang.org),
 and is licensed under the [copyfree](http://www.copyfree.org) ISC License.
 
 This software is currently under active development.  It is extremely stable and
@@ -42,27 +42,27 @@ transactions).
 
 **2.1 Installation**<br />
 
-The first step is to install dcrd.  The installation instructions can be found
+The first step is to install mond.  The installation instructions can be found
 [here](https://github.com/decred/dcrd/tree/master/README.md#Installation).
 
 <a name="Configuration" />
 
 **2.2 Configuration**<br />
 
-dcrd has a number of [configuration](https://pkg.go.dev/github.com/decred/dcrd)
-options, which can be viewed by running: `$ dcrd --help`.
+mond has a number of [configuration](https://pkg.go.dev/github.com/decred/dcrd)
+options, which can be viewed by running: `$ mond --help`.
 
-<a name="DcrctlConfig" />
+<a name="MonctlConfig" />
 
-**2.3 Controlling and Querying dcrd via dcrctl**<br />
+**2.3 Controlling and Querying mond via monctl**<br />
 
-[dcrctl](https://github.com/decred/dcrctl) is a command line utility that can be
-used to both control and query dcrd via
-[RPC](https://www.wikipedia.org/wiki/Remote_procedure_call).  dcrd does **not**
+[monctl](https://github.com/decred/dcrctl) is a command line utility that can be
+used to both control and query mond via
+[RPC](https://www.wikipedia.org/wiki/Remote_procedure_call).  mond does **not**
 enable its RPC server by default; You must configure at minimum both an RPC
 username and password or both an RPC limited username and password:
 
-* dcrd.conf configuration file
+* mond.conf configuration file
 ```
 [Application Options]
 rpcuser=myuser
@@ -70,7 +70,7 @@ rpcpass=SomeDecentp4ssw0rd
 rpclimituser=mylimituser
 rpclimitpass=Limitedp4ssw0rd
 ```
-* dcrctl.conf configuration file
+* monctl.conf configuration file
 ```
 [Application Options]
 rpcuser=myuser
@@ -82,12 +82,12 @@ OR
 rpclimituser=mylimituser
 rpclimitpass=Limitedp4ssw0rd
 ```
-For a list of available options, run: `$ dcrctl --help`
+For a list of available options, run: `$ monctl --help`
 
 <a name="Mining" />
 
 **2.4 Mining**<br />
-dcrd supports the [getwork](https://github.com/decred/dcrd/tree/master/docs/json_rpc_api.mediawiki#getwork)
+mond supports the [getwork](https://github.com/decred/dcrd/tree/master/docs/json_rpc_api.mediawiki#getwork)
 RPC.  The limited user cannot access this RPC.<br />
 
 **1. Add the payment addresses with the `miningaddr` option.**<br />
@@ -100,16 +100,16 @@ miningaddr=DsExampleAddress1
 miningaddr=DsExampleAddress2
 ```
 
-**2. Add dcrd's RPC TLS certificate to system Certificate Authority list.**<br />
+**2. Add mond's RPC TLS certificate to system Certificate Authority list.**<br />
 
 `cgminer` uses [curl](https://curl.haxx.se/) to fetch data from the RPC server.
-Since curl validates the certificate by default, we must install the `dcrd` RPC
+Since curl validates the certificate by default, we must install the `mond` RPC
 certificate into the default system Certificate Authority list.
 
 **Ubuntu**<br />
 
-1. Copy rpc.cert to /usr/share/ca-certificates: `# cp /home/user/.dcrd/rpc.cert /usr/share/ca-certificates/dcrd.crt`<br />
-2. Add dcrd.crt to /etc/ca-certificates.conf: `# echo dcrd.crt >> /etc/ca-certificates.conf`<br />
+1. Copy rpc.cert to /usr/share/ca-certificates: `# cp /home/user/.mond/rpc.cert /usr/share/ca-certificates/mond.crt`<br />
+2. Add mond.crt to /etc/ca-certificates.conf: `# echo mond.crt >> /etc/ca-certificates.conf`<br />
 3. Update the CA certificate list: `# update-ca-certificates`<br />
 
 **3. Set your mining software url to use https.**<br />
@@ -126,14 +126,14 @@ certificate into the default system Certificate Authority list.
 * [What Ports Are Used by Default?](https://github.com/decred/dcrd/tree/master/docs/default_ports.md)
 * [How To Listen on Specific Interfaces](https://github.com/decred/dcrd/tree/master/docs/configure_peer_server_listen_interfaces.md)
 * [How To Configure RPC Server to Listen on Specific Interfaces](https://github.com/decred/dcrd/tree/master/docs/configure_rpc_server_listen_interfaces.md)
-* [Configuring dcrd with Tor](https://github.com/decred/dcrd/tree/master/docs/configuring_tor.md)
+* [Configuring mond with Tor](https://github.com/decred/dcrd/tree/master/docs/configuring_tor.md)
 
 <a name="Wallet" />
 
 **3.2 Wallet**<br />
 
-dcrd was intentionally developed without an integrated wallet for security
-reasons.  Please see [dcrwallet](https://github.com/decred/dcrwallet) for more
+mond was intentionally developed without an integrated wallet for security
+reasons.  Please see [monwallet](https://github.com/decred/dcrwallet) for more
 information.
 
 <a name="Contact" />
@@ -169,7 +169,7 @@ https://decred.org/community/
 
 **5.3 Go Modules**
 
-The following versioned modules are provided by dcrd repository:
+The following versioned modules are provided by mond repository:
 
 * [rpcclient/v8](https://github.com/decred/dcrd/tree/master/rpcclient) - Implements
   a robust and easy to use Websocket-enabled Decred JSON-RPC client
@@ -244,7 +244,7 @@ The following versioned modules are provided by dcrd repository:
 **5.4 Module Hierarchy**
 
 The following diagram shows an overview of the hierarchy for the modules
-provided by the dcrd repository.
+provided by the mond repository.
 
 ![Module Hierarchy](./assets/module_hierarchy.svg)
 
@@ -258,7 +258,7 @@ into blocks, difficulty levels are low enough to generate blocks on demand, it
 is possible to easily cause chain reorganizations for testing purposes, and
 otherwise have full control over the network.
 
-In order to facilitate these scenarios, `dcrd` provides a simulation network
+In order to facilitate these scenarios, `mond` provides a simulation network
 (`--simnet`), where the difficulty starts extremely low to enable fast CPU
 mining of blocks.  Simnet also has some modified functionality that helps
 developers avoid common issues early in development.

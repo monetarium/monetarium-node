@@ -13,32 +13,32 @@ import (
 //go:embed sample-monetarium.conf
 var sampleMonetariumConf string
 
-// sampleDcrctlConf is a string containing the commented example config for
-// dcrctl.
+// sampleMonctlConf is a string containing the commented example config for
+// monctl.
 //
-//go:embed sample-dcrctl.conf
-var sampleDcrctlConf string
+//go:embed sample-monctl.conf
+var sampleMonctlConf string
 
-// Dcrd returns a string containing the commented example config for monetarium.
-func Dcrd() string {
+// Mond returns a string containing the commented example config for monetarium.
+func Mond() string {
 	return sampleMonetariumConf
 }
 
 // FileContents returns a string containing the commented example config for
-// dcrd.
+// mond.
 //
-// Deprecated: Use the [Dcrd] function instead.
+// Deprecated: Use the [Mond] function instead.
 func FileContents() string {
-	return Dcrd()
+	return Mond()
 }
 
-// Dcrctl returns a string containing the commented example config for dcrctl.
-func Dcrctl() string {
-	return sampleDcrctlConf
+// Monctl returns a string containing the commented example config for monctl.
+func Monctl() string {
+	return sampleMonctlConf
 }
 
-// DcrctlSampleConfig is a string containing the commented example config for
-// dcrctl.
+// MonctlSampleConfig is a string containing the commented example config for
+// monctl.
 //
-// Deprecated: Use the [Dcrctl] function instead.
-var DcrctlSampleConfig = Dcrctl()
+// Deprecated: Use the [Monctl] function instead.
+var MonctlSampleConfig = Monctl()

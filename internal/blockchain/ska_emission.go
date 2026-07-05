@@ -56,7 +56,7 @@ func isSKAEmissionWindowActive(blockHeight int64, chainParams *chaincfg.Params) 
 }
 
 // hasVotePassed checks if a consensus vote has passed and is active at the
-// given block node. This is used to validate SKA-2+ activations require
+// given block node. This is used to validate SKA2+ activations require
 // stakeholder approval through the voting system.
 func (b *BlockChain) hasVotePassed(voteID string, prevNode *blockNode) bool {
 	deployment, ok := b.deploymentData[voteID]
@@ -100,7 +100,7 @@ func CheckSKAEmissionAlreadyExists(coinType cointype.CoinType, chain ChainStateP
 // verification and replay protection.
 //
 // It's  a reference implementation for the emission transaction creation, the actual
-// transaction creation is handled by the dcrwallet's createUnsignedSKAEmissionTransaction.
+// transaction creation is handled by the monwallet's createUnsignedSKAEmissionTransaction.
 //
 // NOTE: This function validates the authorization but does NOT verify the signature.
 // The signature will be verified later during transaction validation. This is because
@@ -302,7 +302,7 @@ func createEmissionAuthScript(auth *chaincfg.SKAEmissionAuth) ([]byte, error) {
 // - Authorization amount matching
 // - Governance parameter enforcement
 //
-// Note: Stakeholder vote activation (for SKA-2+) is checked at block validation level
+// Note: Stakeholder vote activation (for SKA2+) is checked at block validation level
 // in CheckSKAEmissionInBlock, not here, to allow mempool to accept transactions before
 // vote passes.
 func ValidateAuthorizedSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
@@ -330,7 +330,7 @@ func ValidateAuthorizedSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
 			blockHeight, coinType)
 	}
 
-	// Note: Stakeholder vote check for SKA-2+ is performed in CheckSKAEmissionInBlock
+	// Note: Stakeholder vote check for SKA2+ is performed in CheckSKAEmissionInBlock
 	// at the block validation level, not here at transaction validation level.
 	// This allows the mempool to accept emission transactions before the vote passes.
 
@@ -432,16 +432,61 @@ func ValidateAuthorizedSKAEmissionTransaction(tx *wire.MsgTx, blockHeight int64,
 		return fmt.Errorf("SKA coin type %d not configured in chain params", emissionCoinType)
 	}
 
-	// Calculate the expected total emission amount from config (uses big.Int)
-	expectedEmissionAmount := new(big.Int)
-	for _, amount := range skaConfig.EmissionAmounts {
-		if amount != nil {
-			expectedEmissionAmount.Add(expectedEmissionAmount, amount)
-		}
+	// Bind every output to the governance-configured emission distribution: the
+	// transaction must have exactly the configured number of outputs, paying the
+	// configured addresses, in the configured order, with the configured amounts.
+	// Without this, the emission key holder could redirect the entire pre-emitted
+	// supply to arbitrary addresses while still satisfying signature and
+	// total-amount checks.
+	if len(skaConfig.EmissionAddresses) != len(skaConfig.EmissionAmounts) {
+		return fmt.Errorf("SKA coin type %d has misconfigured emission distribution: "+
+			"%d addresses vs %d amounts", emissionCoinType,
+			len(skaConfig.EmissionAddresses), len(skaConfig.EmissionAmounts))
+	}
+	if len(tx.TxOut) != len(skaConfig.EmissionAddresses) {
+		return fmt.Errorf("SKA coin type %d emission transaction has %d outputs, "+
+			"governance config requires %d", emissionCoinType,
+			len(tx.TxOut), len(skaConfig.EmissionAddresses))
 	}
 
-	// Enforce exact emission amount as configured in governance
-	// This ensures consistency between authorized and basic validation paths
+	expectedEmissionAmount := new(big.Int)
+	for i, txOut := range tx.TxOut {
+		expectedAddrStr := skaConfig.EmissionAddresses[i]
+		expectedAmount := skaConfig.EmissionAmounts[i]
+		if expectedAmount == nil {
+			return fmt.Errorf("SKA coin type %d emission amount %d is not configured",
+				emissionCoinType, i)
+		}
+
+		expectedAddr, err := stdaddr.DecodeAddress(expectedAddrStr, chainParams)
+		if err != nil {
+			return fmt.Errorf("SKA coin type %d has invalid emission address %d (%q): %w",
+				emissionCoinType, i, expectedAddrStr, err)
+		}
+		expectedVersion, expectedScript := expectedAddr.PaymentScript()
+		if expectedVersion != 0 {
+			return fmt.Errorf("SKA coin type %d emission address %d (%s) requires "+
+				"unsupported script version %d", emissionCoinType, i,
+				expectedAddrStr, expectedVersion)
+		}
+
+		if !bytes.Equal(txOut.PkScript, expectedScript) {
+			return fmt.Errorf("SKA emission output %d does not pay the configured "+
+				"emission address %s for coin type %d", i, expectedAddrStr, emissionCoinType)
+		}
+		if txOut.SKAValue.Cmp(expectedAmount) != 0 {
+			return fmt.Errorf("SKA emission output %d amount %s does not match "+
+				"governance-configured amount %s for address %s (coin type %d)",
+				i, txOut.SKAValue.String(), expectedAmount.String(),
+				expectedAddrStr, emissionCoinType)
+		}
+
+		expectedEmissionAmount.Add(expectedEmissionAmount, expectedAmount)
+	}
+
+	// Defense-in-depth: the per-output amount check above already implies the
+	// totals match, but keep this as a guarded invariant in case a future refactor
+	// changes one path without the other.
 	if expectedEmissionAmount.Sign() > 0 && totalEmissionAmount.Cmp(expectedEmissionAmount) != 0 {
 		return fmt.Errorf("total emission %s does not match governance-configured amount %s for coin type %d",
 			totalEmissionAmount.String(), expectedEmissionAmount.String(), emissionCoinType)
@@ -746,8 +791,8 @@ func CheckSKAEmissionInBlock(block *dcrutil.Block, prevNode *blockNode,
 					return fmt.Errorf("multiple emission transactions for coin type %d at height %d - only one emission per coin type allowed", coinType, blockHeight)
 				}
 
-				// For SKA-2 and higher coin types, verify stakeholder vote has passed
-				// SKA-1 is always active and doesn't require voting
+				// For SKA2 and higher coin types, verify stakeholder vote has passed
+				// SKA1 is always active and doesn't require voting
 				if coinType >= 2 {
 					voteID := fmt.Sprintf("activateska%d", coinType)
 					// Use hasVotePassed with prevNode to avoid re-acquiring the chain lock

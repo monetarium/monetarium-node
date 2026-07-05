@@ -99,12 +99,12 @@ func TestGetTransactionCoinType(t *testing.T) {
 			expectedType: cointype.CoinTypeVAR,
 		},
 		{
-			name:         "SKA-1 only transaction",
+			name:         "SKA1 only transaction",
 			coinTypes:    []cointype.CoinType{cointype.CoinType(1), cointype.CoinType(1)},
 			expectedType: cointype.CoinType(1),
 		},
 		{
-			name:         "SKA-2 only transaction",
+			name:         "SKA2 only transaction",
 			coinTypes:    []cointype.CoinType{cointype.CoinType(2), cointype.CoinType(2)},
 			expectedType: cointype.CoinType(2),
 		},
@@ -237,12 +237,12 @@ func TestTransactionSizeTracker(t *testing.T) {
 
 	ska1Size := tracker.GetSizeForCoinType(1)
 	if ska1Size == 0 {
-		t.Error("Expected SKA-1 size to be tracked")
+		t.Error("Expected SKA1 size to be tracked")
 	}
 
 	ska2Size := tracker.GetSizeForCoinType(2)
 	if ska2Size == 0 {
-		t.Error("Expected SKA-2 size to be tracked")
+		t.Error("Expected SKA2 size to be tracked")
 	}
 
 	// Verify allocation calculation

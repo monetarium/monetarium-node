@@ -60,8 +60,8 @@ func Example_defaultWalletLayout() {
 	// and be decrypted or generated as the NewMaster example shows, but
 	// for the purposes of this example, the private extended key for the
 	// master node is being hard coded here.
-	master := "dprv3hCznBesA6jBushjx7y9NrfheE4ZshnaKYtsoLXefmLPzrXgEiXkd" +
-		"RMD6UngnmBYZzgNhdEd4K3PidxcaCiR6HC9hmpj8FcrP4Cv7zBwELA"
+	master := "mprv6Hs7DX2CMZ52iFEgczG93ZRj1yE9QfiZeT4e4VgjhpMSRf3WF" +
+		"yrFbvcKG8TNn2Quq7cphS16jbsnnvs8Kn2XUAexeVQ7oYAkYri5Ed9foWH"
 
 	// Start by getting an extended key instance for the master node.
 	// This gives the path:
@@ -169,8 +169,8 @@ func Example_audits() {
 	// and be decrypted or generated as the NewMaster example shows, but
 	// for the purposes of this example, the private extended key for the
 	// master node is being hard coded here.
-	master := "dprv3hCznBesA6jBushjx7y9NrfheE4ZshnaKYtsoLXefmLPzrXgEiXkd" +
-		"RMD6UngnmBYZzgNhdEd4K3PidxcaCiR6HC9hmpj8FcrP4Cv7zBwELA"
+	master := "mprv6Hs7DX2CMZ52iFEgczG93ZRj1yE9QfiZeT4e4VgjhpMSRf3WF" +
+		"yrFbvcKG8TNn2Quq7cphS16jbsnnvs8Kn2XUAexeVQ7oYAkYri5Ed9foWH"
 
 	// Start by getting an extended key instance for the master node.
 	// This gives the path:
@@ -191,5 +191,5 @@ func Example_audits() {
 	fmt.Println("Audit key N(m/*):", masterPubKey)
 
 	// Output:
-	// Audit key N(m/*): dpubZ9169KDAEUnypHbWCe2Vu5TxGEcqJeNeX6XCYFU1fqw2iQZK7fsMhzsEFArbLmyUdprUw9aXHneUNd92bjc31TqC6sUduMY6PK2z4JXDS8j
+	// Audit key N(m/*): mpub2WrTd2Z6BvdKvjK9j1o9QhNTa14dp8SR1fzErt6MG9tRJTNeoXAW9ivo7NrmFWwAD5nQV2kZU6VtXcG5Gity5pZCukv2VxMFsgABubzc4aM
 }
