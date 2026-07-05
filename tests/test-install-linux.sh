@@ -42,8 +42,13 @@ OUTPUT_FILE="$TEST_HOME/install-output.log"
 #   ''   → no existing seed (Enter)
 #   OK   → confirm seed backup
 #   ''   → no additional account (Enter)
+#
+# Run with bash -c "$(cat install.sh)" to simulate the curl | bash
+# pattern where the script is read from stdin (not a file) and stdin
+# starts as a pipe, exercising the /dev/tty redirect fallback.
+SCRIPT="$(cat "$INSTALL_SCRIPT")"
 printf '%s\n%s\nyes\n\n\nOK\n\n' "$TEST_PASSPHRASE" "$TEST_PASSPHRASE" \
-    | bash "$INSTALL_SCRIPT" > "$OUTPUT_FILE" 2>&1 || {
+    | bash -c "$SCRIPT" > "$OUTPUT_FILE" 2>&1 || {
         rc=$?
         echo "install.sh exited with code $rc. Full output:"
         cat "$OUTPUT_FILE"
@@ -76,6 +81,7 @@ check "voting enabled in wallet config"             grep -q "enablevoting=1" "$W
 check "ticket buyer enabled in wallet config"       grep -q "enableticketbuyer=1" "$WALLET_CONF"
 check "passphrase not echoed in script output"      bash -c "! grep -q '$TEST_PASSPHRASE' '$OUTPUT_FILE'"
 check "big red warning was printed"                 grep -q "WARNING" "$OUTPUT_FILE"
+check "no /dev/tty error leaked to output"          bash -c "! grep -q '/dev/tty' '$OUTPUT_FILE'"
 
 # Wallet database
 WALLET_DB="$HOME/.monetarium-wallet/mainnet/wallet.db"

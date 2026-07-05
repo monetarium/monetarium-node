@@ -355,8 +355,8 @@ main() {
     # If stdin is not a terminal (e.g. curl https://install.sh | bash)
     # redirect to /dev/tty so interactive prompts and child processes
     # (read -s, monetarium-wallet --create) can read user input.
-    if [[ ! -t 0 ]] && [[ -c /dev/tty ]]; then
-        exec < /dev/tty
+    if [[ ! -t 0 ]]; then
+        { exec < /dev/tty; } 2>/dev/null || true
     fi
 
     require_cmd curl
