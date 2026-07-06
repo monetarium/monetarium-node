@@ -25,7 +25,19 @@ REPO_WALLET="monetarium-wallet"
 REPO_CTL="monetarium-ctl"
 
 INSTALL_DIR="/usr/local/bin"
-DATA_DIR="${MONETARIUM_HOME:-$HOME/.monetarium}"
+
+detect_data_dir() {
+    if [[ -n "${MONETARIUM_HOME:-}" ]]; then
+        echo "$MONETARIUM_HOME"
+        return
+    fi
+    local home="$HOME"
+    case "$(uname -s)" in
+        Darwin) echo "${home}/Library/Application Support/Monetarium" ;;
+        *)      echo "${home}/.monetarium" ;;
+    esac
+}
+DATA_DIR="$(detect_data_dir)"
 WALLET_CONF="$DATA_DIR/monetarium-wallet.conf"
 NODE_CONF="$DATA_DIR/monetarium.conf"
 
