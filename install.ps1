@@ -417,19 +417,24 @@ function Read-TicketBuyerPrompt {
 function Invoke-ConfigureMiningAndVoting {
     if (-not $Script:MiningEnabled -and -not $Script:TicketsEnabled) { return }
 
+    $ctlExe = Join-Path $Script:InstallDir 'monetarium-ctl.exe'
+    $walletExe = Join-Path $Script:InstallDir 'monetarium-wallet.exe'
+    $rpcCert = Join-Path (Get-WalletDataDir) 'rpc.cert'
+    $configChanged = $false
+
+    Write-Info 'Starting wallet for RPC configuration...'
+
+    $proc = Start-Process -FilePath $walletExe `
+        -ArgumentList "--configfile=`"$($Script:WalletConf)`"" `
+        -PassThru -WindowStyle Hidden -ErrorAction Stop
+
     Write-Info 'Waiting for wallet RPC to become available...'
 
-    $ctlExe = Join-Path $Script:InstallDir 'monetarium-ctl.exe'
-    $rpcCert = Join-Path (Get-WalletDataDir) 'rpc.cert'
     $rpcReady = $false
-
     for ($i = 0; $i -lt 60; $i++) {
         if (-not (Test-Path $rpcCert)) { Start-Sleep -Seconds 2; continue }
         $result = & $ctlExe --wallet getinfo 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            $rpcReady = $true
-            break
-        }
+        if ($LASTEXITCODE -eq 0) { $rpcReady = $true; break }
         Start-Sleep -Seconds 2
     }
 
@@ -442,12 +447,11 @@ function Invoke-ConfigureMiningAndVoting {
         if ($Script:TicketsEnabled) {
             Write-Info "  After startup: $ctlExe --wallet setvotefeeconsolidationaddress default <address>"
         }
+        if (-not $proc.HasExited) { $proc.Kill() }
         return
     }
 
     Write-Host 'Wallet RPC ready.' -ForegroundColor Green
-
-    $configChanged = $false
 
     if ($Script:MiningEnabled) {
         $addr = & $ctlExe --wallet getnewaddress 2>$null
@@ -478,42 +482,29 @@ ticketbuyer.balancetomaintainabsolute=$($Script:TicketBalance)
         }
     }
 
+    Write-Info 'Stopping wallet...'
+    & $ctlExe --wallet stop 2>$null | Out-Null
+    Start-Sleep -Seconds 3
+    if (-not $proc.HasExited) { $proc.Kill() }
+
     if ($configChanged) {
-        if ($Script:MiningEnabled) {
-            Write-Info 'Restarting node to apply mining configuration...'
-            Restart-ScheduledTask -TaskName 'MonetariumNode' 2>$null | Out-Null
-            Start-Sleep -Seconds 3
-
-            for ($i = 0; $i -lt 30; $i++) {
-                $result = & $ctlExe getinfo 2>&1
-                if ($LASTEXITCODE -eq 0 -and $result) { break }
-                Start-Sleep -Seconds 2
-            }
-
+        Write-Host ''
+        Write-Host '=============================================' -ForegroundColor Green
+        Write-Host '  Configuration Summary' -ForegroundColor Green
+        Write-Host '=============================================' -ForegroundColor Green
+        if ($Script:MiningEnabled -and $Script:MiningAddr) {
+            Write-Host "Mining address:              $($Script:MiningAddr)"
             if ($Script:MiningCores) {
-                & $ctlExe setgenerate true $Script:MiningCores 2>$null | Out-Null
+                Write-Host "CPU cores for mining:        $($Script:MiningCores)"
             }
         }
-
-        Write-Info 'Restarting wallet...'
-        Restart-ScheduledTask -TaskName 'MonetariumWallet' 2>$null | Out-Null
+        if ($Script:TicketsEnabled -and $Script:ConsolidationAddr) {
+            Write-Host "Fee consolidation address:   $($Script:ConsolidationAddr)"
+            Write-Host "Ticket buyer limit:          $($Script:TicketLimit)"
+            Write-Host "Balance to maintain:         $($Script:TicketBalance)"
+        }
+        Write-Host ''
     }
-
-    Write-Host ''
-    Write-Host '=============================================' -ForegroundColor Green
-    Write-Host '  Configuration Summary' -ForegroundColor Green
-    Write-Host '=============================================' -ForegroundColor Green
-    if ($Script:MiningEnabled -and $Script:MiningAddr) {
-        Write-Host "  Mining:             enabled ($($Script:MiningCores) core(s))" -ForegroundColor Green
-        Write-Host "  Mining reward addr: $($Script:MiningAddr)" -ForegroundColor Green
-    }
-    if ($Script:TicketsEnabled -and $Script:ConsolidationAddr) {
-        Write-Host '  Ticket buying:      enabled' -ForegroundColor Green
-        Write-Host "  Ticket limit:       $($Script:TicketLimit)" -ForegroundColor Green
-        Write-Host "  Min wallet balance: $($Script:TicketBalance)" -ForegroundColor Green
-        Write-Host "  Fee consolidation:  $($Script:ConsolidationAddr)" -ForegroundColor Green
-    }
-    Write-Host '=============================================' -ForegroundColor Green
 }
 
 # --------------------------------------------------------------------------
@@ -653,11 +644,11 @@ function Main {
 
     Write-CtlConfig
     Create-Wallet
-    Install-ScheduledTask
 
     Read-MiningPrompt
     Read-TicketBuyerPrompt
     Invoke-ConfigureMiningAndVoting
+    Install-ScheduledTask
     Write-Manifest
 
     Write-Host ''
