@@ -557,11 +557,6 @@ configure_mining_and_voting() {
         addr=$(monetarium-ctl --wallet getnewaddress 2>/dev/null || true)
         if [[ -n "$addr" ]]; then
             CONSOLIDATION_ADDR="$addr"
-            {
-                echo ""
-                echo "; Fee consolidation — added post-install by install.sh"
-                echo "feeconsolidationaddress=${addr}"
-            } >> "$WALLET_CONF"
         fi
     fi
 
