@@ -112,9 +112,16 @@ function Install-Binary {
 
     if ($archivePath -like '*.zip') {
         Expand-Archive -Path $archivePath -DestinationPath $tmpDir -Force
+    } else {
+        # Raw binary (not archived) — rename to the expected name
+        $destName = Join-Path $tmpDir "$BinaryName.exe"
+        Move-Item -Path $archivePath -Destination $destName -Force
     }
 
     $found = Get-ChildItem -Path $tmpDir -Recurse -Filter "$BinaryName.exe" | Select-Object -First 1
+    if (-not $found) {
+        $found = Get-ChildItem -Path $tmpDir -Recurse -Filter "$BinaryName-*.exe" | Select-Object -First 1
+    }
     if (-not $found) {
         Write-ErrAndThrow "Could not locate '$BinaryName.exe' inside the downloaded archive."
     }
