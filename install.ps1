@@ -45,12 +45,12 @@ $Script:DataDir    = Join-Path $baseData 'Monetarium'
 $Script:WalletConf = Join-Path $Script:DataDir 'monetarium-wallet.conf'
 $Script:NodeConf   = Join-Path $Script:DataDir 'monetarium.conf'
 
-# ctl config — written to ctl's own appdata dir so "monetarium-ctl" works
+# ctl config - written to ctl's own appdata dir so "monetarium-ctl" works
 # without --configfile on every invocation.
 $Script:CtlDir   = Join-Path $env:LOCALAPPDATA 'Monetarium-ctl'
 $Script:CtlConf  = Join-Path $Script:CtlDir 'monetarium-ctl.conf'
 
-# Install manifest — lists every file this script creates.
+# Install manifest - lists every file this script creates.
 $Script:Manifest = Join-Path $Script:DataDir 'install.manifest'
 
 # Mining & ticket buyer settings (set by prompts)
@@ -139,7 +139,7 @@ function Install-Binary {
     if ($archivePath -like '*.zip') {
         Expand-Archive -Path $archivePath -DestinationPath $tmpDir -Force
     } else {
-        # Raw binary (not archived) — rename to the expected name
+        # Raw binary (not archived) - rename to the expected name
         $destName = Join-Path $tmpDir "$BinaryName.exe"
         Move-Item -Path $archivePath -Destination $destName -Force
     }
@@ -275,7 +275,7 @@ enableticketbuyer=1
     Protect-ConfigFile -Path $Script:WalletConf
 
     Write-Info "Config files written to $($Script:DataDir)."
-    Write-Info "  (ProgramData is a hidden system folder — type the path directly into File Explorer or enable 'Show hidden files'.)"
+    Write-Info "  (ProgramData is a hidden system folder - type the path directly into File Explorer or enable 'Show hidden files'.)"
     Write-Info "Access restricted to the current user, SYSTEM, and Administrators."
 }
 
@@ -306,7 +306,7 @@ function Create-Wallet {
     $walletDb = Join-Path (Get-WalletDataDir) 'mainnet\wallet.db'
 
     if (Test-Path $walletDb) {
-        Write-Info "Wallet database already exists at $walletDb — skipping creation."
+        Write-Info "Wallet database already exists at $walletDb - skipping creation."
         return
     }
 
@@ -318,7 +318,7 @@ function Create-Wallet {
     & $walletExe --create --configfile "$Script:WalletConf" 2>&1
 
     if (-not (Test-Path $walletDb)) {
-        Write-ErrAndThrow "Wallet creation failed — database not found at $walletDb"
+        Write-ErrAndThrow "Wallet creation failed - database not found at $walletDb"
     }
 
     Write-Info 'Wallet created successfully.'
@@ -453,7 +453,7 @@ function Invoke-ConfigureMiningAndVoting {
             $Script:MiningAddr = $addr
             @"
 
-; Mining configuration — added post-install by install.ps1
+; Mining configuration - added post-install by install.ps1
 generate=true
 miningaddr=${addr}
 "@ | Add-Content -Path $Script:NodeConf -Encoding UTF8
@@ -468,7 +468,7 @@ miningaddr=${addr}
             & $ctlExe --wallet setvotefeeconsolidationaddress "default" $addr 2>$null | Out-Null
             @"
 
-; Ticket buyer configuration — added post-install by install.ps1
+; Ticket buyer configuration - added post-install by install.ps1
 ticketbuyer.limit=$($Script:TicketLimit)
 ticketbuyer.balancetomaintainabsolute=$($Script:TicketBalance)
 "@ | Add-Content -Path $Script:WalletConf -Encoding UTF8
@@ -522,7 +522,7 @@ function Write-Manifest {
     $timestamp = (Get-Date).ToUniversalTime().ToString('o')
 
     @"
-# Install manifest — files created by install.ps1
+# Install manifest - files created by install.ps1
 # Run date: $timestamp
 #
 # To uninstall, stop the scheduled tasks first:
@@ -531,7 +531,7 @@ function Write-Manifest {
 #
 # Then remove the files listed below.
 # Backup and remove the wallet database FIRST if it holds funds!
-# The wallet seed was shown during installation — without it the
+# The wallet seed was shown during installation - without it the
 # wallet.db is unrecoverable.
 
 binaries:
