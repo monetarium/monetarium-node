@@ -148,9 +148,9 @@ needs_tty() {
 
 read_tty() {
     if needs_tty; then
-        read "$@" < /dev/tty
+        read -r "$@" < /dev/tty
     else
-        read "$@"
+        read -r "$@"
     fi
 }
 
