@@ -256,8 +256,8 @@ prompt_mining() {
 
     local answer
     read_tty -r -p "Enable CPU mining? (y/N): " answer
-    case "${answer,,}" in
-        y|yes) MINING_ENABLED=true ;;
+    case "$answer" in
+        [yY]|[yY][eE][sS]) MINING_ENABLED=true ;;
     esac
 
     if $MINING_ENABLED; then
@@ -285,8 +285,8 @@ prompt_ticket_buyer() {
 
     local answer
     read_tty -r -p "Enable automatic ticket purchase for staking? (y/N): " answer
-    case "${answer,,}" in
-        y|yes) TICKETS_ENABLED=true ;;
+    case "$answer" in
+        [yY]|[yY][eE][sS]) TICKETS_ENABLED=true ;;
     esac
 
     if $TICKETS_ENABLED; then
