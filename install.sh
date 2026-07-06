@@ -137,6 +137,41 @@ download_binary() {
 }
 
 # --------------------------------------------------------------------------
+# 2b. Ensure INSTALL_DIR is on PATH for interactive shell use
+#     (the systemd/launchd services call binaries by absolute path,
+#     so this step is purely for convenient `monetarium-ctl ...` usage).
+# --------------------------------------------------------------------------
+path_needs_update() {
+    case ":$PATH:" in
+        *":$INSTALL_DIR:"*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+add_install_dir_to_path() {
+    local rc_file marker="# Added by monetarium install.sh"
+
+    case "$(basename "${SHELL:-}")" in
+        zsh)  rc_file="$HOME/.zshrc" ;;
+        bash) rc_file="$HOME/.bashrc" ;;
+        *)    rc_file="$HOME/.profile" ;;
+    esac
+
+    if ! grep -qF "$marker" "$rc_file" 2>/dev/null; then
+        {
+            echo ""
+            echo "$marker"
+            echo "export PATH=\"$INSTALL_DIR:\$PATH\""
+        } >> "$rc_file"
+        info "Added $INSTALL_DIR to PATH in $rc_file. Run 'source $rc_file' or open a new terminal to use it."
+    else
+        info "$rc_file already updates PATH for $INSTALL_DIR."
+    fi
+
+    export PATH="$INSTALL_DIR:$PATH"
+}
+
+# --------------------------------------------------------------------------
 # 3. Prompt for passphrase (hidden)
 # --------------------------------------------------------------------------
 # In curl | bash, stdin is a pipe — interactive commands need /dev/tty
@@ -405,6 +440,10 @@ main() {
     download_binary "$REPO_WALLET" "monetarium-wallet" "$platform"
     download_binary "$REPO_CTL"    "monetarium-ctl"    "$platform"
 
+    if path_needs_update; then
+        add_install_dir_to_path
+    fi
+
     prompt_passphrase
     write_configs
     create_wallet
@@ -417,13 +456,6 @@ main() {
     unset WALLET_PASSPHRASE
 
     green "Installation complete."
-
-    if ! echo ":$PATH:" | grep -qF ":$INSTALL_DIR:"; then
-        info "$INSTALL_DIR is not in your PATH."
-        info "Add it to your shell profile (e.g. ~/.bashrc or ~/.zshrc):"
-        info "  export PATH=\"\$PATH:$INSTALL_DIR\""
-    fi
-
     print_warning
 }
 
