@@ -336,13 +336,6 @@ enablevoting=1
 enableticketbuyer=1
 EOF
 
-    if $TICKETS_ENABLED; then
-        cat >> "$WALLET_CONF" <<EOF
-ticketbuyer.limit=${TICKET_LIMIT}
-ticketbuyer.balancetomaintainabsolute=${TICKET_BALANCE}
-EOF
-    fi
-
     chmod 600 "$NODE_CONF" "$WALLET_CONF"
     chown "$(id -u):$(id -g)" "$NODE_CONF" "$WALLET_CONF"
 
@@ -559,39 +552,46 @@ configure_mining_and_voting() {
             CONSOLIDATION_ADDR="$addr"
             monetarium-ctl --wallet setvotefeeconsolidationaddress "default" "$addr" >/dev/null 2>&1 || true
         fi
+        {
+            echo ""
+            echo "; Ticket buyer configuration — added post-install by install.sh"
+            echo "ticketbuyer.limit=${TICKET_LIMIT}"
+            echo "ticketbuyer.balancetomaintainabsolute=${TICKET_BALANCE}"
+        } >> "$WALLET_CONF"
+        config_changed=true
     fi
 
     if $config_changed; then
-        info "Restarting node to apply mining configuration..."
-        case "$(uname -s)" in
-            Linux)
-                sudo systemctl restart monetarium-node
-                ;;
-            Darwin)
-                if launchctl kickstart -k "gui/$(id -u)/com.monetarium.node" 2>/dev/null; then
-                    :
-                else
-                    launchctl unload "$HOME/Library/LaunchAgents/com.monetarium.node.plist" 2>/dev/null || true
-                    launchctl load "$HOME/Library/LaunchAgents/com.monetarium.node.plist"
-                fi
-                ;;
-        esac
+        if $MINING_ENABLED; then
+            info "Restarting node to apply mining configuration..."
+            case "$(uname -s)" in
+                Linux)
+                    sudo systemctl restart monetarium-node
+                    ;;
+                Darwin)
+                    if launchctl kickstart -k "gui/$(id -u)/com.monetarium.node" 2>/dev/null; then
+                        :
+                    else
+                        launchctl unload "$HOME/Library/LaunchAgents/com.monetarium.node.plist" 2>/dev/null || true
+                        launchctl load "$HOME/Library/LaunchAgents/com.monetarium.node.plist"
+                    fi
+                    ;;
+            esac
 
-        sleep 3
-        i=0
-        until monetarium-ctl getinfo >/dev/null 2>&1; do
-            i=$((i + 1))
-            [[ $i -gt 30 ]] && break
-            sleep 2
-        done
+            sleep 3
+            i=0
+            until monetarium-ctl getinfo >/dev/null 2>&1; do
+                i=$((i + 1))
+                [[ $i -gt 30 ]] && break
+                sleep 2
+            done
 
-        if [[ -n "$MINING_CORES" ]]; then
-            monetarium-ctl setgenerate true "$MINING_CORES" 2>/dev/null || true
+            if [[ -n "$MINING_CORES" ]]; then
+                monetarium-ctl setgenerate true "$MINING_CORES" 2>/dev/null || true
+            fi
         fi
-    fi
 
-    if $config_changed && [[ -n "$CONSOLIDATION_ADDR" ]]; then
-        info "Restarting wallet (stopped by node restart)..."
+        info "Restarting wallet..."
         case "$(uname -s)" in
             Linux)
                 sudo systemctl restart monetarium-wallet
@@ -776,8 +776,6 @@ main() {
     fi
 
     prompt_passphrase
-    prompt_mining
-    prompt_ticket_buyer
 
     write_configs
     create_wallet
@@ -789,6 +787,8 @@ main() {
 
     unset WALLET_PASSPHRASE
 
+    prompt_mining
+    prompt_ticket_buyer
     configure_mining_and_voting
 
     green "Installation complete."
