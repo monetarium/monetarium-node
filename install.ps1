@@ -338,16 +338,16 @@ function Install-ScheduledTask {
         -RestartInterval (New-TimeSpan -Minutes 1) `
         -ExecutionTimeLimit ([TimeSpan]::Zero)
 
-    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+    $principal = New-ScheduledTaskPrincipal -RunLevel Highest
 
     $nodeAction = New-ScheduledTaskAction -Execute $nodeExe -Argument "--configfile=`"$($Script:NodeConf)`""
-    $nodeTrigger = New-ScheduledTaskTrigger -AtStartup
+    $nodeTrigger = New-ScheduledTaskTrigger -AtLogon
     Register-ScheduledTask -TaskName 'MonetariumNode' -Action $nodeAction -Trigger $nodeTrigger `
         -Principal $principal -Settings $settings -Force | Out-Null
 
     # Give the node a head start before the wallet connects to it.
     $walletAction = New-ScheduledTaskAction -Execute $walletExe -Argument "--configfile=`"$($Script:WalletConf)`""
-    $walletTrigger = New-ScheduledTaskTrigger -AtStartup
+    $walletTrigger = New-ScheduledTaskTrigger -AtLogon
     $walletTrigger.Delay = 'PT15S'
     Register-ScheduledTask -TaskName 'MonetariumWallet' -Action $walletAction -Trigger $walletTrigger `
         -Principal $principal -Settings $settings -Force | Out-Null
