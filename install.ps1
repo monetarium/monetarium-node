@@ -433,7 +433,7 @@ function Invoke-ConfigureMiningAndVoting {
     $rpcReady = $false
     for ($i = 0; $i -lt 60; $i++) {
         if (-not (Test-Path $rpcCert)) { Start-Sleep -Seconds 2; continue }
-        $result = & $ctlExe --wallet getinfo 2>$null
+        & $ctlExe --wallet getinfo *>$null
         if ($LASTEXITCODE -eq 0) { $rpcReady = $true; break }
         Start-Sleep -Seconds 2
     }
@@ -483,7 +483,7 @@ ticketbuyer.balancetomaintainabsolute=$($Script:TicketBalance)
     }
 
     Write-Info 'Stopping wallet...'
-    & $ctlExe --wallet stop 2>$null | Out-Null
+    & $ctlExe --wallet stop *>$null
     Start-Sleep -Seconds 3
     if (-not $proc.HasExited) { $proc.Kill() }
 
