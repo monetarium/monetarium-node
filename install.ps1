@@ -432,9 +432,15 @@ function Invoke-ConfigureMiningAndVoting {
 
     $rpcReady = $false
     for ($i = 0; $i -lt 60; $i++) {
+        if ($proc.HasExited) { break }
         if (-not (Test-Path $rpcCert)) { Start-Sleep -Seconds 2; continue }
-        & $ctlExe --wallet getinfo *>$null
-        if ($LASTEXITCODE -eq 0) { $rpcReady = $true; break }
+        try {
+            $client = New-Object System.Net.Sockets.TcpClient
+            $async = $client.BeginConnect('127.0.0.1', 9510, $null, $null)
+            $async.AsyncWaitHandle.WaitOne(1000) | Out-Null
+            if ($client.Connected) { $rpcReady = $true; $client.Dispose(); break }
+            $client.Dispose()
+        } catch { }
         Start-Sleep -Seconds 2
     }
 
