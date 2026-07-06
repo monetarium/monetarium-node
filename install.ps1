@@ -245,8 +245,13 @@ enableticketbuyer=1
 # --------------------------------------------------------------------------
 # 5. Create wallet
 # --------------------------------------------------------------------------
+function Get-WalletDataDir {
+    $localAppData = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { $env:APPDATA }
+    return Join-Path $localAppData 'Monetarium-wallet'
+}
+
 function Create-Wallet {
-    $walletDb = Join-Path $HOME '.monetarium-wallet\mainnet\wallet.db'
+    $walletDb = Join-Path (Get-WalletDataDir) 'mainnet\wallet.db'
 
     if (Test-Path $walletDb) {
         Write-Info "Wallet database already exists at $walletDb — skipping creation."

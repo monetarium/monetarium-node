@@ -184,8 +184,18 @@ EOF
 # --------------------------------------------------------------------------
 # 5. Create wallet
 # --------------------------------------------------------------------------
+wallet_data_dir() {
+    local home="${HOME:-$(echo ~)}"
+    case "$(uname -s)" in
+        Darwin) echo "${home}/Library/Application Support/Monetarium-wallet" ;;
+        Linux)  echo "${home}/.monetarium-wallet" ;;
+    esac
+}
+
 create_wallet() {
-    local wallet_db="$HOME/.monetarium-wallet/mainnet/wallet.db"
+    local wallet_data wallet_db
+    wallet_data="$(wallet_data_dir)"
+    wallet_db="${wallet_data}/mainnet/wallet.db"
 
     if [[ -f "$wallet_db" ]]; then
         info "Wallet database already exists at $wallet_db — skipping creation."

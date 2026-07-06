@@ -63,7 +63,10 @@ if [[ "$url" == *"fixtures.test"* ]]; then
 # Real wallet is interactive; the mock just creates the DB and prints
 # a fake seed so install.sh's post-create check can pass.
 if [[ "$*" == *--create* ]]; then
-    db="$HOME/.monetarium-wallet/mainnet/wallet.db"
+    case "$(uname -s)" in
+        Darwin) db="$HOME/Library/Application Support/Monetarium-wallet/mainnet/wallet.db" ;;
+        *)      db="$HOME/.monetarium-wallet/mainnet/wallet.db" ;;
+    esac
     mkdir -p "$(dirname "$db")"
     touch "$db"
     echo "Your wallet generation seed is:"
