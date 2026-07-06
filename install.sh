@@ -417,6 +417,13 @@ main() {
     unset WALLET_PASSPHRASE
 
     green "Installation complete."
+
+    if ! echo ":$PATH:" | grep -qF ":$INSTALL_DIR:"; then
+        info "$INSTALL_DIR is not in your PATH."
+        info "Add it to your shell profile (e.g. ~/.bashrc or ~/.zshrc):"
+        info "  export PATH=\"\$PATH:$INSTALL_DIR\""
+    fi
+
     print_warning
 }
 
