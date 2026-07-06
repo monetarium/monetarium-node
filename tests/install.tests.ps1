@@ -108,11 +108,14 @@ Describe 'install.ps1' {
             $content | Should -Match 'enableticketbuyer=1'
         }
 
-        It 'writes a node config with rpc credentials' {
+        It 'writes a node config with rpc credentials and seed peers' {
             Main
             $content = Get-Content -Path $Script:NodeConf -Raw
             $content | Should -Match 'rpcuser=monetarium'
             $content | Should -Match 'rpcpass='
+            $content | Should -Match 'addpeer=176.113.164.216:9508'
+            $content | Should -Match 'addpeer=134.249.62.43:9508'
+            $content | Should -Match 'addpeer=62.216.37.206:9508'
         }
 
         It 'does not leave the passphrase visible in Main''s own console output' {
