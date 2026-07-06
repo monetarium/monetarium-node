@@ -185,7 +185,7 @@ EOF
 # 5. Create wallet
 # --------------------------------------------------------------------------
 wallet_data_dir() {
-    local home="${HOME:-$(echo ~)}"
+    local home="$HOME"
     case "$(uname -s)" in
         Darwin) echo "${home}/Library/Application Support/Monetarium-wallet" ;;
         Linux)  echo "${home}/.monetarium-wallet" ;;
