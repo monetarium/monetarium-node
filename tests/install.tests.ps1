@@ -32,6 +32,9 @@ Describe 'install.ps1' {
         $Script:DataDir    = Join-Path $Script:TestRoot 'data'
         $Script:WalletConf = Join-Path $Script:DataDir 'monetarium-wallet.conf'
         $Script:NodeConf   = Join-Path $Script:DataDir 'monetarium.conf'
+        $Script:CtlDir     = Join-Path $Script:TestRoot 'ctl'
+        $Script:CtlConf    = Join-Path $Script:CtlDir 'monetarium-ctl.conf'
+        $Script:Manifest   = Join-Path $Script:DataDir 'install.manifest'
 
         Mock Test-IsAdministrator { return $true }
 
@@ -129,6 +132,24 @@ Describe 'install.ps1' {
             $identities = $acl.Access | ForEach-Object { $_.IdentityReference.Value }
             ($identities -join ';') | Should -Match 'SYSTEM'
             ($identities -join ';') | Should -Match 'Administrators'
+        }
+
+        It 'writes a ctl config with matching rpc credentials' {
+            Main
+            $content = Get-Content -Path $Script:CtlConf -Raw
+            $content | Should -Match 'rpcuser=monetarium'
+            $content | Should -Match 'rpcpass='
+        }
+
+        It 'writes the install manifest' {
+            Main
+            Test-Path $Script:Manifest | Should -BeTrue
+            $content = Get-Content -Path $Script:Manifest -Raw
+            $content | Should -Match 'monetarium-node.exe'
+            $content | Should -Match 'monetarium-wallet.exe'
+            $content | Should -Match 'monetarium-ctl.exe'
+            $content | Should -Match 'MonetariumNode'
+            $content | Should -Match 'MonetariumWallet'
         }
 
         It 'registers exactly two scheduled tasks, one for node and one for wallet' {
