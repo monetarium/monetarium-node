@@ -139,12 +139,27 @@ download_binary() {
 # --------------------------------------------------------------------------
 # 3. Prompt for passphrase (hidden)
 # --------------------------------------------------------------------------
+# In curl | bash, stdin is a pipe — interactive commands need /dev/tty
+# so the user can type. In headless CI there is no /dev/tty, so read
+# from stdin (the pipe the CI feeds).
+needs_tty() {
+    [[ ! -t 0 ]] && { exec 3</dev/tty; } 2>/dev/null && exec 3<&-
+}
+
+read_tty() {
+    if needs_tty; then
+        read "$@" < /dev/tty
+    else
+        read "$@"
+    fi
+}
+
 prompt_passphrase() {
     local pass1 pass2
     while true; do
-        read -r -s -p "Enter wallet private passphrase: " pass1
+        read_tty -r -s -p "Enter wallet private passphrase: " pass1
         echo
-        read -r -s -p "Confirm passphrase: " pass2
+        read_tty -r -s -p "Confirm passphrase: " pass2
         echo
         if [[ -z "$pass1" ]]; then
             red "Passphrase cannot be empty. Try again."
@@ -217,7 +232,11 @@ create_wallet() {
     info "Creating wallet. Follow the interactive prompts."
     info "When asked, type 'yes' to use the passphrase you just entered."
 
-    monetarium-wallet --create --configfile="$WALLET_CONF"
+    if needs_tty; then
+        monetarium-wallet --create --configfile="$WALLET_CONF" < /dev/tty
+    else
+        monetarium-wallet --create --configfile="$WALLET_CONF"
+    fi
 
     [[ -f "$wallet_db" ]] || \
         die "Wallet creation failed — database not found at $wallet_db"
@@ -374,13 +393,6 @@ print_warning() {
 # Main
 # --------------------------------------------------------------------------
 main() {
-    # If stdin is not a terminal (e.g. curl https://install.sh | bash)
-    # redirect to /dev/tty so interactive prompts and child processes
-    # (read -s, monetarium-wallet --create) can read user input.
-    if [[ ! -t 0 ]]; then
-        { exec < /dev/tty; } 2>/dev/null || true
-    fi
-
     require_cmd curl
     require_cmd tar
     require_cmd sudo
