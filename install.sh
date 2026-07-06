@@ -528,7 +528,7 @@ configure_mining_and_voting() {
             info "Wallet RPC not ready after 60 seconds."
             info "Configure mining/ticket addresses manually after the node syncs:"
             $MINING_ENABLED && info "  Edit ${NODE_CONF}: add generate=true and miningaddr=<address>"
-            $TICKETS_ENABLED && info "  Edit ${WALLET_CONF}: add feeconsolidationaddress=<address>"
+            $TICKETS_ENABLED && info "  After startup: monetarium-ctl --wallet setvotefeeconsolidationaddress default <address>"
             return
         fi
         sleep 2
@@ -557,6 +557,7 @@ configure_mining_and_voting() {
         addr=$(monetarium-ctl --wallet getnewaddress 2>/dev/null || true)
         if [[ -n "$addr" ]]; then
             CONSOLIDATION_ADDR="$addr"
+            monetarium-ctl --wallet setvotefeeconsolidationaddress "default" "$addr" >/dev/null 2>&1 || true
         fi
     fi
 
@@ -589,8 +590,8 @@ configure_mining_and_voting() {
         fi
     fi
 
-    if [[ -n "$CONSOLIDATION_ADDR" ]]; then
-        info "Restarting wallet to apply fee consolidation address..."
+    if $config_changed && [[ -n "$CONSOLIDATION_ADDR" ]]; then
+        info "Restarting wallet (stopped by node restart)..."
         case "$(uname -s)" in
             Linux)
                 sudo systemctl restart monetarium-wallet
