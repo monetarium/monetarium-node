@@ -40,6 +40,7 @@ detect_data_dir() {
 DATA_DIR="$(detect_data_dir)"
 WALLET_CONF="$DATA_DIR/monetarium-wallet.conf"
 NODE_CONF="$DATA_DIR/monetarium.conf"
+MANIFEST="$DATA_DIR/install.manifest"
 
 RPC_USER="monetarium"
 RPC_PASS="$(head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 32)"
@@ -390,7 +391,80 @@ EOF
 }
 
 # --------------------------------------------------------------------------
-# 8. Big warning
+# 8. Install manifest
+# --------------------------------------------------------------------------
+write_manifest() {
+    local wallet_db
+    wallet_db="$(wallet_data_dir)/mainnet/wallet.db"
+
+    cat > "$MANIFEST" <<EOF
+# Install manifest — files created by monetarium install.sh
+# Run date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+#
+# To uninstall, stop the services first:
+#   Linux:  sudo systemctl disable --now monetarium-node monetarium-wallet
+#   macOS:  launchctl unload ~/Library/LaunchAgents/com.monetarium.node.plist
+#           launchctl unload ~/Library/LaunchAgents/com.monetarium.wallet.plist
+#
+# Then remove the files listed below.
+# ⚠️  Back up and remove the wallet database FIRST if it holds funds!
+#     The wallet seed was shown during installation — without it the
+#     wallet.db is unrecoverable.
+
+binaries:
+  ${INSTALL_DIR}/monetarium-node
+  ${INSTALL_DIR}/monetarium-wallet
+  ${INSTALL_DIR}/monetarium-ctl
+
+configs:
+  ${NODE_CONF}
+  ${WALLET_CONF}
+
+wallet database (back up seed before removing):
+  ${wallet_db}
+
+data directory:
+  ${DATA_DIR}
+
+EOF
+
+    case "$(uname -s)" in
+        Linux)
+            cat >> "$MANIFEST" <<EOF
+systemd service units:
+  /etc/systemd/system/monetarium-node.service
+  /etc/systemd/system/monetarium-wallet.service
+EOF
+            ;;
+        Darwin)
+            cat >> "$MANIFEST" <<EOF
+launchd plists:
+  ${HOME}/Library/LaunchAgents/com.monetarium.node.plist
+  ${HOME}/Library/LaunchAgents/com.monetarium.wallet.plist
+EOF
+            ;;
+    esac
+
+    # Shell rc file that was modified (if any) — detect by marker
+    local rc_file marker="# Added by monetarium install.sh"
+    case "$(basename "${SHELL:-}")" in
+        zsh)  rc_file="$HOME/.zshrc" ;;
+        bash) rc_file="$HOME/.bashrc" ;;
+        *)    rc_file="$HOME/.profile" ;;
+    esac
+    if grep -qF "$marker" "$rc_file" 2>/dev/null; then
+        echo "shell rc (PATH addition):" >> "$MANIFEST"
+        echo "  ${rc_file}" >> "$MANIFEST"
+    fi
+
+    echo "" >> "$MANIFEST"
+    echo "This manifest: ${MANIFEST}" >> "$MANIFEST"
+
+    info "Install manifest written to $MANIFEST"
+}
+
+# --------------------------------------------------------------------------
+# 9. Big warning
 # --------------------------------------------------------------------------
 print_warning() {
     red   "=============================================================="
@@ -456,6 +530,7 @@ main() {
     unset WALLET_PASSPHRASE
 
     green "Installation complete."
+    write_manifest
     print_warning
 }
 
