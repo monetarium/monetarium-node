@@ -420,11 +420,13 @@ function Invoke-ConfigureMiningAndVoting {
     Write-Info 'Waiting for wallet RPC to become available...'
 
     $ctlExe = Join-Path $Script:InstallDir 'monetarium-ctl.exe'
+    $rpcCert = Join-Path (Get-WalletDataDir) 'rpc.cert'
     $rpcReady = $false
 
     for ($i = 0; $i -lt 60; $i++) {
-        $result = & $ctlExe --wallet getinfo 2>&1
-        if ($LASTEXITCODE -eq 0 -and $result) {
+        if (-not (Test-Path $rpcCert)) { Start-Sleep -Seconds 2; continue }
+        $result = & $ctlExe --wallet getinfo 2>$null
+        if ($LASTEXITCODE -eq 0) {
             $rpcReady = $true
             break
         }
