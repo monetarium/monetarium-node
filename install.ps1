@@ -338,7 +338,8 @@ function Install-ScheduledTask {
         -RestartInterval (New-TimeSpan -Minutes 1) `
         -ExecutionTimeLimit ([TimeSpan]::Zero)
 
-    $principal = New-ScheduledTaskPrincipal -RunLevel Highest
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $principal = New-ScheduledTaskPrincipal -UserId $currentUser -LogonType Interactive -RunLevel Highest
 
     $nodeAction = New-ScheduledTaskAction -Execute $nodeExe -Argument "--configfile=`"$($Script:NodeConf)`""
     $nodeTrigger = New-ScheduledTaskTrigger -AtLogon
