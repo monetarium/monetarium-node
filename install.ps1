@@ -280,6 +280,8 @@ addpeer=62.216.37.206:9508
 ; unattended ticket buying / voting. See the warning printed by install.ps1.
 username=$RpcUser
 password=$RpcSecret
+rpcuser=$RpcUser
+rpcpass=$RpcSecret
 pass=$Passphrase
 enablevoting=$voteEnabled
 enableticketbuyer=$tbEnabled
