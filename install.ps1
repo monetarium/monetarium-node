@@ -338,6 +338,8 @@ function Install-ScheduledTask {
     $walletExe = Join-Path $Script:InstallDir 'monetarium-wallet.exe'
 
     $settings = New-ScheduledTaskSettingsSet `
+        -AllowStartIfOnBatteries `
+        -DontStopIfGoingOnBatteries `
         -StartWhenAvailable `
         -RestartCount 3 `
         -RestartInterval (New-TimeSpan -Minutes 1) `
@@ -352,7 +354,7 @@ function Install-ScheduledTask {
     if ([string]::IsNullOrEmpty($currentUser)) {
         $currentUser = "$env:USERDOMAIN\$env:USERNAME"
     }
-    $principal = New-ScheduledTaskPrincipal -UserId $currentUser -LogonType S4U
+    $principal = New-ScheduledTaskPrincipal -UserId $currentUser -LogonType Interactive
 
     $nodeAction = New-ScheduledTaskAction -Execute $nodeExe -Argument "--configfile=`"$($Script:NodeConf)`""
     $nodeTrigger = New-ScheduledTaskTrigger -AtLogon
