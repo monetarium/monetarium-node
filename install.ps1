@@ -339,6 +339,10 @@ function Install-StartupScripts {
     $nodeExe   = Join-Path $Script:InstallDir 'monetarium-node.exe'
     $walletExe = Join-Path $Script:InstallDir 'monetarium-wallet.exe'
 
+    if (-not (Test-Path $Script:StartupDir)) {
+        New-Item -ItemType Directory -Path $Script:StartupDir -Force | Out-Null
+    }
+
     @"
 @echo off
 start "" "$nodeExe" --configfile="$($Script:NodeConf)"
