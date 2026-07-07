@@ -536,9 +536,11 @@ generate=${genValue}
             }
         }
         if ($Script:TicketsEnabled -and $Script:ConsolidationAddr) {
-            Write-Host "Fee consolidation address:   $($Script:ConsolidationAddr)"
             Write-Host "Ticket buyer limit:          $($Script:TicketLimit)"
             Write-Host "Balance to maintain:         $($Script:TicketBalance)"
+        }
+        if ($Script:ConsolidationAddr) {
+            Write-Host "Fee consolidation address:   $($Script:ConsolidationAddr)"
         }
         if ($Script:VotingEnabled) {
             Write-Host "Auto voting:                 enabled"

@@ -637,9 +637,11 @@ configure_mining_and_voting() {
         green "  Ticket buying:      enabled"
         green "  Ticket limit:       ${TICKET_LIMIT}"
         green "  Min wallet balance: ${TICKET_BALANCE}"
-        green "  Fee consolidation:  ${CONSOLIDATION_ADDR}"
     else
         green "  Ticket buying:      disabled"
+    fi
+    if [[ -n "$CONSOLIDATION_ADDR" ]]; then
+        green "  Fee consolidation:  ${CONSOLIDATION_ADDR}"
     fi
     if $VOTING_ENABLED; then
         green "  Auto voting:        enabled"
