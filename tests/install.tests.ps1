@@ -103,11 +103,15 @@ Describe 'install.ps1' {
             Main
             $content = Get-Content -Path $Script:WalletConf -Raw
             $content | Should -Match 'pass=test-passphrase-123'
-            $content | Should -Match 'enablevoting=1'
-            $content | Should -Match 'enableticketbuyer=1'
+            $content | Should -Match 'enablevoting=0'
+            $content | Should -Match 'enableticketbuyer=0'
+            $content | Should -Match 'ticketbuyer\.limit=1'
+            $content | Should -Match 'ticketbuyer\.balancetomaintainabsolute=1'
+            $content | Should -Match 'gaplimit=20'
+            $content | Should -Match 'accountgaplimit=10'
         }
 
-        It 'writes a node config with rpc credentials and seed peers' {
+        It 'writes a node config with rpc credentials, seed peers, and mining flag' {
             Main
             $content = Get-Content -Path $Script:NodeConf -Raw
             $content | Should -Match 'rpcuser=monetarium'
@@ -115,6 +119,7 @@ Describe 'install.ps1' {
             $content | Should -Match 'addpeer=176.113.164.216:9508'
             $content | Should -Match 'addpeer=134.249.62.43:9508'
             $content | Should -Match 'addpeer=62.216.37.206:9508'
+            $content | Should -Match 'generate=false'
         }
 
         It 'does not leave the passphrase visible in Main''s own console output' {
