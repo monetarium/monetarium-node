@@ -280,8 +280,6 @@ addpeer=62.216.37.206:9508
 ; unattended ticket buying / voting. See the warning printed by install.ps1.
 username=$RpcUser
 password=$RpcSecret
-rpcuser=$RpcUser
-rpcpass=$RpcSecret
 pass=$Passphrase
 enablevoting=$voteEnabled
 enableticketbuyer=$tbEnabled
@@ -473,13 +471,10 @@ generate=${genValue}
     $rpcReady = $false
     for ($i = 0; $i -lt 60; $i++) {
         if ($proc.HasExited) { break }
-        if (-not (Test-Path $rpcCert)) { Start-Sleep -Seconds 2; continue }
         try {
-            $client = New-Object System.Net.Sockets.TcpClient
-            $async = $client.BeginConnect('127.0.0.1', 9510, $null, $null)
-            $async.AsyncWaitHandle.WaitOne(1000) | Out-Null
-            if ($client.Connected) { $rpcReady = $true; $client.Dispose(); break }
-            $client.Dispose()
+            $null = & $ctlExe --wallet getinfo 2>$null
+            $rpcReady = $true
+            break
         } catch { }
         Start-Sleep -Seconds 2
     }

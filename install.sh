@@ -351,8 +351,6 @@ EOF
 ; ticket buying / voting. See the warning printed by install.sh.
 username=${RPC_USER}
 password=${RPC_PASS}
-rpcuser=${RPC_USER}
-rpcpass=${RPC_PASS}
 pass=${WALLET_PASSPHRASE}
 enablevoting=${vote_enabled}
 enableticketbuyer=${tb_enabled}
