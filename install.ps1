@@ -508,13 +508,11 @@ generate=${genValue}
         }
     }
 
-    if ($Script:TicketsEnabled) {
-        $consolidationAddr = & $ctlExe --wallet getnewaddress 2>$null
-        if ($consolidationAddr) {
-            $Script:ConsolidationAddr = $consolidationAddr
-            & $ctlExe --wallet setvotefeeconsolidationaddress "default" $consolidationAddr 2>$null | Out-Null
-            $configChanged = $true
-        }
+    # Generate consolidation address always and set it on the wallet.
+    $consolidationAddr = & $ctlExe --wallet getnewaddress 2>$null
+    if ($consolidationAddr) {
+        $Script:ConsolidationAddr = $consolidationAddr
+        & $ctlExe --wallet setvotefeeconsolidationaddress "default" $consolidationAddr 2>$null | Out-Null
     }
 
     Write-Info 'Stopping wallet...'
@@ -533,13 +531,13 @@ function Show-ConfigurationSummary {
     Write-Host '=============================================' -ForegroundColor Green
     Write-Host '  Configuration Summary' -ForegroundColor Green
     Write-Host '=============================================' -ForegroundColor Green
-    if ($Script:MiningEnabled -and $Script:MiningAddr) {
+    if ($Script:MiningAddr) {
         Write-Host "Mining address:              $($Script:MiningAddr)"
-        if ($Script:MiningCores) {
-            Write-Host "CPU cores for mining:        $($Script:MiningCores)"
-        }
     }
-    if ($Script:TicketsEnabled -and $Script:ConsolidationAddr) {
+    if ($Script:MiningCores) {
+        Write-Host "CPU cores for mining:        $($Script:MiningCores)"
+    }
+    if ($Script:TicketsEnabled) {
         Write-Host "Ticket buyer limit:          $($Script:TicketLimit)"
         Write-Host "Balance to maintain:         $($Script:TicketBalance)"
     }
@@ -605,16 +603,19 @@ mining:
 "@ | Add-Content -Path $Script:Manifest -Encoding ASCII
     }
 
-    if ($Script:TicketsEnabled -and $Script:ConsolidationAddr) {
+    if ($Script:TicketsEnabled) {
         @"
 
 ticket buyer:
   enabled:                  true
   limit:                    $($Script:TicketLimit)
   balance to maintain:      $($Script:TicketBalance)
-  fee consolidation addr:   $($Script:ConsolidationAddr)
 
 "@ | Add-Content -Path $Script:Manifest -Encoding ASCII
+        if ($Script:ConsolidationAddr) {
+            "  fee consolidation addr:   $($Script:ConsolidationAddr)" | Add-Content -Path $Script:Manifest -Encoding ASCII
+        }
+        "" | Add-Content -Path $Script:Manifest -Encoding ASCII
     }
 
     @"

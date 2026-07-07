@@ -80,8 +80,8 @@ RPC_PASS="$(head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 32)"
 # --------------------------------------------------------------------------
 # Helpers
 # --------------------------------------------------------------------------
-red()   { printf '\033[1;31m%s\033[0m\n' "$*"; }
-green() { printf '\033[1;32m%s\033[0m\n' "$*"; }
+red()    { printf '\033[1;31m%s\033[0m\n' "$*"; }
+green()  { printf '\033[1;32m%s\033[0m\n' "$*"; }
 info()  { printf '\033[1;34m[install]\033[0m %s\n' "$*"; }
 die()   { red "ERROR: $*"; exit 1; }
 
@@ -582,14 +582,12 @@ configure_mining_and_voting() {
         echo "miningaddr=${mining_addr}" >> "$NODE_CONF"
     fi
 
-    # Separate address for ticket buyer fee consolidation (only when enabled).
-    if $TICKETS_ENABLED; then
-        local cons_addr
-        cons_addr=$(monetarium-ctl --wallet getnewaddress 2>/dev/null || true)
-        if [[ -n "$cons_addr" ]]; then
-            CONSOLIDATION_ADDR="$cons_addr"
-            monetarium-ctl --wallet setvotefeeconsolidationaddress "default" "$cons_addr" >/dev/null 2>&1 || true
-        fi
+    # Generate consolidation address always and set it on the wallet.
+    local cons_addr
+    cons_addr=$(monetarium-ctl --wallet getnewaddress 2>/dev/null || true)
+    if [[ -n "$cons_addr" ]]; then
+        CONSOLIDATION_ADDR="$cons_addr"
+        monetarium-ctl --wallet setvotefeeconsolidationaddress "default" "$cons_addr" >/dev/null 2>&1 || true
     fi
 
     if $config_changed; then
@@ -640,7 +638,7 @@ show_configuration_summary() {
     if [[ -n "$MINING_ADDR" ]]; then
         green "  Mining reward addr: ${MINING_ADDR}"
     fi
-    if $TICKETS_ENABLED && [[ -n "$CONSOLIDATION_ADDR" ]]; then
+    if $TICKETS_ENABLED; then
         green "  Ticket buying:      enabled"
         green "  Ticket limit:       ${TICKET_LIMIT}"
         green "  Min wallet balance: ${TICKET_BALANCE}"
