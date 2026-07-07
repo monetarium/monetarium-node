@@ -53,6 +53,9 @@ $Script:CtlConf  = Join-Path $Script:CtlDir 'monetarium-ctl.conf'
 # Install manifest - lists every file this script creates.
 $Script:Manifest = Join-Path $Script:DataDir 'install.manifest'
 
+# Startup folder for auto-start scripts (overridable in tests).
+$Script:StartupDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup'
+
 # Mining & ticket buyer settings (set by prompts)
 $Script:MiningEnabled  = $false
 $Script:MiningCores    = $null
@@ -330,50 +333,35 @@ function Create-Wallet {
 }
 
 # --------------------------------------------------------------------------
-# 6. Scheduled Tasks (Windows has no systemd/launchd; this is the closest
-#    equivalent for auto-starting an unattended background process)
+# 6. Startup scripts (Windows Startup folder — no Task Scheduler needed)
 # --------------------------------------------------------------------------
-function Install-ScheduledTask {
+function Install-StartupScripts {
     $nodeExe   = Join-Path $Script:InstallDir 'monetarium-node.exe'
     $walletExe = Join-Path $Script:InstallDir 'monetarium-wallet.exe'
 
-    $settings = New-ScheduledTaskSettingsSet `
-        -AllowStartIfOnBatteries `
-        -DontStopIfGoingOnBatteries `
-        -StartWhenAvailable `
-        -RestartCount 3 `
-        -RestartInterval (New-TimeSpan -Minutes 1) `
-        -ExecutionTimeLimit ([TimeSpan]::Zero)
+    @"
+@echo off
+start "" "$nodeExe" --configfile="$($Script:NodeConf)"
+"@ | Set-Content -Path (Join-Path $Script:StartupDir 'MonetariumNode.cmd') -Encoding ASCII
 
-    # Determine current user for the scheduled task principal.
-    # .NET WindowsIdentity can return empty on sandbox accounts (e.g.
-    # "defaultuser0" in Windows VMs), so fall back to env vars.
-    $currentUser = try {
-        [Security.Principal.WindowsIdentity]::GetCurrent().Name
-    } catch { $null }
-    if ([string]::IsNullOrEmpty($currentUser)) {
-        $currentUser = "$env:USERDOMAIN\$env:USERNAME"
-    }
-    $principal = New-ScheduledTaskPrincipal -UserId $currentUser -LogonType Interactive
+    @"
+@echo off
+timeout /t 15 /nobreak >nul
+start "" "$walletExe" --configfile="$($Script:WalletConf)"
+"@ | Set-Content -Path (Join-Path $Script:StartupDir 'MonetariumWallet.cmd') -Encoding ASCII
 
-    $nodeAction = New-ScheduledTaskAction -Execute $nodeExe -Argument "--configfile=`"$($Script:NodeConf)`""
-    $nodeTrigger = New-ScheduledTaskTrigger -AtLogon
-    Register-ScheduledTask -TaskName 'MonetariumNode' -Action $nodeAction -Trigger $nodeTrigger `
-        -Principal $principal -Settings $settings -Force | Out-Null
+    Write-Info "Startup scripts written to $Script:StartupDir"
+    Write-Info '  MonetariumNode.cmd, MonetariumWallet.cmd'
 
-    # Give the node a head start before the wallet connects to it.
-    $walletAction = New-ScheduledTaskAction -Execute $walletExe -Argument "--configfile=`"$($Script:WalletConf)`""
-    $walletTrigger = New-ScheduledTaskTrigger -AtLogon
-    $walletTrigger.Delay = 'PT15S'
-    Register-ScheduledTask -TaskName 'MonetariumWallet' -Action $walletAction -Trigger $walletTrigger `
-        -Principal $principal -Settings $settings -Force | Out-Null
+    # Start both processes now.
+    Start-Process -NoNewWindow -FilePath $nodeExe `
+        -ArgumentList "--configfile=`"$($Script:NodeConf)`""
+    Write-Info 'Started monetarium-node.'
 
-    Start-ScheduledTask -TaskName 'MonetariumNode'
     Start-Sleep -Seconds 2
-    Start-ScheduledTask -TaskName 'MonetariumWallet'
-
-    Write-Info 'Scheduled Tasks installed and started: MonetariumNode, MonetariumWallet'
-    Write-Info '  Get-ScheduledTask -TaskName MonetariumNode, MonetariumWallet'
+    Start-Process -NoNewWindow -FilePath $walletExe `
+        -ArgumentList "--configfile=`"$($Script:WalletConf)`""
+    Write-Info 'Started monetarium-wallet.'
 }
 
 # --------------------------------------------------------------------------
@@ -540,9 +528,10 @@ function Write-Manifest {
 # Install manifest - files created by install.ps1
 # Run date: $timestamp
 #
-# To uninstall, stop the scheduled tasks first:
-#   Stop-ScheduledTask -TaskName MonetariumNode, MonetariumWallet
-#   Unregister-ScheduledTask -TaskName MonetariumNode, MonetariumWallet
+# To uninstall, stop the processes first:
+#   taskkill /f /im monetarium-node.exe
+#   taskkill /f /im monetarium-wallet.exe
+# Then remove %APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Monetarium*.cmd
 #
 # Then remove the files listed below.
 # Backup and remove the wallet database FIRST if it holds funds!
@@ -670,7 +659,7 @@ function Main {
     Read-MiningPrompt
     Read-TicketBuyerPrompt
     Invoke-ConfigureMiningAndVoting
-    Install-ScheduledTask
+    Install-StartupScripts
     Write-Manifest
 
     Write-Host ''

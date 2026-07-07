@@ -8,11 +8,10 @@
     Dot-sources install.ps1 (which, thanks to the InvocationName guard at
     the bottom of that file, only loads its functions and does not run
     Main). Network calls (Invoke-RestMethod / Invoke-WebRequest) and the
-    real Windows-elevation check / Task Scheduler registration are mocked
-    so the test never touches the real monetarium GitHub releases or the
-    machine's actual scheduled tasks. Everything else (file writes, ACLs,
-    zip extraction, config content) runs for real against a throwaway
-    temp directory.
+    Windows-elevation check are mocked so the test never touches the real
+    monetarium GitHub releases or launches real processes. Everything else
+    (file writes, ACLs, zip extraction, config content) runs for real
+    against a throwaway temp directory.
 #>
 
 BeforeAll {
@@ -26,20 +25,19 @@ Describe 'install.ps1' {
         $Script:TestRoot = Join-Path $env:TEMP ([guid]::NewGuid())
         New-Item -ItemType Directory -Path $Script:TestRoot -Force | Out-Null
 
-        # Redirect install/data dirs into the throwaway root instead of
-        # Program Files / ProgramData.
-        $Script:InstallDir = Join-Path $Script:TestRoot 'bin'
-        $Script:DataDir    = Join-Path $Script:TestRoot 'data'
-        $Script:WalletConf = Join-Path $Script:DataDir 'monetarium-wallet.conf'
-        $Script:NodeConf   = Join-Path $Script:DataDir 'monetarium.conf'
-        $Script:CtlDir     = Join-Path $Script:TestRoot 'ctl'
-        $Script:CtlConf    = Join-Path $Script:CtlDir 'monetarium-ctl.conf'
-        $Script:Manifest   = Join-Path $Script:DataDir 'install.manifest'
+        # Redirect install/data/startup dirs into the throwaway root.
+        $Script:InstallDir  = Join-Path $Script:TestRoot 'bin'
+        $Script:DataDir     = Join-Path $Script:TestRoot 'data'
+        $Script:WalletConf  = Join-Path $Script:DataDir 'monetarium-wallet.conf'
+        $Script:NodeConf    = Join-Path $Script:DataDir 'monetarium.conf'
+        $Script:CtlDir      = Join-Path $Script:TestRoot 'ctl'
+        $Script:CtlConf     = Join-Path $Script:CtlDir 'monetarium-ctl.conf'
+        $Script:Manifest    = Join-Path $Script:DataDir 'install.manifest'
+        $Script:StartupDir  = Join-Path $Script:TestRoot 'startup'
 
         Mock Test-IsAdministrator { return $true }
 
-        # Fake "latest release" API response: always one asset matching
-        # whatever platform string was requested.
+        # Fake "latest release" API response.
         Mock Invoke-RestMethod {
             param($Uri)
             if ($Uri -notmatch '/repos/[^/]+/([^/]+)/releases/latest') {
@@ -56,8 +54,7 @@ Describe 'install.ps1' {
             }
         }
 
-        # Fake download: build a small real zip containing a stub .exe,
-        # instead of hitting the network.
+        # Fake download: build a small real zip containing a stub .exe.
         Mock Invoke-WebRequest {
             param($Uri, $OutFile)
             if ($Uri -notmatch '/([a-zA-Z0-9_-]+)-windows-amd64\.zip$') {
@@ -71,9 +68,8 @@ Describe 'install.ps1' {
             Remove-Item -Path $tmp -Recurse -Force
         }
 
-        # Don't touch the real Task Scheduler.
-        Mock Register-ScheduledTask { }
-        Mock Start-ScheduledTask { }
+        # Don't launch real processes.
+        Mock Start-Process { }
 
         # Wallet --create is tested end-to-end via Linux E2E; in Pester
         # the stub .exe isn't a real binary, so mock it as a no-op.
@@ -152,16 +148,20 @@ Describe 'install.ps1' {
             $content | Should -Match 'MonetariumWallet'
         }
 
-        It 'registers exactly two scheduled tasks, one for node and one for wallet' {
+        It 'creates startup scripts for node and wallet' {
             Main
-            Should -Invoke Register-ScheduledTask -Times 2 -Exactly
-            Should -Invoke Register-ScheduledTask -ParameterFilter { $TaskName -eq 'MonetariumNode' }
-            Should -Invoke Register-ScheduledTask -ParameterFilter { $TaskName -eq 'MonetariumWallet' }
+            $nodeScript = Join-Path $Script:StartupDir 'MonetariumNode.cmd'
+            $walletScript = Join-Path $Script:StartupDir 'MonetariumWallet.cmd'
+            Test-Path $nodeScript   | Should -BeTrue
+            Test-Path $walletScript | Should -BeTrue
+            Get-Content $nodeScript   | Should -Match 'monetarium-node'
+            Get-Content $walletScript | Should -Match 'monetarium-wallet'
+            Get-Content $walletScript | Should -Match 'timeout'
         }
 
-        It 'starts both scheduled tasks after registering them' {
+        It 'starts both processes during installation' {
             Main
-            Should -Invoke Start-ScheduledTask -Times 2 -Exactly
+            Should -Invoke Start-Process -Times 2 -Exactly
         }
 
         It 'prints the big warning banner' {
