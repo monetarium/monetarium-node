@@ -150,8 +150,8 @@ Describe 'install.ps1' {
 
         It 'creates startup scripts for node and wallet' {
             Main
-            $nodeScript = Join-Path $Script:StartupDir 'MonetariumNode.cmd'
-            $walletScript = Join-Path $Script:StartupDir 'MonetariumWallet.cmd'
+            $nodeScript = Join-Path $Script:StartupDir 'MonetariumNode.vbs'
+            $walletScript = Join-Path $Script:StartupDir 'MonetariumWallet.vbs'
             Test-Path $nodeScript   | Should -BeTrue
             Test-Path $walletScript | Should -BeTrue
             Get-Content $nodeScript   | Should -Match 'monetarium-node'

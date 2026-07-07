@@ -343,27 +343,27 @@ function Install-StartupScripts {
         New-Item -ItemType Directory -Path $Script:StartupDir -Force | Out-Null
     }
 
+    # VBS launcher — runs the binary with ZERO window visibility.
     @"
-@echo off
-start "" "$nodeExe" --configfile="$($Script:NodeConf)"
-"@ | Set-Content -Path (Join-Path $Script:StartupDir 'MonetariumNode.cmd') -Encoding ASCII
+Set WshShell = CreateObject("WScript.Shell")
+WshShell.Run "$($nodeExe) --configfile=`"$($Script:NodeConf)`"", 0, False
+"@ | Set-Content -Path (Join-Path $Script:StartupDir 'MonetariumNode.vbs') -Encoding ASCII
 
     @"
-@echo off
-timeout /t 15 /nobreak >nul
-start "" "$walletExe" --configfile="$($Script:WalletConf)"
-"@ | Set-Content -Path (Join-Path $Script:StartupDir 'MonetariumWallet.cmd') -Encoding ASCII
+Set WshShell = CreateObject("WScript.Shell")
+WshShell.Run "cmd.exe /c timeout /t 15 /nobreak >nul && ""$walletExe"" --configfile=""$($Script:WalletConf)""", 0, False
+"@ | Set-Content -Path (Join-Path $Script:StartupDir 'MonetariumWallet.vbs') -Encoding ASCII
 
     Write-Info "Startup scripts written to $Script:StartupDir"
-    Write-Info '  MonetariumNode.cmd, MonetariumWallet.cmd'
+    Write-Info "  MonetariumNode.vbs, MonetariumWallet.vbs"
 
     # Start both processes now.
-    Start-Process -NoNewWindow -FilePath $nodeExe `
+    Start-Process -WindowStyle Hidden -FilePath $nodeExe `
         -ArgumentList "--configfile=`"$($Script:NodeConf)`""
     Write-Info 'Started monetarium-node.'
 
     Start-Sleep -Seconds 2
-    Start-Process -NoNewWindow -FilePath $walletExe `
+    Start-Process -WindowStyle Hidden -FilePath $walletExe `
         -ArgumentList "--configfile=`"$($Script:WalletConf)`""
     Write-Info 'Started monetarium-wallet.'
 }
