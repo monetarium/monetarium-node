@@ -352,7 +352,7 @@ function Install-ScheduledTask {
     if ([string]::IsNullOrEmpty($currentUser)) {
         $currentUser = "$env:USERDOMAIN\$env:USERNAME"
     }
-    $principal = New-ScheduledTaskPrincipal -UserId $currentUser -LogonType Interactive -RunLevel Highest
+    $principal = New-ScheduledTaskPrincipal -UserId $currentUser -LogonType S4U -RunLevel Highest
 
     $nodeAction = New-ScheduledTaskAction -Execute $nodeExe -Argument "--configfile=`"$($Script:NodeConf)`""
     $nodeTrigger = New-ScheduledTaskTrigger -AtLogon
