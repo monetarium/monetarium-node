@@ -154,9 +154,11 @@ Describe 'install.ps1' {
             $walletScript = Join-Path $Script:StartupDir 'MonetariumWallet.vbs'
             Test-Path $nodeScript   | Should -BeTrue
             Test-Path $walletScript | Should -BeTrue
-            Get-Content $nodeScript   | Should -Match 'monetarium-node'
-            Get-Content $walletScript | Should -Match 'monetarium-wallet'
-            Get-Content $walletScript | Should -Match 'timeout'
+            $nodeContent   = Get-Content -Path $nodeScript -Raw
+            $walletContent = Get-Content -Path $walletScript -Raw
+            $nodeContent   | Should -Match 'monetarium-node'
+            $walletContent | Should -Match 'monetarium-wallet'
+            $walletContent | Should -Match 'timeout'
         }
 
         It 'starts both processes during installation' {
