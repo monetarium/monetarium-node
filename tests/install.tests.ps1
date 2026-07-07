@@ -71,9 +71,14 @@ Describe 'install.ps1' {
             Remove-Item -Path $tmp -Recurse -Force
         }
 
-        # Don't touch the real Task Scheduler.
+        # Don't touch the real Task Scheduler — mock every ScheduledTasks
+        # cmdlet so the test is independent of the module's availability.
         Mock Register-ScheduledTask { }
         Mock Start-ScheduledTask { }
+        Mock New-ScheduledTaskPrincipal { [PSCustomObject]@{} }
+        Mock New-ScheduledTaskSettingsSet { [PSCustomObject]@{} }
+        Mock New-ScheduledTaskAction { [PSCustomObject]@{} }
+        Mock New-ScheduledTaskTrigger { [PSCustomObject]@{} }
 
         # Wallet --create is tested end-to-end via Linux E2E; in Pester
         # the stub .exe isn't a real binary, so mock it as a no-op.
