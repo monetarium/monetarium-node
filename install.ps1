@@ -132,7 +132,7 @@ function Install-Binary {
 
     $destination = Join-Path $Script:InstallDir "$BinaryName.exe"
     if (Test-Path $destination) {
-        Write-Info "Skipping $BinaryName — already installed at $destination"
+        Write-Info "Skipping $BinaryName - already installed at $destination"
         return
     }
 
