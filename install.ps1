@@ -452,31 +452,38 @@ generate=${genValue}
     $walletExe = Join-Path $Script:InstallDir 'monetarium-wallet.exe'
     $rpcCert = Join-Path (Get-WalletDataDir) 'rpc.cert'
     $configChanged = $false
+    $proc = $null
+    $rpcReady = $false
 
-    Write-Info 'Starting wallet for RPC configuration...'
-
+    # Check if wallet is already running (previous install re-run).
     try {
-        $proc = Start-Process -FilePath $walletExe `
-            -ArgumentList "--configfile=`"$($Script:WalletConf)`"" `
-            -PassThru -WindowStyle Hidden -ErrorAction Stop
+        $null = & $ctlExe --wallet getinfo 2>$null
+        $rpcReady = $true
+        Write-Info 'Wallet already running.'
     } catch {
-        Write-Info 'Failed to start wallet process. Configure addresses manually.'
-        return
+        Write-Info 'Starting wallet for RPC configuration...'
+        try {
+            $proc = Start-Process -FilePath $walletExe `
+                -ArgumentList "--configfile=`"$($Script:WalletConf)`"" `
+                -PassThru -WindowStyle Hidden -ErrorAction Stop
+        } catch {
+            Write-Info 'Failed to start wallet process. Configure addresses manually.'
+            return
+        }
+        if (-not $proc) { return }
     }
 
-    if (-not $proc) { return }
-
-    Write-Info 'Waiting for wallet RPC to become available...'
-
-    $rpcReady = $false
-    for ($i = 0; $i -lt 60; $i++) {
-        if ($proc.HasExited) { break }
-        try {
-            $null = & $ctlExe --wallet getinfo 2>$null
-            $rpcReady = $true
-            break
-        } catch { }
-        Start-Sleep -Seconds 2
+    if (-not $rpcReady) {
+        Write-Info 'Waiting for wallet RPC to become available...'
+        for ($i = 0; $i -lt 60; $i++) {
+            if ($proc.HasExited) { break }
+            try {
+                $null = & $ctlExe --wallet getinfo 2>$null
+                $rpcReady = $true
+                break
+            } catch { }
+            Start-Sleep -Seconds 2
+        }
     }
 
     if (-not $rpcReady) {
@@ -488,7 +495,7 @@ generate=${genValue}
         if ($Script:TicketsEnabled) {
             Write-Info "  After startup: $ctlExe --wallet setvotefeeconsolidationaddress default <address>"
         }
-        if (-not $proc.HasExited) { $proc.Kill() }
+        if ($proc -and -not $proc.HasExited) { $proc.Kill() }
         return
     }
 
@@ -515,10 +522,12 @@ generate=${genValue}
         & $ctlExe --wallet setvotefeeconsolidationaddress "default" $consolidationAddr 2>$null | Out-Null
     }
 
-    Write-Info 'Stopping wallet...'
-    & $ctlExe --wallet stop *>$null
-    Start-Sleep -Seconds 3
-    if (-not $proc.HasExited) { $proc.Kill() }
+    if ($proc) {
+        Write-Info 'Stopping wallet...'
+        & $ctlExe --wallet stop *>$null
+        Start-Sleep -Seconds 3
+        if (-not $proc.HasExited) { $proc.Kill() }
+    }
 
     if ($configChanged) { Show-ConfigurationSummary }
 }
