@@ -641,6 +641,11 @@ configure_mining_and_voting() {
     else
         green "  Ticket buying:      disabled"
     fi
+    if $VOTING_ENABLED; then
+        green "  Auto voting:        enabled"
+    else
+        green "  Auto voting:        disabled"
+    fi
     green "============================================="
 }
 

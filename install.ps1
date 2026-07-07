@@ -540,6 +540,11 @@ generate=${genValue}
             Write-Host "Ticket buyer limit:          $($Script:TicketLimit)"
             Write-Host "Balance to maintain:         $($Script:TicketBalance)"
         }
+        if ($Script:VotingEnabled) {
+            Write-Host "Auto voting:                 enabled"
+        } else {
+            Write-Host "Auto voting:                 disabled"
+        }
         Write-Host ''
     }
 }
