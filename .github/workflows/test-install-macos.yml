@@ -1,0 +1,56 @@
+name: Test install.sh (macOS)
+
+on:
+  push:
+    paths:
+      - "install.sh"
+      - "tests/**"
+      - ".github/workflows/test-install-macos.yml"
+  pull_request:
+    paths:
+      - "install.sh"
+      - "tests/**"
+      - ".github/workflows/test-install-macos.yml"
+  workflow_dispatch: {}
+
+jobs:
+  shellcheck:
+    name: Lint (shellcheck)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: brew install shellcheck
+
+      - name: Run shellcheck
+        run: shellcheck -x install.sh tests/test-install-macos.sh
+
+      - name: Check for bash 4+ only patterns
+        run: |
+          if grep -q '\${[a-zA-Z_][a-zA-Z0-9_]*,[,^]}' install.sh; then
+            echo "ERROR: install.sh uses bash 4+ only case modification pattern (\${var,,} or \${var^})."
+            echo "Use POSIX-compatible case patterns instead: [yY]|[yY][eE][sS]"
+            exit 1
+          fi
+
+  test-macos:
+    name: Functional test
+    needs: shellcheck
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x install.sh tests/test-install-macos.sh tests/mocks/curl
+
+      - name: Run install.sh against mocked releases and assert results
+        run: ./tests/test-install-macos.sh
+
+      - name: Upload install.sh output log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: install-output-log
+          path: /tmp/**/install-output.log
+          if-no-files-found: ignore

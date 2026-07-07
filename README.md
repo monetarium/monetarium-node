@@ -84,6 +84,32 @@ Also, make sure your firewall is configured to allow inbound connections to port
 
 ## Installing and updating
 
+### Quick Install (single command)
+
+Pre-built binaries for Linux, macOS, and Windows. Choose your platform:
+
+<details><summary><b>Linux / macOS</b></summary>
+
+  ```sh
+  curl -sSL https://raw.githubusercontent.com/monetarium/monetarium-node/main/install.sh | bash
+  ```
+
+  Or if you prefer `wget`:
+  ```sh
+  wget -qO- https://raw.githubusercontent.com/monetarium/monetarium-node/main/install.sh | bash
+  ```
+</details>
+<details><summary><b>Windows (PowerShell)</b></summary>
+
+  ```powershell
+  powershell -c "iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/monetarium/monetarium-node/main/install.ps1'))"
+  ```
+</details>
+
+The script downloads the latest release binaries, creates configs, and sets up the
+node daemon + wallet. On Linux/macOS it creates a systemd service; on Windows it
+creates a scheduled task.
+
 ### Build from source (all platforms)
 
 <details><summary><b>Install Dependencies</b></summary>
