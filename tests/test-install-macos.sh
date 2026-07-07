@@ -77,8 +77,13 @@ wallet_mode="$(stat -f '%Lp' "$WALLET_CONF" 2>/dev/null || stat -c '%a' "$WALLET
 check "wallet config mode is 600" [ "$wallet_mode" = "600" ]
 
 check "wallet config contains passphrase" grep -q "pass=${TEST_PASSPHRASE}" "$WALLET_CONF"
-check "voting enabled in wallet config"      grep -q "enablevoting=1" "$WALLET_CONF"
-check "ticket buyer enabled in wallet config" grep -q "enableticketbuyer=1" "$WALLET_CONF"
+check "voting disabled in wallet config"      grep -q "enablevoting=0" "$WALLET_CONF"
+check "ticket buyer disabled in wallet config" grep -q "enableticketbuyer=0" "$WALLET_CONF"
+check "wallet config has ticketbuyer.limit=1" grep -q "ticketbuyer.limit=1" "$WALLET_CONF"
+check "wallet config has ticketbuyer.balancetomaintainabsolute=1" grep -q "ticketbuyer.balancetomaintainabsolute=1" "$WALLET_CONF"
+check "wallet config has gaplimit=20"         grep -q "gaplimit=20" "$WALLET_CONF"
+check "wallet config has accountgaplimit=10"  grep -q "accountgaplimit=10" "$WALLET_CONF"
+check "mining disabled in node config"        grep -q "generate=false" "$NODE_CONF"
 
 check "passphrase not echoed in script output" bash -c "! grep -q '$TEST_PASSPHRASE' '$OUTPUT_FILE'"
 
