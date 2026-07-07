@@ -338,7 +338,15 @@ function Install-ScheduledTask {
         -RestartInterval (New-TimeSpan -Minutes 1) `
         -ExecutionTimeLimit ([TimeSpan]::Zero)
 
-    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    # Determine current user for the scheduled task principal.
+    # .NET WindowsIdentity can return empty on sandbox accounts (e.g.
+    # "defaultuser0" in Windows VMs), so fall back to env vars.
+    $currentUser = try {
+        [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    } catch { $null }
+    if ([string]::IsNullOrEmpty($currentUser)) {
+        $currentUser = "$env:USERDOMAIN\$env:USERNAME"
+    }
     $principal = New-ScheduledTaskPrincipal -UserId $currentUser -LogonType Interactive -RunLevel Highest
 
     $nodeAction = New-ScheduledTaskAction -Execute $nodeExe -Argument "--configfile=`"$($Script:NodeConf)`""
