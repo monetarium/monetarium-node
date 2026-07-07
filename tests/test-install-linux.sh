@@ -89,6 +89,7 @@ check "mining disabled in node config"              grep -q "generate=false" "$N
 check "passphrase not echoed in script output"      bash -c "! grep -q '$TEST_PASSPHRASE' '$OUTPUT_FILE'"
 check "big red warning was printed"                 grep -q "WARNING" "$OUTPUT_FILE"
 check "no /dev/tty error leaked to output"          bash -c "! grep -q '/dev/tty' '$OUTPUT_FILE'"
+check "no config summary in non-interactive mode"   bash -c "! grep -q 'Configuration Summary' '$OUTPUT_FILE'"
 
 # Wallet database
 WALLET_DB="$HOME/.monetarium-wallet/mainnet/wallet.db"

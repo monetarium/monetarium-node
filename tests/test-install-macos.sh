@@ -89,6 +89,8 @@ check "passphrase not echoed in script output" bash -c "! grep -q '$TEST_PASSPHR
 
 check "big red warning was printed" grep -q "WARNING" "$OUTPUT_FILE"
 
+check "no config summary in non-interactive mode" bash -c "! grep -q 'Configuration Summary' '$OUTPUT_FILE'"
+
 WALLET_DB="$HOME/Library/Application Support/Monetarium-wallet/mainnet/wallet.db"
 check "wallet database created"     test -f "$WALLET_DB"
 

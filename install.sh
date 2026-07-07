@@ -621,6 +621,13 @@ configure_mining_and_voting() {
         fi
     fi
 
+    show_configuration_summary
+}
+
+# --------------------------------------------------------------------------
+# 8b. Configuration Summary display
+# --------------------------------------------------------------------------
+show_configuration_summary() {
     echo ""
     green "============================================="
     green "  Configuration Summary"

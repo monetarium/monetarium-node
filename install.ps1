@@ -524,31 +524,36 @@ generate=${genValue}
     Start-Sleep -Seconds 3
     if (-not $proc.HasExited) { $proc.Kill() }
 
-    if ($configChanged) {
-        Write-Host ''
-        Write-Host '=============================================' -ForegroundColor Green
-        Write-Host '  Configuration Summary' -ForegroundColor Green
-        Write-Host '=============================================' -ForegroundColor Green
-        if ($Script:MiningEnabled -and $Script:MiningAddr) {
-            Write-Host "Mining address:              $($Script:MiningAddr)"
-            if ($Script:MiningCores) {
-                Write-Host "CPU cores for mining:        $($Script:MiningCores)"
-            }
+    if ($configChanged) { Show-ConfigurationSummary }
+}
+
+# --------------------------------------------------------------------------
+# 9b. Configuration Summary display
+# --------------------------------------------------------------------------
+function Show-ConfigurationSummary {
+    Write-Host ''
+    Write-Host '=============================================' -ForegroundColor Green
+    Write-Host '  Configuration Summary' -ForegroundColor Green
+    Write-Host '=============================================' -ForegroundColor Green
+    if ($Script:MiningEnabled -and $Script:MiningAddr) {
+        Write-Host "Mining address:              $($Script:MiningAddr)"
+        if ($Script:MiningCores) {
+            Write-Host "CPU cores for mining:        $($Script:MiningCores)"
         }
-        if ($Script:TicketsEnabled -and $Script:ConsolidationAddr) {
-            Write-Host "Ticket buyer limit:          $($Script:TicketLimit)"
-            Write-Host "Balance to maintain:         $($Script:TicketBalance)"
-        }
-        if ($Script:ConsolidationAddr) {
-            Write-Host "Fee consolidation address:   $($Script:ConsolidationAddr)"
-        }
-        if ($Script:VotingEnabled) {
-            Write-Host "Auto voting:                 enabled"
-        } else {
-            Write-Host "Auto voting:                 disabled"
-        }
-        Write-Host ''
     }
+    if ($Script:TicketsEnabled -and $Script:ConsolidationAddr) {
+        Write-Host "Ticket buyer limit:          $($Script:TicketLimit)"
+        Write-Host "Balance to maintain:         $($Script:TicketBalance)"
+    }
+    if ($Script:ConsolidationAddr) {
+        Write-Host "Fee consolidation address:   $($Script:ConsolidationAddr)"
+    }
+    if ($Script:VotingEnabled) {
+        Write-Host "Auto voting:                 enabled"
+    } else {
+        Write-Host "Auto voting:                 disabled"
+    }
+    Write-Host ''
 }
 
 # --------------------------------------------------------------------------

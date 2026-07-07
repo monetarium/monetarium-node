@@ -179,6 +179,105 @@ Describe 'install.ps1' {
     }
 }
 
+Describe 'Show-ConfigurationSummary' {
+
+    BeforeEach {
+        $script:SummaryLines = @()
+        Mock Write-Host { $script:SummaryLines += $Object }
+    }
+
+    It 'shows Auto voting enabled when VotingEnabled is true' {
+        $Script:MiningEnabled = $false; $Script:MiningAddr = $null
+        $Script:TicketsEnabled = $false; $Script:ConsolidationAddr = $null
+        $Script:VotingEnabled = $true
+
+        Show-ConfigurationSummary
+
+        $combined = $script:SummaryLines -join "`n"
+        $combined | Should -Match 'Auto voting:\s+enabled'
+    }
+
+    It 'shows Auto voting disabled when VotingEnabled is false' {
+        $Script:MiningEnabled = $false; $Script:MiningAddr = $null
+        $Script:TicketsEnabled = $false; $Script:ConsolidationAddr = $null
+        $Script:VotingEnabled = $false
+
+        Show-ConfigurationSummary
+
+        $combined = $script:SummaryLines -join "`n"
+        $combined | Should -Match 'Auto voting:\s+disabled'
+    }
+
+    It 'shows fee consolidation address when ConsolidationAddr is set' {
+        $Script:MiningEnabled = $false; $Script:MiningAddr = $null
+        $Script:TicketsEnabled = $false; $Script:ConsolidationAddr = 'TcTestAddr123'
+        $Script:VotingEnabled = $false
+
+        Show-ConfigurationSummary
+
+        $combined = $script:SummaryLines -join "`n"
+        $combined | Should -Match 'Fee consolidation address:\s+TcTestAddr123'
+    }
+
+    It 'omits fee consolidation address when ConsolidationAddr is null' {
+        $Script:MiningEnabled = $false; $Script:MiningAddr = $null
+        $Script:TicketsEnabled = $false; $Script:ConsolidationAddr = $null
+        $Script:VotingEnabled = $false
+
+        Show-ConfigurationSummary
+
+        $combined = $script:SummaryLines -join "`n"
+        $combined | Should -Not -Match 'Fee consolidation'
+    }
+
+    It 'shows mining address when both MiningEnabled and MiningAddr are set' {
+        $Script:MiningEnabled = $true; $Script:MiningAddr = 'TMiningAddr'
+        $Script:TicketsEnabled = $false; $Script:ConsolidationAddr = $null
+        $Script:VotingEnabled = $false
+
+        Show-ConfigurationSummary
+
+        $combined = $script:SummaryLines -join "`n"
+        $combined | Should -Match 'Mining address:\s+TMiningAddr'
+    }
+
+    It 'omits mining address when MiningAddr is null' {
+        $Script:MiningEnabled = $true; $Script:MiningAddr = $null
+        $Script:TicketsEnabled = $false; $Script:ConsolidationAddr = $null
+        $Script:VotingEnabled = $false
+
+        Show-ConfigurationSummary
+
+        $combined = $script:SummaryLines -join "`n"
+        $combined | Should -Not -Match 'Mining address'
+    }
+
+    It 'shows ticket buyer lines when TicketsEnabled and ConsolidationAddr set' {
+        $Script:MiningEnabled = $false; $Script:MiningAddr = $null
+        $Script:TicketsEnabled = $true; $Script:ConsolidationAddr = 'TcAddr'
+        $Script:TicketLimit = 3; $Script:TicketBalance = 10
+        $Script:VotingEnabled = $false
+
+        Show-ConfigurationSummary
+
+        $combined = $script:SummaryLines -join "`n"
+        $combined | Should -Match 'Ticket buyer limit:\s+3'
+        $combined | Should -Match 'Balance to maintain:\s+10'
+    }
+
+    It 'omits ticket buyer lines when TicketsEnabled is false' {
+        $Script:MiningEnabled = $false; $Script:MiningAddr = $null
+        $Script:TicketsEnabled = $false; $Script:ConsolidationAddr = $null
+        $Script:VotingEnabled = $false
+
+        Show-ConfigurationSummary
+
+        $combined = $script:SummaryLines -join "`n"
+        $combined | Should -Not -Match 'Ticket buyer'
+        $combined | Should -Not -Match 'Balance to maintain'
+    }
+}
+
 Describe 'Get-Platform' {
     It 'maps AMD64 to windows-amd64' {
         $env:PROCESSOR_ARCHITECTURE = 'AMD64'
