@@ -529,7 +529,7 @@ generate=${genValue}
         if (-not $proc.HasExited) { $proc.Kill() }
     }
 
-    if ($configChanged) { Show-ConfigurationSummary }
+    Show-ConfigurationSummary
 }
 
 # --------------------------------------------------------------------------
