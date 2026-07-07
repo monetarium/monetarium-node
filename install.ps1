@@ -126,6 +126,16 @@ function Install-Binary {
         [Parameter(Mandatory)][string]$Platform
     )
 
+    if (-not (Test-Path $Script:InstallDir)) {
+        New-Item -ItemType Directory -Path $Script:InstallDir -Force | Out-Null
+    }
+
+    $destination = Join-Path $Script:InstallDir "$BinaryName.exe"
+    if (Test-Path $destination) {
+        Write-Info "Skipping $BinaryName — already installed at $destination"
+        return
+    }
+
     Write-Info "Fetching latest release info for $Repo..."
     $url = Get-LatestReleaseAssetUrl -Repo $Repo -Platform $Platform
 
@@ -152,11 +162,6 @@ function Install-Binary {
         Write-ErrAndThrow "Could not locate '$BinaryName.exe' inside the downloaded archive."
     }
 
-    if (-not (Test-Path $Script:InstallDir)) {
-        New-Item -ItemType Directory -Path $Script:InstallDir -Force | Out-Null
-    }
-
-    $destination = Join-Path $Script:InstallDir "$BinaryName.exe"
     Copy-Item -Path $found.FullName -Destination $destination -Force
     Remove-Item -Path $tmpDir -Recurse -Force
 
