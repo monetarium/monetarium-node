@@ -528,14 +528,13 @@ EOF
 # 8. Post-install: configure mining & ticket buyer
 # --------------------------------------------------------------------------
 configure_mining_and_voting() {
-    # Always write generate status to node config, even if RPC isn't available.
+    # No TTY → can't get a mining address → generate must stay false.
+    # Setting generate=true without miningaddr prevents the node from starting.
     if ! has_tty; then
-        local gen_value="false"
-        $MINING_ENABLED && gen_value="true"
         {
             echo ""
             echo "; Mining configuration — added post-install by install.sh"
-            echo "generate=${gen_value}"
+            echo "generate=false"
         } >> "$NODE_CONF" 2>/dev/null || true
         info "Non-interactive mode — skipped wallet address polling (no TTY)."
         return
@@ -547,16 +546,17 @@ configure_mining_and_voting() {
     until monetarium-ctl --wallet getinfo >/dev/null 2>&1; do
         i=$((i + 1))
         if [[ $i -gt 60 ]]; then
-            local gen_value="false"
-            $MINING_ENABLED && gen_value="true"
+            # Wallet RPC never came up — no address available.
+            # generate stays false even if user enabled mining, because
+            # the node WILL NOT START with generate=true and no miningaddr.
             {
                 echo ""
                 echo "; Mining configuration — added post-install by install.sh"
-                echo "generate=${gen_value}"
+                echo "generate=false"
             } >> "$NODE_CONF" 2>/dev/null || true
             info "Wallet RPC not ready after 60 seconds."
             info "Configure mining/ticket addresses manually:"
-            info "  Edit ${NODE_CONF}: add miningaddr=<address> if missing"
+            info "  Edit ${NODE_CONF}: add miningaddr=<address> then set generate=true"
             return
         fi
         sleep 2
@@ -565,12 +565,16 @@ configure_mining_and_voting() {
     green "Wallet RPC ready."
 
     local config_changed=false
-    local gen_value="false"
-    $MINING_ENABLED && gen_value="true"
 
-    # Always get a mining address and write generate + miningaddr to node config.
+    # Get mining address first. Only enable generate if address succeeds.
     local mining_addr
     mining_addr=$(monetarium-ctl --wallet getnewaddress 2>/dev/null || true)
+
+    local gen_value="false"
+    if $MINING_ENABLED && [[ -n "$mining_addr" ]]; then
+        gen_value="true"
+    fi
+
     {
         echo ""
         echo "; Mining configuration — added post-install by install.sh"
@@ -630,13 +634,15 @@ show_configuration_summary() {
     green "============================================="
     green "  Configuration Summary"
     green "============================================="
-    if $MINING_ENABLED; then
+    if $MINING_ENABLED && [[ -n "$MINING_ADDR" ]]; then
         green "  Mining:             enabled (${MINING_CORES} core(s))"
-    else
-        green "  Mining:             disabled (generate=0)"
-    fi
-    if [[ -n "$MINING_ADDR" ]]; then
         green "  Mining reward addr: ${MINING_ADDR}"
+    else
+        if $MINING_ENABLED; then
+            red "  Mining:             requested but disabled — no mining address obtained"
+        else
+            green "  Mining:             disabled"
+        fi
     fi
     if $TICKETS_ENABLED; then
         green "  Ticket buying:      enabled"
@@ -698,14 +704,16 @@ EOF
 
     {
         echo "mining:"
-        if $MINING_ENABLED; then
+        if $MINING_ENABLED && [[ -n "$MINING_ADDR" ]]; then
             echo "  enabled:  true"
             echo "  cores:    ${MINING_CORES}"
-        else
-            echo "  enabled:  false"
-        fi
-        if [[ -n "$MINING_ADDR" ]]; then
             echo "  address:  ${MINING_ADDR}"
+        else
+            if $MINING_ENABLED; then
+                echo "  enabled:  false (address unavailable)"
+            else
+                echo "  enabled:  false"
+            fi
         fi
         echo ""
         echo "ticket buyer:"
@@ -758,7 +766,43 @@ EOF
 }
 
 # --------------------------------------------------------------------------
-# 9. Big warning
+# 9. SELinux check (Linux only)
+# --------------------------------------------------------------------------
+check_selinux() {
+    [[ "$(uname -s)" != "Linux" ]] && return
+
+    local mode
+    mode="$(command -v getenforce >/dev/null && getenforce 2>/dev/null || echo "Unknown")"
+
+    case "$mode" in
+        Enforcing)
+            red "=============================================================="
+            red "           SELinux is ENFORCING — Installation will FAIL"
+            red "=============================================================="
+            red "SELinux is currently enforcing on this system. It will block:"
+            red "  - Writing systemd unit files to /etc/systemd/system/"
+            red "  - Services executing binaries from ${INSTALL_DIR}"
+            red "  - Services accessing data directories under your home"
+            red ""
+            red "To proceed, set SELinux to permissive or disabled FIRST:"
+            red "  Temporary (until reboot):  sudo setenforce 0"
+            red "  Permanent:                 edit /etc/selinux/config, set"
+            red "                             SELINUX=permissive, then reboot"
+            red ""
+            red "After installation you can re-enable it with 'sudo setenforce 1'"
+            red "but you'll need a custom SELinux module for the monetarium"
+            red "services and their data directories."
+            red "=============================================================="
+            die "SELinux is enforcing. Disable it before running this installer."
+            ;;
+        Permissive)
+            info "SELinux is in permissive mode — check AVC logs if services fail to start."
+            ;;
+    esac
+}
+
+# --------------------------------------------------------------------------
+# 10. Big warning
 # --------------------------------------------------------------------------
 print_warning() {
     red   "=============================================================="
@@ -803,6 +847,8 @@ main() {
     local platform
     platform="$(detect_platform)"
     info "Detected platform: $platform"
+
+    check_selinux
 
     download_binary "$REPO_NODE"   "monetarium-node"   "$platform"
     download_binary "$REPO_WALLET" "monetarium-wallet" "$platform"
