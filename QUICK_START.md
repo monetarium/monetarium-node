@@ -27,6 +27,11 @@ Running `install.sh` performs the following steps:
 
 ## 2. Before you start
 
+> **Windows?** This guide covers the `install.sh` script, which supports Linux
+> and macOS only — it aborts on any other OS. Windows users should use the
+> PowerShell installer (`install.ps1`) from the README instead; the rest of
+> this guide does not apply.
+
 **Requirements**
 
 - Linux (x86_64 or arm64) or macOS (Intel or Apple Silicon)
@@ -93,7 +98,7 @@ instead of `~/.monetarium…`.
 | Services (Linux) | `monetarium-node.service`, `monetarium-wallet.service` |
 | Services (macOS) | `~/Library/LaunchAgents/com.monetarium.node.plist`, `com.monetarium.wallet.plist` |
 
-Default ports: peer-to-peer **9508**, node RPC **9509**, wallet RPC **9110**.
+Default ports: peer-to-peer **9508**, node RPC **9509**, wallet RPC **9510**.
 
 ## 5. Verify everything is working
 
@@ -315,6 +320,15 @@ data are preserved. Note that the installer **regenerates the config files**
 (new RPC credentials, same setup prompts), so services will be recreated and
 restarted with the new config.
 
+> ⚠️ **Enter the SAME wallet passphrase when it asks again.** The installer
+> prompts for the passphrase on every run. `create_wallet` skips wallet
+> creation when `wallet.db` already exists (so the database keeps its original
+> passphrase), but `write_configs` unconditionally rewrites `pass=` in
+> `~/.monetarium/monetarium-wallet.conf` with whatever you type. If you enter a
+> different passphrase, the two no longer match, the wallet fails to unlock,
+> and the service keeps crashing — the "passphrase mismatch" symptom in
+> §8 Troubleshooting.
+
 **Uninstall** — the manifest at `~/.monetarium/install.manifest` lists every file
 and the exact commands to stop services. In short:
 
@@ -335,9 +349,12 @@ Then remove the files listed in the manifest.
 
 ## 10. Security warning — this is a hot wallet
 
-The installer writes your **wallet passphrase in plaintext** to
-`~/.monetarium/monetarium-wallet.conf` so the service can auto-unlock on
-boot for unattended ticket buying and voting. Consequences:
+**This applies to everyone who runs the installer, not just stakers.** The
+installer always asks for a passphrase (even if you decline staking) and always
+writes your **wallet passphrase in plaintext** to
+`~/.monetarium/monetarium-wallet.conf` so the service can unlock the wallet on
+boot. The wallet is left unlocked 24/7 — and even if you only mine, your block
+rewards accumulate in exactly this wallet. Consequences:
 
 - Anyone who can read that file (root, a backup, a compromised process) can
   unlock your wallet and move your funds.
@@ -347,8 +364,8 @@ boot for unattended ticket buying and voting. Consequences:
 
 Recommended precautions:
 
-- Only keep funds on this wallet that you can afford to lose, sized for
-  ticket-buying/voting purposes only.
+- Only keep funds on this wallet that you can afford to lose — and remember
+  that mined rewards land here too.
 - Keep the bulk of your holdings in a separate offline or hardware-secured
   wallet.
 - Restrict SSH/root access, keep the machine patched, and monitor it actively.
