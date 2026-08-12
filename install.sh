@@ -94,6 +94,7 @@ WALLET_REPLACED=false
 red()    { printf '\033[1;31m%s\033[0m\n' "$*"; }
 green()  { printf '\033[1;32m%s\033[0m\n' "$*"; }
 info()  { printf '\033[1;34m[install]\033[0m %s\n' "$*"; }
+warn()  { printf '\033[1;33m[install]\033[0m %s\n' "$*"; }
 die()   { red "ERROR: $*"; exit 1; }
 
 require_cmd() {
@@ -324,16 +325,18 @@ download_binary() {
         *.tar.gz|*.tgz|*.zip) is_archive=true ;;
     esac
 
-    # No digest published for this asset (very old upload)? On a RE-RUN keep
-    # whatever is installed — can't verify currency. On a FRESH install refuse
-    # with a hard error: silently installing an unverifiable binary leaves only
-    # transport TLS between a corrupted download and the box.
+    # No digest published for this asset? On a RE-RUN keep whatever is already
+    # installed (we can't verify currency against a missing checksum). On a
+    # FRESH install we must not hard-refuse: releases that don't publish a
+    # checksum would then break *every* install against them, so warn and
+    # proceed — relying on transport TLS exactly like the pre-checksum
+    # installer did. Verification only kicks in when a digest IS present.
     if [[ -z "$digest" ]]; then
         if $had_binary; then
             info "Skipping ${bin_name} - release asset has no published checksum; keeping existing binary."
             return
         fi
-        die "Refusing to install ${bin_name}: the release asset publishes no sha256 checksum, so the download cannot be verified."
+        warn "No sha256 checksum published for ${bin_name}; installing without verification."
     fi
 
     # Skip-when-current only applies to raw binaries: the published digest is
@@ -368,15 +371,18 @@ download_binary() {
         die "Failed to download ${bin_name} from ${url}."
     fi
 
-    # Integrity check: the downloaded bytes must match GitHub's published
-    # sha256 for the asset.
-    local got
-    got="$(sha256_of "$archive" 2>/dev/null | awk '{print $1}' || true)"
-    if [[ "$(lc "$got")" != "$(lc "$digest")" ]]; then
-        rm -rf "$tmpdir"
-        die "Checksum mismatch for ${bin_name}: expected sha256:${digest}, got ${got}. Refusing to install a corrupted/downloaded binary."
+    # Integrity check: only when a digest was published. With no digest we
+    # already warned and are installing on transport TLS trust alone, so
+    # there is nothing to compare against.
+    if [[ -n "$digest" ]]; then
+        local got
+        got="$(sha256_of "$archive" 2>/dev/null | awk '{print $1}' || true)"
+        if [[ "$(lc "$got")" != "$(lc "$digest")" ]]; then
+            rm -rf "$tmpdir"
+            die "Checksum mismatch for ${bin_name}: expected sha256:${digest}, got ${got}. Refusing to install a corrupted/downloaded binary."
+        fi
+        info "Checksum verified for ${bin_name} (sha256:${digest})."
     fi
-    info "Checksum verified for ${bin_name} (sha256:${digest})."
 
     case "$archive" in
         *.tar.gz|*.tgz)

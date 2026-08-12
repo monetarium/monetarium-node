@@ -643,9 +643,14 @@ run_download_no_digest_fresh_test() {
     local out rc
     out="$(PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64" 2>&1)"
     rc=$?
-    [[ $rc -ne 0 ]] && echo "$out" | grep -q "cannot be verified" && [[ ! -f "$INSTALL_DIR/monetarium-node" ]]
+    # No published checksum must NOT hard-refuse a fresh install (that would
+    # break every install against releases that omit one) — it warns and
+    # installs, relying on transport TLS like the pre-checksum installer.
+    [[ $rc -eq 0 ]] \
+        && echo "$out" | grep -q "No sha256 checksum published" \
+        && [[ -x "$INSTALL_DIR/monetarium-node" ]]
 }
-check "fresh install, no digest → refuses to install unverifiable binary" run_download_no_digest_fresh_test
+check "fresh install, no digest → warns and installs unverified" run_download_no_digest_fresh_test
 
 run_download_mismatch_test() {
     reset_download
