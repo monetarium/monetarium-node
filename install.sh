@@ -75,7 +75,15 @@ MINING_ADDR=""
 CONSOLIDATION_ADDR=""
 
 RPC_USER="monetarium"
-RPC_PASS="$(head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 32)"
+RPC_PASS=""
+
+# Set on script start (defaults). RPC credentials are reused on re-runs —
+# see ensure_rpc_credentials() below.
+BINARIES_REPLACED=false
+# Per-binary replacement flags: restart only the service(s) whose binary
+# actually changed (see restart_monetarium_services in main()).
+NODE_REPLACED=false
+WALLET_REPLACED=false
 
 # --------------------------------------------------------------------------
 # Helpers
@@ -87,6 +95,30 @@ die()   { red "ERROR: $*"; exit 1; }
 
 require_cmd() {
     command -v "$1" >/dev/null 2>&1 || die "Required command '$1' not found. Please install it and re-run."
+}
+
+# Return 0 if a SHA-256 tool is available, else die with an actionable message.
+# Both checksums and the verified-download path depend on hashing, so a host
+# with neither `sha256sum` (coreutils) nor `shasum` (BSD/macOS) must fail loud
+# instead of falling through to a misleading "Checksum mismatch ... got .".
+require_hasher() {
+    command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1 \
+        || die "No SHA-256 tool found. Install sha256sum (coreutils) or shasum and re-run."
+}
+
+# Echo the byte offset of the LAST (literal, non-regex) occurrence of $1 in
+# $2, or -1. Pure-bash so it is safe under `set -euo pipefail` (grep -bo would
+# vary across grep implementations and complicate the pipefail handling).
+_strrpos() {
+    local needle="$1" hay="$2" off=-1 len
+    len="${#2}"
+    [[ -z "$needle" ]] && { printf '%s\n' -1; return; }
+    while [[ "$hay" == *"$needle"* ]]; do
+        local head="${hay%%"$needle"*}"
+        off=$(( len - ${#hay} + ${#head} ))
+        hay="${hay:$(( ${#head} + ${#needle} ))}"
+    done
+    printf '%s\n' "$off"
 }
 
 has_tty() {
@@ -115,53 +147,247 @@ detect_platform() {
 }
 
 # --------------------------------------------------------------------------
-# 2. Download binaries
+# 2. Download binaries (checksum-verified, self-updating on re-run)
 # --------------------------------------------------------------------------
-latest_release_url() {
+latest_release_asset() {
     # $1 = repo name, $2 = platform string (e.g. linux_amd64)
+    # Prints "sha256:<hex>\t<url>" for the matching release asset (digest may
+    # be empty for very old uploads).
+    # Exit status:
+    #   0 — asset found
+    #   1 — could not reach the GitHub API (transient; caller decides)
+    #   2 — API reachable, but no asset matches this platform
     local repo="$1" platform="$2"
     local api="https://api.github.com/repos/${GITHUB_ORG}/${repo}/releases/latest"
 
-    local asset_url
-    asset_url="$(curl -fsSL "$api" \
-        | grep -o "\"browser_download_url\": *\"[^\"]*${platform}[^\"]*\"" \
-        | head -n1 \
-        | sed -E 's/.*"(https[^"]+)"/\1/')"
+    local json
+    json="$(curl -fsSL "$api" 2>/dev/null)" || return 1
 
-    if [[ -z "$asset_url" ]]; then
-        die "Could not find a release asset for ${repo} matching platform '${platform}'. Check https://github.com/${GITHUB_ORG}/${repo}/releases manually."
+    # Match the asset's "browser_download_url" FIELD token (not the bare URL) so
+    # that a release `body` which repeats the download link verbatim does not
+    # mis-anchor the per-asset slice. grep -o emits the whole field+value;
+    # head -n1 picks the first platform match.
+    local match url
+    match="$(printf '%s' "$json" \
+        | grep -oE "\"browser_download_url\"[[:space:]]*:[[:space:]]*\"[^\"]*${platform}[^\"]*\"" \
+        | head -n1)" || true
+
+    if [[ -z "$match" ]]; then
+        echo "Could not find a release asset for ${repo} matching platform '${platform}'. Check https://github.com/${GITHUB_ORG}/${repo}/releases manually." >&2
+        return 2
     fi
-    echo "$asset_url"
+
+    # Pull just the URL value out of the matched token.
+    url="$(printf '%s' "$match" \
+        | sed -E 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')"
+
+    # Scope the digest lookup to the matched asset's OWN JSON object instead
+    # of relying on GitHub's (undocumented) field ordering. The old "last
+    # sha256 before the URL" pairing broke whenever a neighbouring asset's
+    # digest sat between this asset's fields, and `${json%%"$url"*}` broke when
+    # the URL was also repeated in the release body. Bash has no JSON parser,
+    # so (quote/backslash aware, unlike the naive brace counter):
+    #   1. Anchor on the matched field token — the LAST occurrence, since the
+    #      assets array follows the body, so the genuine field is the last copy
+    #      of this literal in the document.
+    #   2. The asset object's opening '{' is the innermost currently-open '{'
+    #      at the anchor (top of a brace stack built scanning forward).
+    #   3. The matching '}' is the forward scan that returns the stack to empty.
+    #   4. grep the digest only inside that object.
+    local anchor
+    anchor="$(_strrpos "$match" "$json")"
+    if [[ "$anchor" -lt 0 ]]; then
+        echo "Could not find a release asset for ${repo} matching platform '${platform}'. Check https://github.com/${GITHUB_ORG}/${repo}/releases manually." >&2
+        return 2
+    fi
+
+    local i ch in_str=0 esc=0
+    local opens="" d=0   # opens = space-separated positions of unclosed '{'
+
+    # Forward pass over [0, anchor): build the brace stack, quote/backslash
+    # aware so braces inside string values are ignored.
+    for ((i = 0; i < anchor; i++)); do
+        ch="${json:i:1}"
+        if (( in_str )); then
+            if (( esc )); then esc=0
+            elif [[ "$ch" == "\\" ]]; then esc=1
+            elif [[ "$ch" == "\"" ]]; then in_str=0
+            fi
+        else
+            case "$ch" in
+                '"') in_str=1 ;;
+                '{') opens="$opens $i" ;;
+                '}')
+                    [[ -n "$opens" ]] && opens="${opens% *}" || d=$((d + 1))
+                    ;;
+            esac
+        fi
+    done
+
+    # The innermost open '{' before the anchor is the asset object's brace.
+    # (opens is empty only if the anchor is not inside an object — malformed.)
+    if [[ -z "$opens" ]]; then
+        echo "Could not find a release asset for ${repo} matching platform '${platform}'. Check https://github.com/${GITHUB_ORG}/${repo}/releases manually." >&2
+        return 2
+    fi
+    local open="${opens##* }"   # last token = innermost open brace position
+
+    # Forward pass from open: find the matching '}' at the same depth, again
+    # quote/backslash aware. Track depth relative to the asset object.
+    in_str=0; esc=0; d=1
+    local end=-1
+    for ((i = open + 1; i < ${#json}; i++)); do
+        ch="${json:i:1}"
+        if (( in_str )); then
+            if (( esc )); then esc=0
+            elif [[ "$ch" == "\\" ]]; then esc=1
+            elif [[ "$ch" == "\"" ]]; then in_str=0
+            fi
+        else
+            case "$ch" in
+                '"') in_str=1 ;;
+                '{') d=$((d + 1)) ;;
+                '}')
+                    if (( d == 1 )); then end=$i; break
+                    else d=$((d - 1)); fi
+                    ;;
+            esac
+        fi
+    done
+
+    if [[ "$end" -lt 0 ]]; then
+        echo "Could not find a release asset for ${repo} matching platform '${platform}'. Check https://github.com/${GITHUB_ORG}/${repo}/releases manually." >&2
+        return 2
+    fi
+
+    local obj="${json:open:$((end - open + 1))}"
+    local digest
+    digest="$(printf '%s' "$obj" \
+        | grep -oE '"digest":[[:space:]]*"sha256:[0-9a-fA-F]+"' \
+        | head -n1 \
+        | sed -E 's/.*"sha256:([0-9a-fA-F]+)".*/\1/')" || true
+
+    printf 'sha256:%s\t%s\n' "$digest" "$url"
 }
+
+sha256_of() {
+    # $1 = file; prints the lowercase hex SHA-256. Coreutils on Linux,
+    # BSD/macOS ships shasum.
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1"
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1"
+    else
+        return 1
+    fi
+}
+
+lc() { printf '%s' "$1" | tr 'A-F' 'a-f'; }
 
 download_binary() {
     # $1 = repo, $2 = binary name to install, $3 = platform
+    # Re-runs self-update: the asset's published sha256 is compared against
+    # the installed binary, and the download is skipped when they match.
+    # The downloaded file is hash-verified before it is ever installed.
     local repo="$1" bin_name="$2" platform="$3"
     local dest="${INSTALL_DIR}/${bin_name}"
+    local had_binary=false
+    [[ -f "$dest" ]] && had_binary=true
 
-    if [[ -f "$dest" ]]; then
-        info "Skipping ${bin_name} - already installed at $dest"
-        return
+    local asset_info url digest rc is_archive
+    rc=0
+    asset_info="$(latest_release_asset "$repo" "$platform" 2>/dev/null)" || rc=$?
+
+    if [[ $rc -eq 2 ]]; then
+        # API reachable but this platform has no asset — a real problem,
+        # not a transient outage, so refuse regardless of install state.
+        die "No release asset for ${bin_name} matching platform '${platform}'. Check https://github.com/${GITHUB_ORG}/${repo}/releases manually."
+    fi
+    if [[ $rc -ne 0 ]]; then
+        # rc == 1: GitHub unreachable.
+        if $had_binary; then
+            info "Skipping ${bin_name} - could not reach GitHub to check for updates (already installed)."
+            return
+        fi
+        die "Could not fetch latest release info for ${repo}."
     fi
 
-    local url tmpdir archive
+    digest="${asset_info%%$'\t'*}"
+    digest="${digest#sha256:}"
+    url="${asset_info#*$'\t'}"
 
-    info "Fetching latest release info for ${repo}..."
-    url="$(latest_release_url "$repo" "$platform")"
+    is_archive=false
+    case "$url" in
+        *.tar.gz|*.tgz|*.zip) is_archive=true ;;
+    esac
 
+    # No digest published for this asset (very old upload)? On a RE-RUN keep
+    # whatever is installed — can't verify currency. On a FRESH install refuse
+    # with a hard error: silently installing an unverifiable binary leaves only
+    # transport TLS between a corrupted download and the box.
+    if [[ -z "$digest" ]]; then
+        if $had_binary; then
+            info "Skipping ${bin_name} - release asset has no published checksum; keeping existing binary."
+            return
+        fi
+        die "Refusing to install ${bin_name}: the release asset publishes no sha256 checksum, so the download cannot be verified."
+    fi
+
+    # Skip-when-current only applies to raw binaries: the published digest is
+    # of the exact bytes that get installed. For archive assets (.tar.gz/.tgz
+    # /zip) the digest covers the ARCHIVE, which never equals the extracted
+    # binary — so download + verify every run instead of pretending re-runs
+    # are a no-op.
+    if $had_binary && ! $is_archive; then
+        local current
+        current="$(sha256_of "$dest" 2>/dev/null | awk '{print $1}' || true)"
+        if [[ -n "$current" ]] && [[ "$(lc "$current")" == "$(lc "$digest")" ]]; then
+            info "Skipping ${bin_name} - already current at $dest"
+            return
+        fi
+        info "Update available for ${bin_name} (installed hash differs from release asset)."
+    fi
+
+    local tmpdir archive
     tmpdir="$(mktemp -d)"
+    # RETURN fires both on a normal return and on the errexit-induced return from
+    # a failing `sudo mkdir/mv` (so set -e never leaks tmpdir). `die` uses
+    # `exit`, which bypasses RETURN, so every die below still rm's explicitly.
+    # Guard the expansion: when download_binary is itself called from inside
+    # another function, the RETURN trap can run after this local has been torn
+    # down, and an unbound "$tmpdir" would abort the script under `set -u`.
+    trap '[[ -n "${tmpdir:-}" ]] && rm -rf "$tmpdir"' RETURN
     archive="$tmpdir/$(basename "$url")"
 
     info "Downloading ${bin_name} from: $url"
-    curl -fsSL -o "$archive" "$url"
+    if ! curl -fsSL -o "$archive" "$url"; then
+        rm -rf "$tmpdir"
+        die "Failed to download ${bin_name} from ${url}."
+    fi
+
+    # Integrity check: the downloaded bytes must match GitHub's published
+    # sha256 for the asset.
+    local got
+    got="$(sha256_of "$archive" 2>/dev/null | awk '{print $1}' || true)"
+    if [[ "$(lc "$got")" != "$(lc "$digest")" ]]; then
+        rm -rf "$tmpdir"
+        die "Checksum mismatch for ${bin_name}: expected sha256:${digest}, got ${got}. Refusing to install a corrupted/downloaded binary."
+    fi
+    info "Checksum verified for ${bin_name} (sha256:${digest})."
 
     case "$archive" in
         *.tar.gz|*.tgz)
-            tar -xzf "$archive" -C "$tmpdir"
+            if ! tar -xzf "$archive" -C "$tmpdir"; then
+                rm -rf "$tmpdir"
+                die "Failed to extract downloaded archive ${archive}."
+            fi
             ;;
         *.zip)
             require_cmd unzip
-            unzip -q "$archive" -d "$tmpdir"
+            if ! unzip -q "$archive" -d "$tmpdir"; then
+                rm -rf "$tmpdir"
+                die "Failed to extract downloaded archive ${archive}."
+            fi
             ;;
         *)
             # Assume it's a raw binary
@@ -171,7 +397,7 @@ download_binary() {
 
     local found
     found="$(find "$tmpdir" -type f -name "$bin_name" | head -n1)"
-    [[ -n "$found" ]] || die "Could not locate '${bin_name}' binary inside downloaded archive."
+    [[ -n "$found" ]] || { rm -rf "$tmpdir"; die "Could not locate '${bin_name}' binary inside downloaded archive."; }
 
     chmod +x "$found"
     sudo mkdir -p "$INSTALL_DIR"
@@ -179,6 +405,49 @@ download_binary() {
     rm -rf "$tmpdir"
 
     info "Installed ${bin_name} -> ${INSTALL_DIR}/${bin_name}"
+    # If a service was already running, flag that it must be restarted so it
+    # runs the new binary (handled in main after the services are re-installed).
+    if $had_binary; then
+        case "$bin_name" in
+            monetarium-node)   NODE_REPLACED=true   ;;
+            monetarium-wallet) WALLET_REPLACED=true ;;
+        esac
+        # Aggregate of the per-binary flags above; read by the test suite, not
+        # by main() (which keys restarts off NODE_REPLACED/WALLET_REPLACED).
+        BINARIES_REPLACED=true
+    fi
+}
+
+restart_monetarium_services() {
+    # $@ = service daemon labels whose binary was replaced. Restart only
+    # those so they pick up the freshly-updated executable; services whose
+    # binary did not change keep running untouched. Nothing to do when nothing
+    # changed (fresh installs start clean; monetarium-ctl has no service).
+    [[ $# -eq 0 ]] && return
+
+    case "$(uname -s)" in
+        Linux)
+            if systemctl is-active --quiet monetarium-node 2>/dev/null \
+                || systemctl is-active --quiet monetarium-wallet 2>/dev/null; then
+                info "Binaries updated - restarting monetarium services."
+                local svc
+                for svc in "$@"; do
+                    sudo systemctl restart "$svc" 2>/dev/null || true
+                done
+            fi
+            ;;
+        Darwin)
+            local svc label
+            for svc in "$@"; do
+                case "$svc" in
+                    monetarium-node)   label="com.monetarium.node" ;;
+                    monetarium-wallet) label="com.monetarium.wallet" ;;
+                    *) continue ;;
+                esac
+                launchctl kickstart -k "gui/$(id -u)/$label" 2>/dev/null || true
+            done
+            ;;
+    esac
 }
 
 # --------------------------------------------------------------------------
@@ -322,11 +591,70 @@ prompt_ticket_buyer() {
 }
 
 # --------------------------------------------------------------------------
+# 3d. Reuse RPC credentials on re-runs
+# --------------------------------------------------------------------------
+# On a re-run the node/wallet daemons are already running with the RPC
+# credentials from the previous install. Regenerating them in write_configs()
+# would put a NEW password on disk while the daemons still answer with the
+# OLD one — so monetarium-ctl silently fails auth and the post-install
+# wallet polling times out. Instead, adopt the existing credentials when a
+# node config already exists, and only generate fresh ones on first install.
+rpc_credential_from_conf() {
+    # $1 = key (e.g. rpcuser), reads $NODE_CONF
+    # grep exits 1 when the key is absent and 2 when $NODE_CONF is missing;
+    # under `set -eo pipefail` that aborts the caller (e.g. write_configs on a
+    # fresh install calls this before the config file exists). Mask the exit
+    # status so a missing file/key yields empty output, not a hard abort.
+    grep -E "^${1}=" "$NODE_CONF" 2>/dev/null | tail -n1 | cut -d= -f2- || true
+}
+
+ensure_rpc_credentials() {
+    if [[ -f "$NODE_CONF" ]]; then
+        local prev_user prev_pass
+        prev_user="$(rpc_credential_from_conf rpcuser)"
+        prev_pass="$(rpc_credential_from_conf rpcpass)"
+        if [[ -n "$prev_pass" ]]; then
+            # When a usable password exists, the rpcuser MUST come from the
+            # running daemons too. Defaulting the user here would put a NEW
+            # rpcuser on disk while the daemons still answer with their
+            # previous one — exactly the auth desync this function exists to
+            # prevent (the same trap a missing rpcpass falls into below).
+            if [[ -z "$prev_user" ]]; then
+                die "Found ${NODE_CONF} with rpcpass but no rpcuser. Deleting only the password would desync the daemon's user; delete it (or the previous install) and re-run to reinstall cleanly."
+            fi
+            RPC_USER="$prev_user"
+            RPC_PASS="$prev_pass"
+            info "Reusing existing RPC credentials from $NODE_CONF (re-run detected)."
+            return
+        fi
+        # NODE_CONF exists but lacks a usable rpcpass. The message covers both
+        # "rpcuser present, rpcpass missing/absent" and "neither key set" (e.g.
+        # a config left behind with dcrd's commented-out RPC defaults). Our
+        # installer writes rpcuser+rpcpass together, so a partial/missing pair is
+        # a broken or foreign config: silently regenerating only one half would
+        # desync disk vs. the running daemons. Refuse.
+        die "Found ${NODE_CONF} without a usable rpcpass (and possibly without rpcuser either). Delete it (or the previous install) and re-run to reinstall cleanly."
+    fi
+    if [[ -z "$RPC_PASS" ]]; then
+        RPC_PASS="$(head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 32)"
+    fi
+}
+
+# --------------------------------------------------------------------------
 # 4. Write config files
 # --------------------------------------------------------------------------
 write_configs() {
+    ensure_rpc_credentials
+
     mkdir -p "$DATA_DIR"
     chmod 700 "$DATA_DIR"
+
+    # Preserve the post-install mining section across re-runs: write_configs()
+    # rewrites the node config from scratch, which would otherwise wipe the
+    # generate=/miningaddr= lines appended on a previous run. Carry them over.
+    local prev_generate prev_miningaddr
+    prev_generate="$(rpc_credential_from_conf generate)"
+    prev_miningaddr="$(rpc_credential_from_conf miningaddr)"
 
     # Node config
     cat > "$NODE_CONF" <<EOF
@@ -337,6 +665,17 @@ addpeer=176.113.164.216:9508
 addpeer=134.249.62.43:9508
 addpeer=62.216.37.206:9508
 EOF
+
+    # Re-append the previous mining settings so a re-run keeps them
+    # (configure_mining_and_voting below may adjust them).
+    if [[ -n "$prev_generate" || -n "$prev_miningaddr" ]]; then
+        {
+            echo ""
+            echo "; Mining configuration — carried over from previous install by install.sh"
+            [[ -n "$prev_generate" ]] && echo "generate=${prev_generate}"
+            [[ -n "$prev_miningaddr" ]] && echo "miningaddr=${prev_miningaddr}"
+        } >> "$NODE_CONF"
+    fi
 
     # Wallet config — this is where the plaintext passphrase lives.
     local tb_enabled=0; $TICKETS_ENABLED && tb_enabled=1
@@ -527,15 +866,39 @@ EOF
 # --------------------------------------------------------------------------
 # 8. Post-install: configure mining & ticket buyer
 # --------------------------------------------------------------------------
+# Remove any mining section previously appended to the node config (either
+# carried over by write_configs or written by an earlier run) so we never
+# end up with duplicate generate=/miningaddr= keys that override each other.
+strip_mining_section() {
+    local tmp
+    tmp="$(mktemp)"
+    grep -vE '^generate=|^miningaddr=|^; Mining configuration' "$NODE_CONF" > "$tmp" 2>/dev/null || true
+    mv "$tmp" "$NODE_CONF"
+    chmod 600 "$NODE_CONF"
+}
+
+has_previous_mining_config() {
+    grep -qE '^(generate|miningaddr)=' "$NODE_CONF" 2>/dev/null
+}
+
+# True when the node config on disk actually enables mining. Used by the
+# summary so a re-run that never got a fresh address (RPC timeout) reports the
+# carried-over mining config truthfully instead of claiming mining is off.
+has_previous_mining_enabled() {
+    grep -qE '^generate=true[[:space:]]*$' "$NODE_CONF" 2>/dev/null
+}
+
 configure_mining_and_voting() {
     # No TTY → can't get a mining address → generate must stay false.
     # Setting generate=true without miningaddr prevents the node from starting.
     if ! has_tty; then
-        {
-            echo ""
-            echo "; Mining configuration — added post-install by install.sh"
-            echo "generate=false"
-        } >> "$NODE_CONF" 2>/dev/null || true
+        if ! has_previous_mining_config; then
+            {
+                echo ""
+                echo "; Mining configuration — added post-install by install.sh"
+                echo "generate=false"
+            } >> "$NODE_CONF" 2>/dev/null || true
+        fi
         info "Non-interactive mode — skipped wallet address polling (no TTY)."
         return
     fi
@@ -545,18 +908,39 @@ configure_mining_and_voting() {
     local i=0
     until monetarium-ctl --wallet getinfo >/dev/null 2>&1; do
         i=$((i + 1))
-        if [[ $i -gt 60 ]]; then
-            # Wallet RPC never came up — no address available.
-            # generate stays false even if user enabled mining, because
-            # the node WILL NOT START with generate=true and no miningaddr.
-            {
-                echo ""
-                echo "; Mining configuration — added post-install by install.sh"
-                echo "generate=false"
-            } >> "$NODE_CONF" 2>/dev/null || true
-            info "Wallet RPC not ready after 60 seconds."
+        if [[ $i -gt "${RPC_TIMEOUT_THRESHOLD:-60}" ]]; then
+            # Wallet RPC never came up — no address to key the config off.
+            # On a FRESH install (no previous mining config) generate stays
+            # false, because the node WILL NOT START with generate=true and
+            # no miningaddr. On a RE-RUN we keep whatever mining config was
+            # carried over instead of silently turning mining off.
+            # Carrying over the previous mining config is only correct when the
+            # user wants mining. If they explicitly declined (MINING_ENABLED
+            # false) but the wallet RPC timed out, write_configs() already
+            # carried over a previous generate=true — and the running node would
+            # keep mining against the user's wish. Stage generate=false to match
+            # the answer; the live daemon still needs a bounce to drop it.
+            if has_previous_mining_config && ! $MINING_ENABLED && has_previous_mining_enabled; then
+                strip_mining_section 2>/dev/null || true
+                {
+                    echo ""
+                    echo "; Mining configuration — honoured on RPC-timeout re-run by install.sh"
+                    echo "generate=false"
+                } >> "$NODE_CONF" 2>/dev/null || true
+                red "  Mining: your answer was 'No', but the wallet RPC timed out, so the running"
+                red "  node still uses the previous install's generate=true. generate=false staged"
+                red "  in ${NODE_CONF}; restart the monetarium-node service to stop mining."
+            elif ! has_previous_mining_config; then
+                {
+                    echo ""
+                    echo "; Mining configuration — added post-install by install.sh"
+                    echo "generate=false"
+                } >> "$NODE_CONF" 2>/dev/null || true
+            fi
+            info "Wallet RPC not ready after ${RPC_TIMEOUT_THRESHOLD:-60} seconds."
             info "Configure mining/ticket addresses manually:"
             info "  Edit ${NODE_CONF}: add miningaddr=<address> then set generate=true"
+            show_configuration_summary
             return
         fi
         sleep 2
@@ -567,6 +951,7 @@ configure_mining_and_voting() {
     local config_changed=false
 
     # Get mining address first. Only enable generate if address succeeds.
+    strip_mining_section
     local mining_addr
     mining_addr=$(monetarium-ctl --wallet getnewaddress 2>/dev/null || true)
 
@@ -637,6 +1022,12 @@ show_configuration_summary() {
     if $MINING_ENABLED && [[ -n "$MINING_ADDR" ]]; then
         green "  Mining:             enabled (${MINING_CORES} core(s))"
         green "  Mining reward addr: ${MINING_ADDR}"
+    elif has_previous_mining_enabled; then
+        # A re-run whose wallet RPC never came up keeps the mining config
+        # carried over from the previous install — say so truthfully rather
+        # than claiming mining was disabled while the node runs with
+        # generate=true.
+        info "  Mining:             unchanged from previous run — verify miningaddr= manually"
     else
         if $MINING_ENABLED; then
             red "  Mining:             requested but disabled — no mining address obtained"
@@ -704,16 +1095,21 @@ EOF
 
     {
         echo "mining:"
+        # Mirror show_configuration_summary's decision tree so the manifest
+        # never lies about what the node is actually running. On an RPC-timeout
+        # re-run $MINING_ENABLED/$MINING_ADDR are empty even though the on-disk
+        # config still has generate=true, so consult the live config in that case
+        # rather than the ephemeral prompt variables.
         if $MINING_ENABLED && [[ -n "$MINING_ADDR" ]]; then
             echo "  enabled:  true"
             echo "  cores:    ${MINING_CORES}"
             echo "  address:  ${MINING_ADDR}"
+        elif has_previous_mining_enabled; then
+            echo "  enabled:  true (carried over — verify miningaddr= manually)"
+        elif $MINING_ENABLED; then
+            echo "  enabled:  false (address unavailable)"
         else
-            if $MINING_ENABLED; then
-                echo "  enabled:  false (address unavailable)"
-            else
-                echo "  enabled:  false"
-            fi
+            echo "  enabled:  false"
         fi
         echo ""
         echo "ticket buyer:"
@@ -824,6 +1220,13 @@ print_warning() {
     red   "   - If this server is compromised, funds can be drained"
     red   "     automatically, with no prompt and no warning."
     red   ""
+    red   "   If you suspect this machine has been compromised, treat the"
+    red   "   wallet as compromised: keep the seed safe, back up the wallet"
+    red   "   database, re-create it from the seed, and purge the config"
+    red   "   files. Do NOT just re-run this script with a new passphrase"
+    red   "   — the wallet database keeps its original passphrase, so a new"
+    red   "   one would only break the auto-unlock service."
+    red   ""
     red   " Recommended precautions:"
     red   "   - Only put funds on this wallet that you can afford to"
     red   "     lose, sized for ticket-buying/voting purposes only."
@@ -831,8 +1234,6 @@ print_warning() {
     red   "     or hardware-secured wallet, not this one."
     red   "   - Restrict SSH/root access to this machine tightly, keep"
     red   "     it patched, and monitor it actively."
-    red   "   - Rotate the passphrase and re-run this script if you"
-    red   "     ever suspect the machine has been compromised."
     red   "=============================================================="
 }
 
@@ -843,6 +1244,7 @@ main() {
     require_cmd curl
     require_cmd tar
     require_cmd sudo
+    require_hasher
 
     local platform
     platform="$(detect_platform)"
@@ -870,6 +1272,17 @@ main() {
         Darwin) install_launchd_service ;;
     esac
 
+    # Bounce only the services whose binary was replaced so they run the
+    # freshly-updated executables. This runs AFTER the services are
+    # (re)installed above — restarting before they are written caused a
+    # double bounce on every update.
+    local -a replaced_services=()
+    $NODE_REPLACED   && replaced_services+=(monetarium-node)
+    $WALLET_REPLACED && replaced_services+=(monetarium-wallet)
+    if ((${#replaced_services[@]} > 0)); then
+        restart_monetarium_services "${replaced_services[@]}"
+    fi
+
     prompt_mining
 
     unset WALLET_PASSPHRASE
@@ -881,4 +1294,8 @@ main() {
     print_warning
 }
 
-main "$@"
+# When this file is `source`d (unit tests set MONETARIUM_INSTALL_FUNCTIONS_ONLY=1)
+# only the functions above are defined; invoked as a script it runs main().
+if [[ -z "${MONETARIUM_INSTALL_FUNCTIONS_ONLY:-}" ]]; then
+    main "$@"
+fi

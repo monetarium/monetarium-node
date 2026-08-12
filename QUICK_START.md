@@ -18,12 +18,22 @@ Running `install.sh` performs the following steps:
    - `monetarium-node` — the full node daemon
    - `monetarium-wallet` — the wallet (auto-unlock, ticket buying / voting)
    - `monetarium-ctl` — the RPC client you use to query and control both
-3. Prompts you for a wallet passphrase, ticket-buying and voting preferences,
-   and optional CPU mining settings.
-4. Writes configuration files and creates a new wallet.
+3. Prompts you for a wallet passphrase and ticket-buying / voting preferences.
+4. Writes configuration files and creates a new wallet (skipped if the wallet
+   database already exists — see §9).
 5. Installs and starts `systemd` services (Linux) or `launchd` agents (macOS)
    that run the node + wallet and unlock the wallet automatically.
-6. Prints a summary of your configuration and a big security warning.
+6. Prompts you about optional CPU mining, derives a fresh mining address from
+   the wallet, and **restarts the node** so it picks up the new
+   `generate`/`miningaddr` setting.
+7. Prints a summary of your configuration and a big security warning.
+
+> Every interactive run derives a **new** mining address and a new
+> fee-consolidation address from the wallet (`getnewaddress`), and the
+> consolidation address is reset on the wallet. This is intentional — each
+> re-run keeps the wallet's gain-splitting consolidation pointing at a fresh
+> address — but it means the addresses printed in the summary change every
+> time you run the installer.
 
 ## 2. Before you start
 
@@ -71,8 +81,12 @@ The installer is interactive. You will be asked:
 The installer also runs `monetarium-wallet --create` for the first-time wallet
 creation and will ask you to confirm the passphrase.
 
-When it finishes you'll see a **Configuration Summary** and the security warning.
-A manifest listing every file created is written to
+When it finishes you'll see a **Configuration Summary** and the security warning —
+unless the wallet RPC never came up within 60 seconds, in which case the summary
+still appears but notes that no mining address was obtained. On a fresh install
+mining stays disabled; **on a re-run the mining configuration carried over from
+the previous install is kept**, and the summary says so and asks you to verify
+`miningaddr=` manually. A manifest listing every file created is written to
 `~/.monetarium/install.manifest`.
 
 > Tip: if your shell doesn't see the commands after installing, run
@@ -281,7 +295,8 @@ journalctl -u monetarium-wallet -n 50 --no-pager
 Common causes:
 - SELinux enforcing on Linux — set it permissive before installing.
 - Wallet passphrase mismatch — if the wallet fails to unlock, the wallet service
-  crashes. Re-run the installer with the correct passphrase.
+  crashes. Re-run the installer and enter the **same** passphrase you set when
+  the wallet was first created (see §9).
 - Wallet database missing/corrupt — check the wallet log for errors.
 
 **Node is running but `connections` is 0 / not syncing**
@@ -302,8 +317,11 @@ Common causes:
 
 - The wallet scans from its creation time. Confirm it's synced:
   `monetarium-ctl --wallet syncstatus` and check the wallet log.
-- Re-run the installer or restart the wallet service if it crashed during the
-  initial scan.
+- If the wallet service crashed or keeps restarting, restart it with
+  `sudo systemctl restart monetarium-wallet` (Linux) or re-load the launchd
+  agent (macOS). Re-running the installer for a crashed wallet usually doesn't
+  help — it rewrites the config, restarts the service, and re-derives
+  addresses, but the wallet still rescans from its original creation time.
 
 **CPU mining was enabled but the node won't start**
 
@@ -314,11 +332,22 @@ Common causes:
 
 ## 9. Updating and uninstalling
 
-**Update** — re-run the same installer command. It detects already-installed
-binaries and skips re-downloading them, and your wallet database and blockchain
-data are preserved. Note that the installer **regenerates the config files**
-(new RPC credentials, same setup prompts), so services will be recreated and
-restarted with the new config.
+**Update** — re-run the same installer command. On every run the installer
+compares each installed binary's SHA-256 against the checksum published in the
+release it comes from, and downloads + replaces any binary that changed (the
+affected services are restarted when a binary is replaced). For **raw-binary**
+distributions, if you're already on the latest release, re-running is a no-op
+for the binaries (the installed hash matches, nothing is redownloaded). Releases
+that ship as an **archive** (`.tar.gz`/`.tgz`/`.zip`) publish the checksum of
+the archive, not of the installed binary, so the skip/matched-hash guarantee
+does not apply there — archive releases are downloaded and re-verified on every
+run. Your wallet database and blockchain data are preserved either way.
+
+The installer **reuses your existing RPC credentials** on re-runs (it doesn't
+rotate them), but it still rewrites the config files and can re-enable or
+disable mining based on your answers. Re-running is **not** a way to change the
+wallet passphrase — the wallet database keeps the passphrase it was created
+with.
 
 > ⚠️ **Enter the SAME wallet passphrase when it asks again.** The installer
 > prompts for the passphrase on every run. `create_wallet` skips wallet
@@ -369,5 +398,9 @@ Recommended precautions:
 - Keep the bulk of your holdings in a separate offline or hardware-secured
   wallet.
 - Restrict SSH/root access, keep the machine patched, and monitor it actively.
-- Rotate the passphrase and re-run the installer if you ever suspect the
-  machine has been compromised.
+- If you ever suspect the machine has been compromised, treat the wallet as
+  compromised: back up the seed and the wallet database, purge the passphrase
+  and the config files, and re-create the wallet from the seed — do **not**
+  just re-run the installer. Entering a new passphrase on a re-run will not
+  change the wallet database's passphrase; it will only break the auto-unlock
+  (see §9).
