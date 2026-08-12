@@ -79,7 +79,10 @@ RPC_PASS=""
 
 # Set on script start (defaults). RPC credentials are reused on re-runs —
 # see ensure_rpc_credentials() below.
-BINARIES_REPLACED=false
+# Exported because the test suite (tests/test-install-*.sh) sources this file
+# and reads it directly; without `export`, shellcheck flags it as unused since
+# main() keys restarts off NODE_REPLACED/WALLET_REPLACED instead.
+export BINARIES_REPLACED=false
 # Per-binary replacement flags: restart only the service(s) whose binary
 # actually changed (see restart_monetarium_services in main()).
 NODE_REPLACED=false
