@@ -110,6 +110,10 @@ The script downloads the latest release binaries, creates configs, and sets up t
 node daemon + wallet. On Linux/macOS it creates a systemd service; on Windows it
 creates a scheduled task.
 
+For a detailed walkthrough — what gets installed, how to verify the node, wallet
+and balance, checking logs, troubleshooting, and uninstalling — see
+[QUICK_START.md](docs/QUICK_START.md).
+
 ### Build from source (all platforms)
 
 <details><summary><b>Install Dependencies</b></summary>

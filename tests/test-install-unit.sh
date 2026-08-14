@@ -1,8 +1,23 @@
 #!/usr/bin/env bash
-# Unit tests for install.sh helper functions.
+# Unit tests for install.sh.
 #
-# Tests check_selinux() and the generate/miningaddr guard logic
-# without running the full install flow or touching real system state.
+# These source the REAL install.sh (with MONETARIUM_INSTALL_FUNCTIONS_ONLY=1
+# so main() does not run) and exercise the actual functions, so the tests
+# can't silently drift from the code like hand-copied duplicates do.
+#
+# Covered:
+#   - sha256_of / lc (checksum helpers)
+#   - check_selinux
+#   - RPC credential reuse (ensure_rpc_credentials / rpc_credential_from_conf)
+#   - write_configs (credential reuse + mining carry-over on re-runs)
+#   - latest_release_asset (GitHub digest + URL parsing, via a mock curl)
+#   - download_binary (fresh install, skip-when-current, self-update,
+#     checksum-mismatch abort, no-digest and unreachable-API fallbacks)
+#   - restart_monetarium_services (systemctl + launchctl paths)
+#   - configure_mining_and_voting generate/miningaddr guards, including the
+#     re-run behaviour (carried-over mining config is preserved instead of
+#     silently forcing generate=false)
+#   - show_configuration_summary
 #
 # Run: bash tests/test-install-unit.sh
 set -uo pipefail
@@ -13,6 +28,39 @@ INSTALL_SCRIPT="$REPO_ROOT/install.sh"
 PASS=0
 FAIL=0
 
+# --------------------------------------------------------------------------
+# Isolation: point every install.sh path at a throwaway temp tree and
+# source the real script before setting anything up.
+# --------------------------------------------------------------------------
+TEST_TMP="$(mktemp -d)"
+export MONETARIUM_HOME="$TEST_TMP/monetarium-home"   # DATA_DIR / NODE_CONF / ...
+export MONETARIUM_CTL_HOME="$TEST_TMP/ctl-home"
+export MONETARIUM_INSTALL_FUNCTIONS_ONLY=1           # do NOT run main()
+
+# shellcheck disable=SC1090
+source "$INSTALL_SCRIPT"
+set +e                                             # install.sh sets -e; tests need it off
+
+unset MONETARIUM_INSTALL_FUNCTIONS_ONLY
+
+# The script invokes sudo for mkdir/mv so it works documentedly on a fresh
+# box; in tests we pass through to the real command (no privilege needed).
+sudo() { command "$@"; }
+
+MOCK_STATE="$TEST_TMP/mock-state"     # release JSON + fixture bodies
+MOCK_BIN="$TEST_TMP/mock-bin"         # curl / systemctl / launchctl shims
+MOCK_CTL="$TEST_TMP/mock-ctl-bin"     # monetarium-ctl shim
+INSTALL_TEST_DIR="$TEST_TMP/install-bin"
+MOCK_CTL_TRACKER="$TEST_TMP/mock-ctl-tracker"   # getnewaddress counter, shared across mock calls
+MOCK_CTL_LOG="$TEST_TMP/mock-ctl.log"           # every mock invocation, for assertions
+mkdir -p "$MOCK_STATE" "$MOCK_BIN" "$MOCK_CTL" "$INSTALL_TEST_DIR"
+
+SYSTEMCTL_LOG="$TEST_TMP/systemctl.log"
+LAUNCHCTL_LOG="$TEST_TMP/launchctl.log"
+
+# --------------------------------------------------------------------------
+# Harness helpers
+# --------------------------------------------------------------------------
 check() {
     local desc="$1"; shift
     if "$@" >/dev/null 2>&1; then
@@ -24,179 +72,135 @@ check() {
     fi
 }
 
-# --------------------------------------------------------------------------
-# Helper definitions (from install.sh lines 83-95)
-# --------------------------------------------------------------------------
-red()    { printf '\033[1;31m%s\033[0m\n' "$*"; }
-green()  { printf '\033[1;32m%s\033[0m\n' "$*"; }
-info()  { printf '\033[1;34m[install]\033[0m %s\n' "$*"; }
-die()   { red "ERROR: $*"; exit 1; }
-
-has_tty() {
-    { exec 3</dev/tty; } 2>/dev/null && exec 3<&- && return 0
-    return 1
-}
-
-INSTALL_DIR="/usr/local/bin"
-
-# --------------------------------------------------------------------------
-# check_selinux() — extracted from install.sh lines 771-802
-# --------------------------------------------------------------------------
-check_selinux() {
-    [[ "$(uname -s)" != "Linux" ]] && return
-
-    local mode
-    mode="$(command -v getenforce >/dev/null && getenforce 2>/dev/null || echo "Unknown")"
-
-    case "$mode" in
-        Enforcing)
-            red "=============================================================="
-            red "           SELinux is ENFORCING — Installation will FAIL"
-            red "=============================================================="
-            red "SELinux is currently enforcing on this system. It will block:"
-            red "  - Writing systemd unit files to /etc/systemd/system/"
-            red "  - Services executing binaries from ${INSTALL_DIR}"
-            red "  - Services accessing data directories under your home"
-            red ""
-            red "To proceed, set SELinux to permissive or disabled FIRST:"
-            red "  Temporary (until reboot):  sudo setenforce 0"
-            red "  Permanent:                 edit /etc/selinux/config, set"
-            red "                             SELINUX=permissive, then reboot"
-            red ""
-            red "After installation you can re-enable it with 'sudo setenforce 1'"
-            red "but you'll need a custom SELinux module for the monetarium"
-            red "services and their data directories."
-            red "=============================================================="
-            die "SELinux is enforcing. Disable it before running this installer."
-            ;;
-        Permissive)
-            info "SELinux is in permissive mode — check AVC logs if services fail to start."
-            ;;
-    esac
-}
-
-# --------------------------------------------------------------------------
-# configure_mining_and_voting — extracted from install.sh lines 530-627
-# with the RPC timeout reduced to 2 iterations for testing.
-# --------------------------------------------------------------------------
-configure_mining_and_voting() {
-    if ! has_tty; then
-        {
-            echo ""
-            echo "; Mining configuration — added post-install by install.sh"
-            echo "generate=false"
-        } >> "$NODE_CONF" 2>/dev/null || true
-        info "Non-interactive mode — skipped wallet address polling (no TTY)."
-        return
-    fi
-
-    info "Waiting for wallet RPC to become available..."
-
-    local i=0
-    until monetarium-ctl --wallet getinfo >/dev/null 2>&1; do
-        i=$((i + 1))
-        if [[ $i -gt ${RPC_TIMEOUT_THRESHOLD:-60} ]]; then
-            {
-                echo ""
-                echo "; Mining configuration — added post-install by install.sh"
-                echo "generate=false"
-            } >> "$NODE_CONF" 2>/dev/null || true
-            info "Wallet RPC not ready after 60 seconds."
-            info "Configure mining/ticket addresses manually:"
-            info "  Edit ${NODE_CONF}: add miningaddr=<address> then set generate=true"
-            return
-        fi
-        sleep 2
-    done
-
-    green "Wallet RPC ready."
-
-    local config_changed=false
-
-    local mining_addr
-    mining_addr=$(monetarium-ctl --wallet getnewaddress 2>/dev/null || true)
-
-    local gen_value="false"
-    if $MINING_ENABLED && [[ -n "$mining_addr" ]]; then
-        gen_value="true"
-    fi
-
-    {
-        echo ""
-        echo "; Mining configuration — added post-install by install.sh"
-        echo "generate=${gen_value}"
-    } >> "$NODE_CONF"
-    config_changed=true
-    if [[ -n "$mining_addr" ]]; then
-        MINING_ADDR="$mining_addr"
-        echo "miningaddr=${mining_addr}" >> "$NODE_CONF"
-    fi
-
-    local cons_addr
-    cons_addr=$(monetarium-ctl --wallet getnewaddress 2>/dev/null || true)
-    if [[ -n "$cons_addr" ]]; then
-        CONSOLIDATION_ADDR="$cons_addr"
-    fi
-
-    if $config_changed; then
-        info "Restarting node to apply mining configuration..."
-        sleep 1
-    fi
-
-    show_configuration_summary
-}
-
-show_configuration_summary() {
-    echo ""
-    green "============================================="
-    green "  Configuration Summary"
-    green "============================================="
-    if $MINING_ENABLED && [[ -n "$MINING_ADDR" ]]; then
-        green "  Mining:             enabled (${MINING_CORES} core(s))"
-        green "  Mining reward addr: ${MINING_ADDR}"
+expect_fail() {
+    local desc="$1"; shift
+    local out
+    out="$("$@" 2>&1)"
+    local rc=$?
+    if [[ $rc -ne 0 ]]; then
+        echo "  PASS  $desc"
+        PASS=$((PASS + 1))
     else
-        if $MINING_ENABLED; then
-            red "  Mining:             requested but disabled — no mining address obtained"
-        else
-            green "  Mining:             disabled"
-        fi
+        echo "  FAIL  $desc (expected non-zero exit)"
+        FAIL=$((FAIL + 1))
     fi
-    if $TICKETS_ENABLED; then
-        green "  Ticket buying:      enabled"
-        green "  Ticket limit:       ${TICKET_LIMIT}"
-        green "  Min wallet balance: ${TICKET_BALANCE}"
+}
+
+digest_of() {
+    local file="$1"
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$file" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$file" | awk '{print $1}'
     else
-        green "  Ticket buying:      disabled"
+        return 1
     fi
-    if [[ -n "$CONSOLIDATION_ADDR" ]]; then
-        green "  Fee consolidation:  ${CONSOLIDATION_ADDR}"
-    fi
-    if $VOTING_ENABLED; then
-        green "  Auto voting:        enabled"
-    else
-        green "  Auto voting:        disabled"
-    fi
-    green "============================================="
 }
 
 # --------------------------------------------------------------------------
-# Test setup
+# Mock curl: deterministic, digest-aware. The test controls the "release"
+# per repo via $MOCK_STATE/<repo>.json and stages the bytes each asset
+# serves at $MOCK_STATE/<asset-name>.
 # --------------------------------------------------------------------------
-MOCK_DIR="$(mktemp -d)"
-TEST_TMP="$(mktemp -d)"
-NODE_CONF="$TEST_TMP/monetarium.conf"
-MOCK_CTL_DIR="$TEST_TMP/ctl-bin"
-mkdir -p "$MOCK_CTL_DIR"
-
-# Mock monetarium-ctl: getinfo always ok, getnewaddress returns addresses
-# controlled by GETNEWADDR_COUNT (0 = always empty).
-cat > "$MOCK_CTL_DIR/monetarium-ctl" <<'MOCKEOF'
+cat > "$MOCK_BIN/curl" <<'MOCKEOF'
 #!/usr/bin/env bash
+set -euo pipefail
+url=""
+outfile=""
+args=("$@")
+for ((i = 0; i < ${#args[@]}; i++)); do
+    case "${args[$i]}" in
+        -o) outfile="${args[$((i + 1))]}"; i=$((i + 1)) ;;
+        http*) url="${args[$i]}" ;;
+    esac
+done
+case "$url" in
+    *"/releases/latest"*)
+        [[ "${MOCK_CURL_API_FAIL:-0}" != "1" ]] || exit 1
+        repo="$(printf '%s' "$url" | sed -E 's#.*/repos/[^/]+/([^/]+)/releases/latest#\1#')"
+        cat "$MOCK_STATE/$repo.json"
+        exit 0
+        ;;
+    *"fixtures.test"*)
+        [[ -n "$outfile" ]] || { echo "mock curl: no -o output file" >&2; exit 1; }
+        base="$(basename "$url")"
+        echo "$base" >> "$MOCK_STATE/downloads.log"
+        cp "$MOCK_STATE/$base" "$outfile"
+        exit 0
+        ;;
+    *)
+        echo "mock curl: unhandled URL: $url" >&2
+        exit 1
+        ;;
+esac
+MOCKEOF
+chmod +x "$MOCK_BIN/curl"
+
+# Write a one-asset release for $repo. $fixture's bytes are what the asset
+# serves and what gets published as its sha256 digest.
+json_for() {
+    local repo="$1" fixture="$2"
+    local name="${3:-${repo}-linux-amd64}"
+    local digest
+    digest="$(digest_of "$fixture")"
+    cp "$fixture" "$MOCK_STATE/$name"
+    cat > "$MOCK_STATE/$repo.json" <<EOF
+{ "assets": [ { "name": "$name", "digest": "sha256:$digest", "browser_download_url": "https://fixtures.test/$name" } ] }
+EOF
+}
+
+# Same, but no published digest (simulates a very old upload).
+json_for_no_digest() {
+    local repo="$1" fixture="$2"
+    local name="${3:-${repo}-linux-amd64}"
+    cp "$fixture" "$MOCK_STATE/$name"
+    cat > "$MOCK_STATE/$repo.json" <<EOF
+{ "assets": [ { "name": "$name", "browser_download_url": "https://fixtures.test/$name" } ] }
+EOF
+}
+
+# --------------------------------------------------------------------------
+# Mock systemctl / launchctl — log invocation and let tests steer the
+# is-active result per service.
+# --------------------------------------------------------------------------
+cat > "$MOCK_BIN/systemctl" <<'MOCKEOF'
+#!/usr/bin/env bash
+{ echo "systemctl $*" >> "$SYSTEMCTL_LOG"; } 2>/dev/null || true
+case "${1:-}" in
+    is-active)
+        case "$*" in
+            *monetarium-node*)   exit "${NODE_ACTIVE:-0}" ;;
+            *monetarium-wallet*) exit "${WALLET_ACTIVE:-0}" ;;
+            *) exit 1 ;;
+        esac
+        ;;
+esac
+exit 0
+MOCKEOF
+chmod +x "$MOCK_BIN/systemctl"
+
+cat > "$MOCK_BIN/launchctl" <<'MOCKEOF'
+#!/usr/bin/env bash
+{ echo "launchctl $*" >> "$LAUNCHCTL_LOG"; } 2>/dev/null || true
+exit 0
+MOCKEOF
+chmod +x "$MOCK_BIN/launchctl"
+
+# --------------------------------------------------------------------------
+# Mock monetarium-ctl: getinfo always ok, getnewaddress returns addresses
+# controlled by GETNEWADDR_COUNT (0 = always empty). The counter is a STABLE
+# tracker path exported by the harness (NOT $$, which is this mock process's
+# own PID and resets on every call), so successive invocations really count.
+# Every invocation is appended to MOCK_CTL_LOG so tests can assert what ran.
+# --------------------------------------------------------------------------
+cat > "$MOCK_CTL/monetarium-ctl" <<'MOCKCTL'
+#!/usr/bin/env bash
+{ echo "$*" >> "${MOCK_CTL_LOG:-/dev/null}"; } 2>/dev/null || true
 case "$*" in
     *getinfo*) exit 0 ;;
     *getnewaddress*)
         count="${GETNEWADDR_COUNT:-1}"
-        tracker="/tmp/.mock_ctl_$$"
+        tracker="${MOCK_CTL_TRACKER:-${TMPDIR:-/tmp}/.mock_ctl_$$}"
         current=$(cat "$tracker" 2>/dev/null || echo 0)
         current=$((current + 1))
         echo "$current" > "$tracker"
@@ -208,8 +212,11 @@ case "$*" in
     *setvotefeeconsolidationaddress*) exit 0 ;;
     *) exit 1 ;;
 esac
-MOCKEOF
-chmod +x "$MOCK_CTL_DIR/monetarium-ctl"
+MOCKCTL
+chmod +x "$MOCK_CTL/monetarium-ctl"
+
+export SYSTEMCTL_LOG LAUNCHCTL_LOG MOCK_STATE MOCK_CTL MOCK_BIN INSTALL_TEST_DIR MOCK_CTL_TRACKER MOCK_CTL_LOG
+export PATH="$MOCK_BIN:$PATH"
 
 # --------------------------------------------------------------------------
 # check_selinux() tests
@@ -218,9 +225,10 @@ echo "============================================"
 echo "  check_selinux() tests"
 echo "============================================"
 
-# Helper: run check_selinux in a subshell with controlled PATH and uname.
-# Sets _selinux_rc (exit code) and _selinux_out (stdout+stderr text).
+SELINUX_TEST_DIR="$TEST_TMP/selinux-mocks"
+mkdir -p "$SELINUX_TEST_DIR"
 SELINUX_LOG="$TEST_TMP/selinux-log"
+
 _selinux_test() {
     local mock_path="$1"
     local fake_uname="$2"
@@ -237,204 +245,722 @@ _selinux_test() {
     [[ -f "$SELINUX_LOG" ]] && _selinux_out="$(cat "$SELINUX_LOG")"
 }
 
-# --- Enforcing: should die ---------------------------------------------------
-cat > "$MOCK_DIR/getenforce" <<'EOF'
+cat > "$SELINUX_TEST_DIR/getenforce" <<'EOF'
 #!/bin/bash
 echo "Enforcing"
 EOF
-chmod +x "$MOCK_DIR/getenforce"
+chmod +x "$SELINUX_TEST_DIR/getenforce"
 
-_selinux_test "$MOCK_DIR" "Linux"
+_selinux_test "$SELINUX_TEST_DIR" "Linux"
 check "enforcing → exit 1" bash -c "test '$_selinux_rc' = '1'"
 echo "$_selinux_out" | grep -q "ENFORCING" \
     && { echo "  PASS  enforcing → output mentions ENFORCING"; PASS=$((PASS + 1)); } \
     || { echo "  FAIL  enforcing → output mentions ENFORCING"; FAIL=$((FAIL + 1)); }
 
-# --- Permissive: should succeed with info message -----------------------------
-cat > "$MOCK_DIR/getenforce" <<'EOF'
+cat > "$SELINUX_TEST_DIR/getenforce" <<'EOF'
 #!/bin/bash
 echo "Permissive"
 EOF
-chmod +x "$MOCK_DIR/getenforce"
+chmod +x "$SELINUX_TEST_DIR/getenforce"
 
-_selinux_test "$MOCK_DIR" "Linux"
+_selinux_test "$SELINUX_TEST_DIR" "Linux"
 check "permissive → exit 0" bash -c "test '$_selinux_rc' = '0'"
 echo "$_selinux_out" | grep -qi "permissive" \
     && { echo "  PASS  permissive → output mentions permissive"; PASS=$((PASS + 1)); } \
     || { echo "  FAIL  permissive → output mentions permissive"; FAIL=$((FAIL + 1)); }
 
-# --- Disabled: should succeed silently ----------------------------------------
-cat > "$MOCK_DIR/getenforce" <<'EOF'
+cat > "$SELINUX_TEST_DIR/getenforce" <<'EOF'
 #!/bin/bash
 echo "Disabled"
 EOF
-chmod +x "$MOCK_DIR/getenforce"
+chmod +x "$SELINUX_TEST_DIR/getenforce"
 
-_selinux_test "$MOCK_DIR" "Linux"
+_selinux_test "$SELINUX_TEST_DIR" "Linux"
 check "disabled → exit 0" bash -c "test '$_selinux_rc' = '0'"
 check "disabled → no output" bash -c "test -z '$_selinux_out'"
 
-# --- No getenforce binary: should succeed silently ----------------------------
-rm -f "$MOCK_DIR/getenforce"
+rm -f "$SELINUX_TEST_DIR/getenforce"
 
-_selinux_test "$MOCK_DIR" "Linux"
+_selinux_test "$SELINUX_TEST_DIR" "Linux"
 check "no getenforce → exit 0" bash -c "test '$_selinux_rc' = '0'"
 check "no getenforce → no output" bash -c "test -z '$_selinux_out'"
 
-# --- macOS: no-op regardless of getenforce ------------------------------------
-cat > "$MOCK_DIR/getenforce" <<'EOF'
+cat > "$SELINUX_TEST_DIR/getenforce" <<'EOF'
 #!/bin/bash
 echo "Enforcing"
 EOF
-chmod +x "$MOCK_DIR/getenforce"
+chmod +x "$SELINUX_TEST_DIR/getenforce"
 
-_selinux_test "$MOCK_DIR" "Darwin"
+_selinux_test "$SELINUX_TEST_DIR" "Darwin"
 check "macOS → no-op, exit 0" bash -c "test '$_selinux_rc' = '0'"
 
 # --------------------------------------------------------------------------
-# generate/miningaddr guard tests
+# sha256_of / lc helpers
+# --------------------------------------------------------------------------
+echo ""
+echo "============================================"
+echo "  sha256_of / lc tests"
+echo "============================================"
+
+run_sha256_test() {
+    printf 'hash me' > "$TEST_TMP/hashme"
+    local out
+    out="$(sha256_of "$TEST_TMP/hashme" | awk '{print $1}')"
+    [[ "$out" =~ ^[0-9a-f]{64}$ ]]
+}
+check "sha256_of returns lowercase hex" run_sha256_test
+
+run_lc_test() {
+    [[ "$(lc 'ABCDEF0123456789')" == "abcdef0123456789" ]] && [[ "$(lc 'abcdef')" == "abcdef" ]]
+}
+check "lc lowercases uppercase hex" run_lc_test
+
+# --------------------------------------------------------------------------
+# RPC credential reuse (ensure_rpc_credentials / rpc_credential_from_conf)
+# --------------------------------------------------------------------------
+echo ""
+echo "============================================"
+echo "  RPC credential reuse tests"
+echo "============================================"
+
+reset_creds() {
+    RPC_USER="monetarium"
+    RPC_PASS=""
+    rm -rf "$MONETARIUM_HOME"
+}
+
+write_prev_node_conf() {
+    # $1 = rpcuser, $2 = rpcpass, $3 = optional generate=true+miningaddr marker
+    mkdir -p "$MONETARIUM_HOME"
+    cat > "$NODE_CONF" <<EOF
+; previous install
+rpcuser=$1
+rpcpass=$2
+addpeer=176.113.164.216:9508
+EOF
+    if [[ "$3" == "true" ]]; then
+        {
+            echo ""
+            echo "; Mining configuration — carried over from previous install by install.sh"
+            echo "generate=true"
+            echo "miningaddr=TPrevAddr"
+        } >> "$NODE_CONF"
+    fi
+}
+
+run_creds_fresh_test() {
+    reset_creds
+    ensure_rpc_credentials
+    [[ -n "$RPC_PASS" ]] && [[ "$RPC_PASS" =~ ^[a-zA-Z0-9]+$ ]] && [[ "${#RPC_PASS}" -le 32 ]]
+}
+check "no existing config → fresh creds generated" run_creds_fresh_test
+
+run_creds_reuse_test() {
+    reset_creds
+    write_prev_node_conf "prevuser" "prevsecret" false
+    ensure_rpc_credentials
+    [[ "$RPC_USER" == "prevuser" ]] && [[ "$RPC_PASS" == "prevsecret" ]]
+}
+check "re-run → reuses existing rpcuser/rpcpass" run_creds_reuse_test
+
+run_creds_reuse_no_user_test() {
+    reset_creds
+    write_prev_node_conf "prevuser" "prevsecret" false
+    grep -v "^rpcuser=" "$NODE_CONF" > "$TEST_TMP/no-user.conf" && mv "$TEST_TMP/no-user.conf" "$NODE_CONF"
+    ensure_rpc_credentials
+}
+expect_fail "conf without rpcuser → dies (no silent desync to default user)" run_creds_reuse_no_user_test
+
+run_creds_empty_pass_test() {
+    reset_creds
+    mkdir -p "$MONETARIUM_HOME"
+    printf 'rpcuser=prevuser\nrpcpass=\n' > "$NODE_CONF"
+    ensure_rpc_credentials
+}
+expect_fail "conf with empty rpcpass → dies (no silent half-regeneration)" run_creds_empty_pass_test
+
+run_creds_missing_pass_die_test() {
+    reset_creds
+    mkdir -p "$MONETARIUM_HOME"
+    printf 'rpcuser=prevuser\n' > "$NODE_CONF"
+    local out rc
+    out="$(ensure_rpc_credentials 2>&1)"
+    rc=$?
+    [[ $rc -ne 0 ]] && echo "$out" | grep -q "usable rpcpass"
+}
+check "conf with missing rpcpass → dies with guidance" run_creds_missing_pass_die_test
+
+run_creds_tail_wins_test() {
+    reset_creds
+    mkdir -p "$MONETARIUM_HOME"
+    printf 'rpcuser=prevuser\nrpcpass=oldpass\nrpcpass=newpass\n' > "$NODE_CONF"
+    ensure_rpc_credentials
+    [[ "$RPC_PASS" == "newpass" ]]
+}
+check "duplicate keys → last line wins (tail -n1)" run_creds_tail_wins_test
+
+run_creds_maintains_value_test() {
+    reset_creds
+    RPC_PASS="preset"
+    mkdir -p "$MONETARIUM_HOME"
+    ensure_rpc_credentials
+    [[ "$RPC_PASS" == "preset" ]]
+}
+check "existing RPC_PASS with no config → kept (not overwritten)" run_creds_maintains_value_test
+
+# --------------------------------------------------------------------------
+# write_configs — reuses creds + carries over mining config across re-runs
+# --------------------------------------------------------------------------
+echo ""
+echo "============================================"
+echo "  write_configs tests"
+echo "============================================"
+
+run_wc_reuse_carryover_test() {
+    reset_creds
+    write_prev_node_conf "prevuser" "prevsecret" true
+    WALLET_PASSPHRASE="test-secret" TICKETS_ENABLED=false VOTING_ENABLED=false
+    write_configs
+    grep -q "^rpcuser=prevuser$" "$NODE_CONF" \
+        && grep -q "^rpcpass=prevsecret$" "$NODE_CONF" \
+        && grep -q "^generate=true$" "$NODE_CONF" \
+        && grep -q "^miningaddr=TPrevAddr$" "$NODE_CONF" \
+        && grep -q "^username=prevuser$" "$WALLET_CONF" \
+        && grep -q "^password=prevsecret$" "$WALLET_CONF" \
+        && grep -q "^rpcpass=prevsecret$" "$CTL_CONF" \
+        && [[ "$RPC_PASS" == "prevsecret" ]]
+}
+check "re-run → creds reused in node/wallet/ctl + mining config carried over" run_wc_reuse_carryover_test
+
+run_wc_fresh_test() {
+    reset_creds
+    WALLET_PASSPHRASE="test-secret" TICKETS_ENABLED=false VOTING_ENABLED=false
+    write_configs
+    grep -q "^rpcuser=monetarium$" "$NODE_CONF" \
+        && ! grep -q "^generate=" "$NODE_CONF" \
+        && ! grep -q "^miningaddr=" "$NODE_CONF" \
+        && grep -q "^pass=test-secret$" "$WALLET_CONF" \
+        && grep -q "^rpcpass=${RPC_PASS}$" "$NODE_CONF"
+}
+check "fresh run → new creds, no carry-over, existing passphrase preserved" run_wc_fresh_test
+
+run_wc_mining_false_carried_test() {
+    reset_creds
+    mkdir -p "$MONETARIUM_HOME"
+    cat > "$NODE_CONF" <<EOF
+rpcuser=prevuser
+rpcpass=prevsecret
+; Mining configuration — added post-install by install.sh
+generate=false
+EOF
+    WALLET_PASSPHRASE="test-secret" TICKETS_ENABLED=false VOTING_ENABLED=false
+    write_configs
+    grep -q "^generate=false$" "$NODE_CONF"
+}
+check "re-run → generate=false carried over too" run_wc_mining_false_carried_test
+
+# --------------------------------------------------------------------------
+# latest_release_asset — GitHub digest + URL parsing (mock curl)
+# --------------------------------------------------------------------------
+echo ""
+echo "============================================"
+echo "  latest_release_asset tests"
+echo "============================================"
+
+_asset_json_4platforms() {
+    local repo="$1"
+    cat > "$MOCK_STATE/$repo.json" <<EOF
+{ "assets": [
+  { "name": "$repo-linux-amd64",
+    "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "browser_download_url": "https://fixtures.test/$repo-linux-amd64" },
+  { "name": "$repo-linux-arm64",
+    "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "browser_download_url": "https://fixtures.test/$repo-linux-arm64" },
+  { "name": "$repo-darwin-amd64",
+    "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "browser_download_url": "https://fixtures.test/$repo-darwin-amd64" },
+  { "name": "$repo-darwin-arm64",
+    "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "browser_download_url": "https://fixtures.test/$repo-darwin-arm64" }
+] }
+EOF
+}
+
+run_asset_pick_test() {
+    _asset_json_4platforms "monetarium-node"
+    local out expected
+    out="$(latest_release_asset "monetarium-node" "linux-amd64")"
+    expected=$'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\thttps://fixtures.test/monetarium-node-linux-amd64'
+    [[ "$out" == "$expected" ]]
+}
+check "picks matching platform asset + its digest" run_asset_pick_test
+
+run_asset_darwin_test() {
+    _asset_json_4platforms "monetarium-wallet"
+    local out
+    out="$(latest_release_asset "monetarium-wallet" "darwin-arm64")"
+    [[ "$out" == $'sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\thttps://fixtures.test/monetarium-wallet-darwin-arm64' ]]
+}
+check "darwin-arm64 → correct asset chosen" run_asset_darwin_test
+
+run_asset_no_match_test() {
+    _asset_json_4platforms "monetarium-node"
+    latest_release_asset "monetarium-node" "freebsd-amd64" 2>/dev/null
+}
+expect_fail "no matching asset → dies" run_asset_no_match_test
+
+run_asset_first_wins_test() {
+    cat > "$MOCK_STATE/monetarium-node.json" <<EOF
+{ "assets": [
+  { "name": "monetarium-node-linux-amd64",
+    "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "browser_download_url": "https://fixtures.test/first-linux-amd64" },
+  { "name": "second-linux-amd64",
+    "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "browser_download_url": "https://fixtures.test/second-linux-amd64" }
+] }
+EOF
+    local out
+    out="$(latest_release_asset "monetarium-node" "linux-amd64")"
+    [[ "$out" == "$(printf 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\t%s\n' 'https://fixtures.test/first-linux-amd64')" ]]
+}
+check "multiple matches → head -n1 wins" run_asset_first_wins_test
+
+run_asset_no_digest_test() {
+    cat > "$MOCK_STATE/monetarium-node.json" <<'EOF'
+{ "assets": [ { "name": "monetarium-node-linux-amd64",
+  "browser_download_url": "https://fixtures.test/monetarium-node-linux-amd64" } ] }
+EOF
+    local out
+    out="$(latest_release_asset "monetarium-node" "linux-amd64")"
+    [[ "$out" == "$(printf 'sha256:\t%s\n' 'https://fixtures.test/monetarium-node-linux-amd64')" ]]
+}
+check "asset without digest → empty digest published" run_asset_no_digest_test
+
+run_asset_api_fail_test() {
+    _asset_json_4platforms "monetarium-node"
+    export MOCK_CURL_API_FAIL=1
+    latest_release_asset "monetarium-node" "linux-amd64" 2>/dev/null
+    local rc=$?
+    unset MOCK_CURL_API_FAIL
+    return $rc
+}
+expect_fail "unreachable API → returns non-zero, no output" run_asset_api_fail_test
+
+# Regression: "digest" emitted AFTER "browser_download_url" inside the asset
+# object must still resolve to THIS asset's digest (the parser must scope to
+# the matched asset's own JSON object, not assume GitHub's field ordering).
+run_asset_digest_after_url_test() {
+    cat > "$MOCK_STATE/monetarium-node.json" <<'EOF'
+{ "assets": [
+  { "name": "monetarium-node-darwin-amd64",
+    "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "browser_download_url": "https://fixtures.test/monetarium-node-darwin-amd64" },
+  { "name": "monetarium-node-linux-amd64",
+    "browser_download_url": "https://fixtures.test/monetarium-node-linux-amd64",
+    "digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" }
+] }
+EOF
+    local out
+    out="$(latest_release_asset "monetarium-node" "linux-amd64")"
+    [[ "$out" == "$(printf 'sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\t%s\n' 'https://fixtures.test/monetarium-node-linux-amd64')" ]]
+}
+check "digest AFTER download_url → scoped to asset's own object" run_asset_digest_after_url_test
+
+# --------------------------------------------------------------------------
+# download_binary — fresh install / skip / self-update / mismatch abort
+# --------------------------------------------------------------------------
+echo ""
+echo "============================================"
+echo "  download_binary tests"
+echo "============================================"
+
+printf '#!/usr/bin/env bash\necho "monetarium-node v1"\n' > "$MOCK_STATE/blob-v1"
+printf '#!/usr/bin/env bash\necho "monetarium-node v2"\n' > "$MOCK_STATE/blob-v2"
+
+reset_download() {
+    BINARIES_REPLACED=false
+    NODE_REPLACED=false
+    WALLET_REPLACED=false
+    rm -rf "$INSTALL_TEST_DIR"
+    mkdir -p "$INSTALL_TEST_DIR"
+    INSTALL_DIR="$INSTALL_TEST_DIR"
+    rm -f "$MOCK_STATE/downloads.log"
+}
+
+run_download_fresh_test() {
+    reset_download
+    json_for "monetarium-node" "$MOCK_STATE/blob-v1"
+    PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
+    [[ -x "$INSTALL_DIR/monetarium-node" ]] \
+        && cmp -s "$INSTALL_DIR/monetarium-node" "$MOCK_STATE/blob-v1" \
+        && [[ "$(wc -l < "$MOCK_STATE/downloads.log")" -eq 1 ]] \
+        && [[ "$BINARIES_REPLACED" == "false" ]]
+}
+check "fresh install → download + verify checksum + install" run_download_fresh_test
+
+run_download_skip_current_test() {
+    reset_download
+    json_for "monetarium-node" "$MOCK_STATE/blob-v1"
+    PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
+    json_for "monetarium-node" "$MOCK_STATE/blob-v1"
+    PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
+    [[ "$(wc -l < "$MOCK_STATE/downloads.log")" -eq 1 ]] \
+        && [[ "$BINARIES_REPLACED" == "false" ]]
+}
+check "re-run with current binary → skipped, no re-download" run_download_skip_current_test
+
+run_download_update_test() {
+    reset_download
+    json_for "monetarium-node" "$MOCK_STATE/blob-v1"
+    PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
+    json_for "monetarium-node" "$MOCK_STATE/blob-v2"
+    BINARIES_REPLACED=false
+    PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
+    cmp -s "$INSTALL_DIR/monetarium-node" "$MOCK_STATE/blob-v2" \
+        && [[ "$(wc -l < "$MOCK_STATE/downloads.log")" -eq 2 ]] \
+        && [[ "$BINARIES_REPLACED" == "true" ]]
+}
+check "upstream digest changed → binary self-updated + restart flagged" run_download_update_test
+
+run_download_no_digest_keep_test() {
+    reset_download
+    json_for "monetarium-node" "$MOCK_STATE/blob-v1"      # digest published
+    PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
+    BINARIES_REPLACED=false
+    NODE_REPLACED=false
+    json_for_no_digest "monetarium-node" "$MOCK_STATE/blob-v2"   # release drops the checksum
+    PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
+    cmp -s "$INSTALL_DIR/monetarium-node" "$MOCK_STATE/blob-v1" \
+        && [[ "$(wc -l < "$MOCK_STATE/downloads.log")" -eq 1 ]]
+}
+check "re-run, no published digest → keeps installed binary" run_download_no_digest_keep_test
+
+run_download_no_digest_fresh_test() {
+    reset_download
+    json_for_no_digest "monetarium-node" "$MOCK_STATE/blob-v1"
+    local out rc
+    out="$(PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64" 2>&1)"
+    rc=$?
+    # No published checksum must NOT hard-refuse a fresh install (that would
+    # break every install against releases that omit one) — it warns and
+    # installs, relying on transport TLS like the pre-checksum installer.
+    [[ $rc -eq 0 ]] \
+        && echo "$out" | grep -q "No sha256 checksum published" \
+        && [[ -x "$INSTALL_DIR/monetarium-node" ]]
+}
+check "fresh install, no digest → warns and installs unverified" run_download_no_digest_fresh_test
+
+run_download_mismatch_test() {
+    reset_download
+    json_for "monetarium-node" "$MOCK_STATE/blob-v1"    # digest = hash(v1)
+    cp "$MOCK_STATE/blob-v2" "$MOCK_STATE/monetarium-node-linux-amd64"  # wire serves v2
+    local out rc
+    out="$(PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64" 2>&1)"
+    rc=$?
+    [[ $rc -ne 0 ]] && echo "$out" | grep -q "Checksum mismatch" && [[ ! -f "$INSTALL_DIR/monetarium-node" ]]
+}
+check "checksum mismatch → aborts, binary not installed" run_download_mismatch_test
+
+# Archive-asset fixture: serves a real .tar.gz whose published digest is of the
+# tarball bytes (never the extracted binary). Covers Fix 4: archive assets must
+# re-download every run instead of falsely claiming "already current".
+archive_fixture() {
+    local repo="$1" bin_name="$2" blob="$3"
+    local name="${repo}-linux-amd64.tar.gz"
+    local src="$TEST_TMP/archive-src"
+    rm -rf "$src"; mkdir -p "$src"
+    cp "$blob" "$src/$bin_name"
+    tar -C "$src" -czf "$MOCK_STATE/$name" "$bin_name"
+    local digest
+    digest="$(digest_of "$MOCK_STATE/$name")"
+    cat > "$MOCK_STATE/$repo.json" <<EOF
+{ "assets": [ { "name": "$name", "digest": "sha256:$digest", "browser_download_url": "https://fixtures.test/$name" } ] }
+EOF
+}
+
+run_download_archive_rerun_test() {
+    reset_download
+    archive_fixture "monetarium-node" "monetarium-node" "$MOCK_STATE/blob-v1"
+    PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
+    BINARIES_REPLACED=false
+    NODE_REPLACED=false
+    archive_fixture "monetarium-node" "monetarium-node" "$MOCK_STATE/blob-v1"
+    PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
+    cmp -s "$INSTALL_DIR/monetarium-node" "$MOCK_STATE/blob-v1" \
+        && [[ "$(wc -l < "$MOCK_STATE/downloads.log")" -eq 2 ]] \
+        && [[ "$BINARIES_REPLACED" == "true" ]]
+}
+check "archive asset re-run → downloaded + verified again (no false no-op)" run_download_archive_rerun_test
+
+run_download_no_asset_die_test() {
+    reset_download
+    json_for "monetarium-node" "$MOCK_STATE/blob-v1"
+    PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
+    BINARIES_REPLACED=false
+    NODE_REPLACED=false
+    local out rc
+    out="$(PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "freebsd-amd64" 2>&1)"
+    rc=$?
+    [[ $rc -ne 0 ]] && echo "$out" | grep -q "No release asset" && [[ "$BINARIES_REPLACED" == "false" ]]
+}
+check "no matching asset → dies even with a binary installed (not treated as outage)" run_download_no_asset_die_test
+
+run_download_curl_fail_cleanup_test() {
+    reset_download
+    local before after
+    before="$(ls -d "${TMPDIR:-/tmp}"/tmp.* 2>/dev/null | wc -l)"
+    cat > "$MOCK_STATE/monetarium-node.json" <<'EOF'
+{ "assets": [ { "name": "monetarium-node-linux-amd64",
+  "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "browser_download_url": "https://unhandled.invalid/monetarium-node-linux-amd64" } ] }
+EOF
+    local out rc
+    out="$(PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64" 2>&1)"
+    rc=$?
+    after="$(ls -d "${TMPDIR:-/tmp}"/tmp.* 2>/dev/null | wc -l)"
+    [[ $rc -ne 0 ]] && echo "$out" | grep -q "Failed to download" && [[ "$after" -eq "$before" ]]
+}
+check "curl failure → dies with message, tmpdir cleaned up" run_download_curl_fail_cleanup_test
+
+run_download_api_fail_with_binary_test() {
+    reset_download
+    json_for "monetarium-node" "$MOCK_STATE/blob-v1"
+    PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
+    export MOCK_CURL_API_FAIL=1
+    BINARIES_REPLACED=false
+    PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
+    local rc=$?
+    unset MOCK_CURL_API_FAIL
+    [[ $rc -eq 0 ]] && [[ "$(wc -l < "$MOCK_STATE/downloads.log")" -eq 1 ]] && [[ "$BINARIES_REPLACED" == "false" ]]
+}
+check "unreachable API with binary installed → keep, no error" run_download_api_fail_with_binary_test
+
+run_download_api_fail_no_binary_test() {
+    reset_download
+    export MOCK_CURL_API_FAIL=1
+    local out rc
+    out="$(PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64" 2>&1)"
+    rc=$?
+    unset MOCK_CURL_API_FAIL
+    [[ $rc -ne 0 ]] && echo "$out" | grep -q "Could not fetch latest release info"
+}
+check "unreachable API with no binary → dies" run_download_api_fail_no_binary_test
+
+# --------------------------------------------------------------------------
+# restart_monetarium_services
+# --------------------------------------------------------------------------
+echo ""
+echo "============================================"
+echo "  restart_monetarium_services tests"
+echo "============================================"
+
+run_restart_linux_active_test() {
+    : > "$SYSTEMCTL_LOG"
+    (
+        export SYSTEMCTL_LOG
+        uname() { echo "Linux"; }
+        export -f uname
+        export NODE_ACTIVE=0 WALLET_ACTIVE=0
+        restart_monetarium_services monetarium-node monetarium-wallet
+    )
+    grep -q "systemctl restart monetarium-node" "$SYSTEMCTL_LOG" \
+        && grep -q "systemctl restart monetarium-wallet" "$SYSTEMCTL_LOG"
+}
+check "Linux, services active → restarts node + wallet" run_restart_linux_active_test
+
+run_restart_only_changed_test() {
+    : > "$SYSTEMCTL_LOG"
+    (
+        export SYSTEMCTL_LOG
+        uname() { echo "Linux"; }
+        export -f uname
+        export NODE_ACTIVE=0 WALLET_ACTIVE=0
+        restart_monetarium_services monetarium-node
+    )
+    grep -q "systemctl restart monetarium-node" "$SYSTEMCTL_LOG" \
+        && ! grep -q "systemctl restart monetarium-wallet" "$SYSTEMCTL_LOG"
+}
+check "Linux, only node replaced → only node restarted, not wallet" run_restart_only_changed_test
+
+run_restart_no_args_test() {
+    : > "$SYSTEMCTL_LOG"
+    (
+        export SYSTEMCTL_LOG
+        uname() { echo "Linux"; }
+        export -f uname
+        export NODE_ACTIVE=0 WALLET_ACTIVE=0
+        restart_monetarium_services
+    )
+    ! grep -q "restart" "$SYSTEMCTL_LOG"
+}
+check "restart with no replaced services → no-op" run_restart_no_args_test
+
+run_restart_linux_inactive_test() {
+    : > "$SYSTEMCTL_LOG"
+    (
+        export SYSTEMCTL_LOG
+        uname() { echo "Linux"; }
+        export -f uname
+        export NODE_ACTIVE=1 WALLET_ACTIVE=1
+        restart_monetarium_services monetarium-node monetarium-wallet
+    )
+    ! grep -q "restart" "$SYSTEMCTL_LOG"
+}
+check "Linux, services inactive → no restart attempted" run_restart_linux_inactive_test
+
+run_restart_darwin_test() {
+    : > "$LAUNCHCTL_LOG"
+    (
+        export LAUNCHCTL_LOG
+        uname() { echo "Darwin"; }
+        export -f uname
+        restart_monetarium_services monetarium-node monetarium-wallet
+    )
+    grep -q "kickstart" "$LAUNCHCTL_LOG" \
+        && grep -q "com.monetarium.node" "$LAUNCHCTL_LOG" \
+        && grep -q "com.monetarium.wallet" "$LAUNCHCTL_LOG"
+}
+check "Darwin → launchctl kickstart node + wallet" run_restart_darwin_test
+
+run_restart_darwin_only_changed_test() {
+    : > "$LAUNCHCTL_LOG"
+    (
+        export LAUNCHCTL_LOG
+        uname() { echo "Darwin"; }
+        export -f uname
+        restart_monetarium_services monetarium-wallet
+    )
+    grep -q "com.monetarium.wallet" "$LAUNCHCTL_LOG" \
+        && ! grep -q "com.monetarium.node" "$LAUNCHCTL_LOG"
+}
+check "Darwin → only replaced binary's service kickstarted" run_restart_darwin_only_changed_test
+
+# --------------------------------------------------------------------------
+# generate/miningaddr guard tests (configure_mining_and_voting)
 # --------------------------------------------------------------------------
 echo ""
 echo "============================================"
 echo "  generate/miningaddr guard tests"
 echo "============================================"
 
-# Helper: run configure_mining_and_voting in an isolated subshell
-# with controlled globals and mocks.
-run_mining_test() {
-    local mining_enabled="$1"
-    local mining_cores="$2"
-    local addr_count="$3"
-    local tty_mode="$4"     # "true" or "false"
-    local expect_generate="$5"
-    local expect_addr="$6"
-    local timeout_thresh="${7:-60}"
-
-    # Fresh node config
-    cat > "$NODE_CONF" <<EOF
-; monetarium.conf - generated by install.sh on test
-rpcuser=monetarium
-rpcpass=testpass123
-addpeer=176.113.164.216:9508
-EOF
-
-    # Reset globals
-    MINING_ENABLED="$mining_enabled"
-    MINING_CORES="$mining_cores"
-    MINING_ADDR=""
-    CONSOLIDATION_ADDR=""
-    TICKETS_ENABLED=false
-    VOTING_ENABLED=false
-
-    # Reset mock call tracker
-    rm -f "/tmp/.mock_ctl_$$"
-    export GETNEWADDR_COUNT="$addr_count"
-    export RPC_TIMEOUT_THRESHOLD="$timeout_thresh"
-
-    (
-        set +e
-        export PATH="$MOCK_CTL_DIR":$PATH
-        if [[ "$tty_mode" == "true" ]]; then
-            has_tty() { return 0; }
-        else
-            has_tty() { return 1; }
-        fi
-        show_configuration_summary() { :; }
-        configure_mining_and_voting
-    )
-
-    # Assert
-    local ok=true
-    if ! grep -q "generate=${expect_generate}" "$NODE_CONF"; then
-        echo "    FAIL expected generate=${expect_generate}:"
-        grep "generate" "$NODE_CONF" | sed 's/^/      /'
-        ok=false
-    fi
-    if [[ "$expect_addr" == "true" ]]; then
-        if ! grep -q "miningaddr=" "$NODE_CONF"; then
-            echo "    FAIL expected miningaddr= in config"
-            ok=false
-        fi
-    else
-        if grep -q "miningaddr=" "$NODE_CONF"; then
-            echo "    FAIL unexpected miningaddr= in config"
-            ok=false
-        fi
-    fi
-    $ok
-}
-
-# --- Path 1: no TTY (non-interactive) -----------------------------------------
-run_no_tty_test() {
+fresh_node_conf() {
     cat > "$NODE_CONF" <<'EOF'
 ; monetarium.conf - test
 rpcuser=monetarium
 rpcpass=testpass123
 addpeer=176.113.164.216:9508
 EOF
+}
+
+prev_mining_node_conf() {
+    cat > "$NODE_CONF" <<'EOF'
+; monetarium.conf - previous install, mining enabled
+rpcuser=monetarium
+rpcpass=testpass123
+; Mining configuration — carried over from previous install by install.sh
+generate=true
+miningaddr=TPrevAddr
+EOF
+}
+
+# Run configure_mining_and_voting with a mock wallet RPC, overriding has_tty
+# and making sleep a no-op so the tests are fast. $1 = "tty" or "notty".
+run_configure_mining() {
+    local tty_mode="$1"
+    rm -f "$MOCK_CTL_TRACKER"
+    (
+        set +e
+        sleep() { :; }
+        PATH="$MOCK_CTL:$MOCK_BIN:$PATH"
+        show_configuration_summary() { :; }
+        if [[ "$tty_mode" == "tty" ]]; then
+            has_tty() { return 0; }
+        else
+            has_tty() { return 1; }
+        fi
+        configure_mining_and_voting
+    )
+}
+
+generate_count() {
+    grep -c "^generate=" "$NODE_CONF" || true
+}
+
+# --- no TTY (non-interactive) ------------------------------------------------
+run_no_tty_fresh_test() {
+    fresh_node_conf
     MINING_ENABLED=true
     MINING_CORES="2"
     MINING_ADDR=""
     CONSOLIDATION_ADDR=""
     export GETNEWADDR_COUNT=1
-
-    (
-        set +e
-        export PATH="$MOCK_CTL_DIR":$PATH
-        has_tty() { return 1; }
-        show_configuration_summary() { :; }
-        configure_mining_and_voting
-    )
-
-    grep -q "generate=false" "$NODE_CONF"
+    run_configure_mining notty
+    grep -q "^generate=false$" "$NODE_CONF"
 }
-check "no TTY → generate=false" run_no_tty_test
+check "no TTY, fresh → generate=false appended" run_no_tty_fresh_test
 
-# --- Path 2: RPC timeout (wallet not ready) -----------------------------------
-run_rpc_timeout_test() {
-    cat > "$NODE_CONF" <<'EOF'
-; monetarium.conf - test
-rpcuser=monetarium
-rpcpass=testpass123
-addpeer=176.113.164.216:9508
-EOF
+run_no_tty_rerun_test() {
+    prev_mining_node_conf
     MINING_ENABLED=true
     MINING_CORES="2"
     MINING_ADDR=""
     CONSOLIDATION_ADDR=""
+    run_configure_mining notty
+    [[ "$(generate_count)" -eq 1 ]] \
+        && grep -q "^generate=true$" "$NODE_CONF" \
+        && ! grep -q "^generate=false$" "$NODE_CONF" \
+        && grep -q "^miningaddr=TPrevAddr$" "$NODE_CONF"
+}
+check "no TTY, re-run → carried-over mining config preserved" run_no_tty_rerun_test
 
+# --- RPC timeout (wallet never ready) ----------------------------------------
+run_rpc_timeout_fresh_test() {
+    fresh_node_conf
+    MINING_ENABLED=true
+    MINING_CORES="2"
+    MINING_ADDR=""
+    CONSOLIDATION_ADDR=""
     # Mock: getinfo always fails → triggers timeout path
-    cat > "$MOCK_CTL_DIR/monetarium-ctl" <<'MOCKEOF'
+    cat > "$MOCK_CTL/monetarium-ctl" <<'MOCKEOF'
 #!/usr/bin/env bash
 case "$*" in
     *getinfo*) exit 1 ;;
     *) exit 1 ;;
 esac
 MOCKEOF
-    chmod +x "$MOCK_CTL_DIR/monetarium-ctl"
-
+    chmod +x "$MOCK_CTL/monetarium-ctl"
     export RPC_TIMEOUT_THRESHOLD=2
-    (
-        set +e
-        export PATH="$MOCK_CTL_DIR":$PATH
-        export RPC_TIMEOUT_THRESHOLD=2
-        has_tty() { return 0; }
-        show_configuration_summary() { :; }
-        configure_mining_and_voting
-    )
-
-    grep -q "generate=false" "$NODE_CONF"
+    run_configure_mining tty
+    grep -q "^generate=false$" "$NODE_CONF"
 }
-check "RPC timeout → generate=false" run_rpc_timeout_test
+check "RPC timeout, fresh → generate=false appended" run_rpc_timeout_fresh_test
 
-# Restore mock
-cat > "$MOCK_CTL_DIR/monetarium-ctl" <<'MOCKEOF'
+run_rpc_timeout_rerun_test() {
+    prev_mining_node_conf
+    MINING_ENABLED=true
+    MINING_CORES="2"
+    MINING_ADDR=""
+    CONSOLIDATION_ADDR=""
+    export RPC_TIMEOUT_THRESHOLD=2
+    run_configure_mining tty
+    [[ "$(generate_count)" -eq 1 ]] \
+        && grep -q "^generate=true$" "$NODE_CONF" \
+        && ! grep -q "^generate=false$" "$NODE_CONF" \
+        && grep -q "^miningaddr=TPrevAddr$" "$NODE_CONF"
+}
+check "RPC timeout, re-run → keeps carried-over mining, no generate=false" run_rpc_timeout_rerun_test
+
+# Restore the full mock
+cat > "$MOCK_CTL/monetarium-ctl" <<'MOCKCTL'
 #!/usr/bin/env bash
+{ echo "$*" >> "${MOCK_CTL_LOG:-/dev/null}"; } 2>/dev/null || true
 case "$*" in
     *getinfo*) exit 0 ;;
     *getnewaddress*)
         count="${GETNEWADDR_COUNT:-1}"
-        tracker="/tmp/.mock_ctl_$$"
+        tracker="${MOCK_CTL_TRACKER:-${TMPDIR:-/tmp}/.mock_ctl_$$}"
         current=$(cat "$tracker" 2>/dev/null || echo 0)
         current=$((current + 1))
         echo "$current" > "$tracker"
@@ -446,113 +972,90 @@ case "$*" in
     *setvotefeeconsolidationaddress*) exit 0 ;;
     *) exit 1 ;;
 esac
-MOCKEOF
-chmod +x "$MOCK_CTL_DIR/monetarium-ctl"
+MOCKCTL
+chmod +x "$MOCK_CTL/monetarium-ctl"
 
-# --- Path 3a: RPC ready, address obtained → generate=true ---------------------
-run_rpc_ready_ok_test() {
-    cat > "$NODE_CONF" <<'EOF'
-; monetarium.conf - test
-rpcuser=monetarium
-rpcpass=testpass123
-addpeer=176.113.164.216:9508
-EOF
+# --- RPC ready -----------------------------------------------------------------
+run_rpc_ready_enabled_test() {
+    fresh_node_conf
     MINING_ENABLED=true
     MINING_CORES="2"
     MINING_ADDR=""
+    CONSOLIDATION_ADDR=""
     export GETNEWADDR_COUNT=1
-
-    (
-        set +e
-        export PATH="$MOCK_CTL_DIR":$PATH
-        has_tty() { return 0; }
-        show_configuration_summary() { :; }
-        configure_mining_and_voting
-    )
-
-    grep -q "generate=true" "$NODE_CONF" && grep -q "miningaddr=TTestAddr1" "$NODE_CONF"
+    run_configure_mining tty
+    [[ "$(generate_count)" -eq 1 ]] \
+        && grep -q "^generate=true$" "$NODE_CONF" \
+        && grep -q "^miningaddr=TTestAddr1$" "$NODE_CONF"
 }
-check "RPC ready + address → generate=true + miningaddr" run_rpc_ready_ok_test
+check "RPC ready + mining enabled → generate=true + address" run_rpc_ready_enabled_test
 
-# --- Path 3b: mining NOT enabled → generate=false ----------------------------
+run_rpc_ready_rerun_test() {
+    prev_mining_node_conf
+    MINING_ENABLED=true
+    MINING_CORES="2"
+    MINING_ADDR=""
+    CONSOLIDATION_ADDR=""
+    export GETNEWADDR_COUNT=1
+    run_configure_mining tty
+    [[ "$(generate_count)" -eq 1 ]] \
+        && grep -q "^generate=true$" "$NODE_CONF" \
+        && grep -q "^miningaddr=TTestAddr1$" "$NODE_CONF" \
+        && ! grep -q "TPrevAddr" "$NODE_CONF"
+}
+check "RPC ready, re-run → old mining lines stripped, one fresh set written" run_rpc_ready_rerun_test
+
 run_mining_disabled_test() {
-    cat > "$NODE_CONF" <<'EOF'
-; monetarium.conf - test
-rpcuser=monetarium
-rpcpass=testpass123
-addpeer=176.113.164.216:9508
-EOF
+    fresh_node_conf
     MINING_ENABLED=false
     MINING_CORES=""
     MINING_ADDR=""
+    CONSOLIDATION_ADDR=""
     export GETNEWADDR_COUNT=1
-
-    (
-        set +e
-        export PATH="$MOCK_CTL_DIR":$PATH
-        has_tty() { return 0; }
-        show_configuration_summary() { :; }
-        configure_mining_and_voting
-    )
-
-    grep -q "generate=false" "$NODE_CONF"
+    run_configure_mining tty
+    grep -q "^generate=false$" "$NODE_CONF"
 }
-check "mining disabled → generate=false" run_mining_disabled_test
+check "mining not requested → generate=false" run_mining_disabled_test
 
-# --- Path 3c: getnewaddress returns empty → generate=false --------------------
 run_empty_addr_test() {
-    cat > "$NODE_CONF" <<'EOF'
-; monetarium.conf - test
-rpcuser=monetarium
-rpcpass=testpass123
-addpeer=176.113.164.216:9508
-EOF
+    fresh_node_conf
     MINING_ENABLED=true
     MINING_CORES="2"
     MINING_ADDR=""
+    CONSOLIDATION_ADDR=""
     export GETNEWADDR_COUNT=0
-
-    (
-        set +e
-        export PATH="$MOCK_CTL_DIR":$PATH
-        has_tty() { return 0; }
-        show_configuration_summary() { :; }
-        configure_mining_and_voting
-    )
-
-    grep -q "generate=false" "$NODE_CONF" && ! grep -q "miningaddr=" "$NODE_CONF"
+    run_configure_mining tty
+    grep -q "^generate=false$" "$NODE_CONF" && ! grep -q "^miningaddr=" "$NODE_CONF"
 }
 check "empty getnewaddress → generate=false, no miningaddr" run_empty_addr_test
 
-# --- Path 3d: two addresses → first addr used, generate=true ----------------
 run_two_addrs_test() {
-    cat > "$NODE_CONF" <<'EOF'
-; monetarium.conf - test
-rpcuser=monetarium
-rpcpass=testpass123
-addpeer=176.113.164.216:9508
-EOF
+    fresh_node_conf
     MINING_ENABLED=true
     MINING_CORES="2"
     MINING_ADDR=""
+    CONSOLIDATION_ADDR=""
+    rm -f "$MOCK_CTL_LOG"
     export GETNEWADDR_COUNT=2
-
-    (
-        set +e
-        export PATH="$MOCK_CTL_DIR":$PATH
-        has_tty() { return 0; }
-        show_configuration_summary() { :; }
-        configure_mining_and_voting
-    )
-
-    grep -q "generate=true" "$NODE_CONF" && grep -q "miningaddr=TTestAddr1" "$NODE_CONF"
+    run_configure_mining tty
+    grep -q "^generate=true$" "$NODE_CONF" \
+        && grep -q "^miningaddr=TTestAddr1$" "$NODE_CONF" \
+        && grep -q "setvotefeeconsolidationaddress default TTestAddr2" "$MOCK_CTL_LOG"
 }
-check "two getnewaddr calls → generate=true, first addr" run_two_addrs_test
+check "two getnewaddr calls → 2nd DISTINCT addr + setvotefee invoked" run_two_addrs_test
 
-# --- Summary: mining requested but no addr → shows "requested but disabled" ---
+# --------------------------------------------------------------------------
+# show_configuration_summary (real function, controlled globals)
+# --------------------------------------------------------------------------
+echo ""
+echo "============================================"
+echo "  show_configuration_summary tests"
+echo "============================================"
+
 run_summary_no_addr_test() {
     (
         set +e
+        fresh_node_conf
         MINING_ENABLED=true
         MINING_ADDR=""
         MINING_CORES="2"
@@ -563,9 +1066,25 @@ run_summary_no_addr_test() {
         echo "$output" | grep -q "requested but disabled"
     )
 }
-check "summary: mining requested but no addr → 'requested but disabled'" run_summary_no_addr_test
+check "mining requested but no addr → 'requested but disabled'" run_summary_no_addr_test
 
-# --- Summary: mining enabled with addr → shows "enabled" --------------------
+run_summary_kept_prev_test() {
+    (
+        set +e
+        prev_mining_node_conf
+        MINING_ENABLED=true
+        MINING_ADDR=""
+        MINING_CORES="2"
+        TICKETS_ENABLED=false
+        VOTING_ENABLED=false
+        CONSOLIDATION_ADDR=""
+        output=$(show_configuration_summary 2>&1)
+        echo "$output" | grep -q "unchanged from previous run" \
+            && ! echo "$output" | grep -q "requested but disabled"
+    )
+}
+check "re-run keeps prev mining config → summary says unchanged, not disabled" run_summary_kept_prev_test
+
 run_summary_with_addr_test() {
     (
         set +e
@@ -579,12 +1098,12 @@ run_summary_with_addr_test() {
         echo "$output" | grep -q "enabled" && echo "$output" | grep -q "TTestAddr"
     )
 }
-check "summary: mining + addr → 'enabled' with address" run_summary_with_addr_test
+check "mining + addr → 'enabled' with address" run_summary_with_addr_test
 
-# --- Summary: mining not requested → shows "disabled" ------------------------
 run_summary_not_requested_test() {
     (
         set +e
+        fresh_node_conf
         MINING_ENABLED=false
         MINING_ADDR=""
         MINING_CORES=""
@@ -592,16 +1111,16 @@ run_summary_not_requested_test() {
         VOTING_ENABLED=false
         CONSOLIDATION_ADDR=""
         output=$(show_configuration_summary 2>&1)
-        echo "$output" | grep -q "disabled" && ! echo "$output" | grep -q "requested but disabled"
+        echo "$output" | grep -q "disabled" && ! echo "$output" | grep -q "requested but disabled" && ! echo "$output" | grep -q "unchanged from previous run"
     )
 }
-check "summary: mining not requested → plain 'disabled'" run_summary_not_requested_test
+check "mining not requested → plain 'disabled'" run_summary_not_requested_test
 
 # --------------------------------------------------------------------------
 # Cleanup
 # --------------------------------------------------------------------------
-rm -f "/tmp/.mock_ctl_$$"
-rm -rf "$MOCK_DIR" "$TEST_TMP"
+rm -f "$MOCK_CTL_TRACKER"
+rm -rf "$TEST_TMP"
 
 echo ""
 echo "== Results: $PASS passed, $FAIL failed =="
