@@ -595,7 +595,7 @@ run_download_fresh_test() {
     PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
     [[ -x "$INSTALL_DIR/monetarium-node" ]] \
         && cmp -s "$INSTALL_DIR/monetarium-node" "$MOCK_STATE/blob-v1" \
-        && [[ "$(wc -l < "$MOCK_STATE/downloads.log")" == "1" ]] \
+        && [[ "$(wc -l < "$MOCK_STATE/downloads.log")" -eq 1 ]] \
         && [[ "$BINARIES_REPLACED" == "false" ]]
 }
 check "fresh install → download + verify checksum + install" run_download_fresh_test
@@ -606,7 +606,7 @@ run_download_skip_current_test() {
     PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
     json_for "monetarium-node" "$MOCK_STATE/blob-v1"
     PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
-    [[ "$(wc -l < "$MOCK_STATE/downloads.log")" == "1" ]] \
+    [[ "$(wc -l < "$MOCK_STATE/downloads.log")" -eq 1 ]] \
         && [[ "$BINARIES_REPLACED" == "false" ]]
 }
 check "re-run with current binary → skipped, no re-download" run_download_skip_current_test
@@ -619,7 +619,7 @@ run_download_update_test() {
     BINARIES_REPLACED=false
     PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
     cmp -s "$INSTALL_DIR/monetarium-node" "$MOCK_STATE/blob-v2" \
-        && [[ "$(wc -l < "$MOCK_STATE/downloads.log")" == "2" ]] \
+        && [[ "$(wc -l < "$MOCK_STATE/downloads.log")" -eq 2 ]] \
         && [[ "$BINARIES_REPLACED" == "true" ]]
 }
 check "upstream digest changed → binary self-updated + restart flagged" run_download_update_test
@@ -633,7 +633,7 @@ run_download_no_digest_keep_test() {
     json_for_no_digest "monetarium-node" "$MOCK_STATE/blob-v2"   # release drops the checksum
     PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
     cmp -s "$INSTALL_DIR/monetarium-node" "$MOCK_STATE/blob-v1" \
-        && [[ "$(wc -l < "$MOCK_STATE/downloads.log")" == "1" ]]
+        && [[ "$(wc -l < "$MOCK_STATE/downloads.log")" -eq 1 ]]
 }
 check "re-run, no published digest → keeps installed binary" run_download_no_digest_keep_test
 
@@ -689,7 +689,7 @@ run_download_archive_rerun_test() {
     archive_fixture "monetarium-node" "monetarium-node" "$MOCK_STATE/blob-v1"
     PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
     cmp -s "$INSTALL_DIR/monetarium-node" "$MOCK_STATE/blob-v1" \
-        && [[ "$(wc -l < "$MOCK_STATE/downloads.log")" == "2" ]] \
+        && [[ "$(wc -l < "$MOCK_STATE/downloads.log")" -eq 2 ]] \
         && [[ "$BINARIES_REPLACED" == "true" ]]
 }
 check "archive asset re-run → downloaded + verified again (no false no-op)" run_download_archive_rerun_test
@@ -733,7 +733,7 @@ run_download_api_fail_with_binary_test() {
     PATH="$MOCK_BIN:$PATH" download_binary "monetarium-node" "monetarium-node" "linux-amd64"
     local rc=$?
     unset MOCK_CURL_API_FAIL
-    [[ $rc -eq 0 ]] && [[ "$(wc -l < "$MOCK_STATE/downloads.log")" == "1" ]] && [[ "$BINARIES_REPLACED" == "false" ]]
+    [[ $rc -eq 0 ]] && [[ "$(wc -l < "$MOCK_STATE/downloads.log")" -eq 1 ]] && [[ "$BINARIES_REPLACED" == "false" ]]
 }
 check "unreachable API with binary installed → keep, no error" run_download_api_fail_with_binary_test
 
