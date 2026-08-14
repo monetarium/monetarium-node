@@ -112,7 +112,7 @@ creates a scheduled task.
 
 For a detailed walkthrough — what gets installed, how to verify the node, wallet
 and balance, checking logs, troubleshooting, and uninstalling — see
-[QUICK_START.md](QUICK_START.md).
+[QUICK_START.md](docs/QUICK_START.md).
 
 ### Build from source (all platforms)
 
