@@ -33,7 +33,6 @@ package main
 //
 
 import (
-	"bytes"
 	"context"
 	"encoding/xml"
 	"errors"
@@ -49,6 +48,37 @@ import (
 type upnpNAT struct {
 	serviceURL string
 	ourIP      string
+}
+
+// igdDeviceType is the UPnP search target for an internet gateway device.
+const igdDeviceType = "urn:schemas-upnp-org:device:InternetGatewayDevice:1"
+
+// ssdpLocation returns the LOCATION header of an SSDP response advertising an
+// internet gateway device, or the empty string for anything else.
+//
+// The lines are scanned rather than matched as a substring or parsed as MIME
+// headers.  Responders vary in field name case and in the space after the
+// colon, so neither can be assumed; and a line that cannot be split at all is
+// skipped rather than ending the scan, since consumer routers do emit one (a
+// bare "EXT" among them) and the headers after it still carry the answer.
+func ssdpLocation(answer string) string {
+	var st, loc string
+	for _, line := range strings.Split(answer, "\r\n") {
+		k, v, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		switch strings.ToUpper(strings.TrimSpace(k)) {
+		case "ST":
+			st = strings.TrimSpace(v)
+		case "LOCATION":
+			loc = strings.TrimSpace(v)
+		}
+	}
+	if !strings.EqualFold(st, igdDeviceType) {
+		return ""
+	}
+	return loc
 }
 
 // discover searches the local network for a UPnP router returning a NAT
@@ -71,14 +101,11 @@ func discover(ctx context.Context) (*upnpNAT, error) {
 		return nil, err
 	}
 
-	st := "ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r\n"
-	buf := bytes.NewBufferString(
-		"M-SEARCH * HTTP/1.1\r\n" +
-			"HOST: 239.255.255.250:1900\r\n" +
-			st +
-			"MAN: \"ssdp:discover\"\r\n" +
-			"MX: 2\r\n\r\n")
-	message := buf.Bytes()
+	message := []byte("M-SEARCH * HTTP/1.1\r\n" +
+		"HOST: 239.255.255.250:1900\r\n" +
+		"ST: " + igdDeviceType + "\r\n" +
+		"MAN: \"ssdp:discover\"\r\n" +
+		"MX: 2\r\n\r\n")
 	answerBytes := make([]byte, 1024)
 	for i := 0; i < 3; i++ {
 		_, err = socket.WriteToUDP(message, ssdp)
@@ -92,23 +119,10 @@ func discover(ctx context.Context) (*upnpNAT, error) {
 			// socket.Close()
 			// return
 		}
-		answer := string(answerBytes[0:n])
-		if !strings.Contains(answer, "\r\n"+st) {
+		locURL := ssdpLocation(string(answerBytes[0:n]))
+		if locURL == "" {
 			continue
 		}
-		// HTTP header field names are case-insensitive.
-		// https://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
-		locString := "\r\nlocation: "
-		locIndex := strings.Index(strings.ToLower(answer), locString)
-		if locIndex < 0 {
-			continue
-		}
-		loc := answer[locIndex+len(locString):]
-		endIndex := strings.Index(loc, "\r\n")
-		if endIndex < 0 {
-			continue
-		}
-		locURL := loc[0:endIndex]
 		var serviceURL string
 		serviceURL, err = getServiceURL(locURL)
 		if err != nil {
