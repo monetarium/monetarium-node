@@ -979,6 +979,8 @@ func wireToAddrmgrNetAddressType(addrType wire.NetAddressType) addrmgr.NetAddres
 		return addrmgr.IPv4Address
 	case wire.IPv6Address:
 		return addrmgr.IPv6Address
+	case wire.TorV3Address:
+		return addrmgr.TorV3Address
 	}
 	return addrmgr.UnknownAddressType
 }
@@ -991,6 +993,8 @@ func addrmgrToWireNetAddressType(addrType addrmgr.NetAddressType) wire.NetAddres
 		return wire.IPv4Address
 	case addrmgr.IPv6Address:
 		return wire.IPv6Address
+	case addrmgr.TorV3Address:
+		return wire.TorV3Address
 	}
 	return wire.UnknownAddressType
 }
@@ -1022,8 +1026,9 @@ func wireToAddrmgrNetAddressesV2(netAddrs []wire.NetAddressV2) ([]*addrmgr.NetAd
 	for i := range netAddrs {
 		wireAddr := &netAddrs[i]
 		addrType := wireToAddrmgrNetAddressType(wireAddr.Type)
-		addr, err := addrmgr.NewNetAddressFromParams(addrType, wireAddr.IP,
-			wireAddr.Port, wireAddr.Timestamp, wireAddr.Services)
+		addr, err := addrmgr.NewNetAddressFromParams(addrType,
+			wireAddr.EncodedAddr, wireAddr.Port, wireAddr.Timestamp,
+			wireAddr.Services)
 		if err != nil {
 			return nil, err
 		}
@@ -1047,9 +1052,9 @@ func addrmgrToWireNetAddressV2(netAddr *addrmgr.NetAddress) wire.NetAddressV2 {
 		netAddr.Timestamp, netAddr.Services)
 }
 
-// pushAddrMsg sends an addr message to the connected peer using the provided
-// addresses.
-func (sp *serverPeer) pushAddrMsg(addresses []*addrmgr.NetAddress) {
+// pushAddrV1Msg sends a legacy version 1 addr message to the connected peer
+// using the provided addresses.
+func (sp *serverPeer) pushAddrV1Msg(addresses []*addrmgr.NetAddress) {
 	// Filter addresses already known to the peer.
 	addrs := make([]*wire.NetAddress, 0, len(addresses))
 	for _, addr := range addresses {
@@ -1067,6 +1072,36 @@ func (sp *serverPeer) pushAddrMsg(addresses []*addrmgr.NetAddress) {
 
 	knownNetAddrs := wireToAddrmgrNetAddresses(known)
 	sp.addKnownAddresses(knownNetAddrs)
+}
+
+// pushAddrV2Msg sends an addrv2 message to the connected peer using the
+// provided addresses.
+func (sp *serverPeer) pushAddrV2Msg(addresses []*addrmgr.NetAddress) {
+	// Filter addresses already known to the peer.
+	addrs := make([]wire.NetAddressV2, 0, len(addresses))
+	for _, addr := range addresses {
+		if !sp.addressKnown(addr) {
+			wireNetAddr := addrmgrToWireNetAddressV2(addr)
+			addrs = append(addrs, wireNetAddr)
+		}
+	}
+	known := sp.PushAddrV2Msg(addrs)
+	knownNetAddrs, err := wireToAddrmgrNetAddressesV2(known)
+	if err != nil {
+		peerLog.Errorf("Failed to convert known addresses: %v", err)
+		return
+	}
+	sp.addKnownAddresses(knownNetAddrs)
+}
+
+// pushAddrMsg sends an appropriate version address message to the connected
+// peer using the provided addresses depending on the protocol version.
+func (sp *serverPeer) pushAddrMsg(pver uint32, addresses []*addrmgr.NetAddress) {
+	if pver >= wire.AddrV2Version {
+		sp.pushAddrV2Msg(addresses)
+		return
+	}
+	sp.pushAddrV1Msg(addresses)
 }
 
 // addBanScore increases the persistent and decaying ban score fields by the
@@ -1120,30 +1155,24 @@ func isSupportedNetAddrTypeV1(addrType addrmgr.NetAddressType) bool {
 	return addrType == addrmgr.IPv4Address || addrType == addrmgr.IPv6Address
 }
 
+// isSupportedNetAddressTypeV2 returns whether the provided address manager
+// network address type is supported by the addrv2 wire message.
+func isSupportedNetAddressTypeV2(addrType addrmgr.NetAddressType) bool {
+	switch addrType {
+	case addrmgr.IPv4Address, addrmgr.IPv6Address, addrmgr.TorV3Address:
+		return true
+	}
+	return false
+}
+
 // natfSupported returns a filter for the address types supported by the
 // protocol version.
 func natfSupported(pver uint32) addrmgr.NetAddressTypeFilter {
-	return isSupportedNetAddrTypeV1
-}
-
-// pushAddrV2Msg sends an addrv2 message to the connected peer using the
-// provided addresses.
-func (sp *serverPeer) pushAddrV2Msg(addresses []*addrmgr.NetAddress) {
-	// Filter addresses already known to the peer.
-	addrs := make([]wire.NetAddressV2, 0, len(addresses))
-	for _, addr := range addresses {
-		if !sp.addressKnown(addr) {
-			wireNetAddr := addrmgrToWireNetAddressV2(addr)
-			addrs = append(addrs, wireNetAddr)
-		}
+	switch {
+	case pver < wire.AddrV2Version:
+		return isSupportedNetAddrTypeV1
 	}
-	known := sp.PushAddrV2Msg(addrs)
-	knownNetAddrs, err := wireToAddrmgrNetAddressesV2(known)
-	if err != nil {
-		peerLog.Errorf("Failed to convert known addresses: %v", err)
-		return
-	}
-	sp.addKnownAddresses(knownNetAddrs)
+	return isSupportedNetAddressTypeV2
 }
 
 // NA returns the address manager network address for the peer.
@@ -1161,7 +1190,7 @@ func (sp *serverPeer) NA() *addrmgr.NetAddress {
 
 	return &addrmgr.NetAddress{
 		Type:      wireToAddrmgrNetAddressType(wireNA.Type),
-		IP:        wireNA.IP,
+		IP:        wireNA.EncodedAddr,
 		Port:      wireNA.Port,
 		Timestamp: wireNA.Timestamp,
 		Services:  wireNA.Services,
@@ -1254,16 +1283,12 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 		// known tip.
 		if !cfg.DisableListen && sp.server.syncManager.IsCurrent() {
 			// Get address that best matches.
-			msgProtocolVersion := uint32(msg.ProtocolVersion)
-			addrTypeFilter := natfSupported(msgProtocolVersion)
+			pver := uint32(msg.ProtocolVersion)
+			addrTypeFilter := natfSupported(pver)
 			lna := addrManager.GetBestLocalAddress(remoteAddr, addrTypeFilter)
 			if lna.IsRoutable() {
 				addresses := []*addrmgr.NetAddress{lna}
-				if msgProtocolVersion >= wire.AddrV2Version {
-					sp.pushAddrV2Msg(addresses)
-				} else {
-					sp.pushAddrMsg(addresses)
-				}
+				sp.pushAddrMsg(pver, addresses)
 			} else {
 				srvrLog.Debugf("Local address %s is not routable and will not "+
 					"be broadcast to outbound peer %v", lna.Key(), sp.Addr())
@@ -1862,11 +1887,7 @@ func (sp *serverPeer) OnGetAddr(_ *peer.Peer, msg *wire.MsgGetAddr) {
 	addrCache := sp.server.addrManager.AddressCache(addrTypeFilter)
 
 	// Push addresses using version-appropriate message type.
-	if pver >= wire.AddrV2Version {
-		sp.pushAddrV2Msg(addrCache)
-	} else {
-		sp.pushAddrMsg(addrCache)
-	}
+	sp.pushAddrMsg(pver, addrCache)
 }
 
 // OnAddr is invoked when a peer receives an addr wire message and is used to
@@ -2209,6 +2230,35 @@ func (s *server) AnnounceMixMessages(msgs []mixing.Message) {
 	if s.rpcServer != nil {
 		s.rpcServer.NotifyMixMessages(msgs)
 	}
+}
+
+// AnnounceIsCurrent notifies all connected outbound peers of the local address
+// once the node transitions to believing the chain is current.  This ensures
+// outbound peers that connected while the node was still syncing learn the
+// local address after every catch-up, not only when they connect to a node
+// that is already current.
+func (s *server) AnnounceIsCurrent() {
+	// Nothing to do when the server doesn't accept inbound connections or
+	// when running on the simulation and regression test networks since
+	// they don't advertise addresses.
+	if cfg.DisableListen || cfg.SimNet || cfg.RegNet {
+		return
+	}
+
+	peerState := &s.peerState
+	peerState.Lock()
+	defer peerState.Unlock()
+	peerState.forAllOutboundPeers(func(sp *serverPeer) {
+		// Get address that best matches the remote peer and push it if it
+		// is routable.  pushAddrMsg filters addresses the peer already
+		// knows about.
+		remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+		addrTypeFilter := natfSupported(sp.ProtocolVersion())
+		lna := s.addrManager.GetBestLocalAddress(remoteAddr, addrTypeFilter)
+		if lna.IsRoutable() {
+			sp.pushAddrMsg([]*addrmgr.NetAddress{lna})
+		}
+	})
 }
 
 // TransactionConfirmed marks the provided single confirmation transaction as
@@ -4376,12 +4426,19 @@ func newServer(ctx context.Context, profiler *profileServer,
 	// network.
 	var newAddressFunc func() (net.Addr, error)
 	if !cfg.SimNet && !cfg.RegNet && len(cfg.ConnectPeers) == 0 {
+		filter := func(addrType addrmgr.NetAddressType) bool {
+			switch addrType {
+			case addrmgr.IPv4Address, addrmgr.IPv6Address:
+				return true
+			case addrmgr.TorV3Address:
+				// Require .onion reachability.
+				return !cfg.NoOnion && (cfg.Proxy != "" || cfg.OnionProxy != "")
+			}
+			return false
+		}
 		newAddressFunc = func() (net.Addr, error) {
 			for tries := 0; tries < 100; tries++ {
-				// Note that this does not filter by address type.  Unsupported
-				// network address types should be pruned from the address
-				// manager's internal storage prior to calling this function.
-				addr := s.addrManager.GetAddress()
+				addr := s.addrManager.GetAddress(filter)
 				if addr == nil {
 					break
 				}
@@ -4623,11 +4680,22 @@ func initListeners(ctx context.Context, params *chaincfg.Params, amgr *addrmgr.A
 
 // addrStringToNetAddr takes an address in the form of 'host:port' and returns
 // a net.Addr which maps to the original address with any host names resolved
-// to IP addresses.
+// to IP addresses, if applicable for the respective address type.
 func addrStringToNetAddr(addr string) (net.Addr, error) {
 	host, strPort, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
+	}
+
+	// Determine the network that the address belongs to and return early if
+	// a DNS lookup should not be performed for the address.
+	addrType, _ := addrmgr.EncodeHost(host)
+	switch addrType {
+	case addrmgr.TorV3Address:
+		return &simpleAddr{
+			net:  "tcp",
+			addr: addr,
+		}, nil
 	}
 
 	// Attempt to look up an IP address associated with the parsed host.

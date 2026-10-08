@@ -1,4 +1,4 @@
-// Copyright (c) 2025 The Decred developers
+// Copyright (c) 2025-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,7 +7,6 @@ package wire
 import (
 	"fmt"
 	"io"
-	"net"
 )
 
 // MaxAddrPerV2Msg is the maximum number of addresses that can be in a single
@@ -22,41 +21,9 @@ const MaxAddrPerV2Msg = 1000
 // addresses.
 type MsgAddrV2 struct {
 	// AddrList contains the addresses that will be sent to or have been
-	// received from a peer.  Instead of manually appending addresses to this
-	// field directly, consumers should use the convenience functions on an
-	// instance of this message to add addresses.
+	// received from a peer.  This MUST have a maximum of [MaxAddrPerV2Msg]
+	// entries or the message will error during encode and decode.
 	AddrList []NetAddressV2
-}
-
-// AddAddress adds a known address to the message.  If the maximum number of
-// addresses has been reached, then an error is returned.
-func (msg *MsgAddrV2) AddAddress(na NetAddressV2) error {
-	const op = "MsgAddrV2.AddAddress"
-	if len(msg.AddrList)+1 > MaxAddrPerV2Msg {
-		msg := fmt.Sprintf("too many addresses in message [max %v]",
-			MaxAddrPerV2Msg)
-		return messageError(op, ErrTooManyAddrs, msg)
-	}
-
-	msg.AddrList = append(msg.AddrList, na)
-	return nil
-}
-
-// AddAddresses adds multiple known addresses to the message.  If the number of
-// addresses exceeds the maximum allowed then an error is returned.
-func (msg *MsgAddrV2) AddAddresses(netAddrs ...NetAddressV2) error {
-	for _, na := range netAddrs {
-		err := msg.AddAddress(na)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// ClearAddresses removes all addresses from the message.
-func (msg *MsgAddrV2) ClearAddresses() {
-	msg.AddrList = []NetAddressV2{}
 }
 
 // readNetAddressV2 reads an encoded version 2 wire network address from the
@@ -87,7 +54,7 @@ func readNetAddressV2(op string, r io.Reader, pver uint32, na *NetAddressV2) err
 		if err != nil {
 			return err
 		}
-		na.IP = ip[:]
+		na.EncodedAddr = ip[:]
 
 	case IPv6Address:
 		var ip [16]byte
@@ -95,20 +62,15 @@ func readNetAddressV2(op string, r io.Reader, pver uint32, na *NetAddressV2) err
 		if err != nil {
 			return err
 		}
-		na.IP = ip[:]
+		na.EncodedAddr = ip[:]
 
-	case TORv3Address:
-		if pver < TORv3Version {
-			msg := fmt.Sprintf("TORv3 addresses require protocol version %d "+
-				"or higher", TORv3Version)
-			return messageError(op, ErrMsgInvalidForPVer, msg)
-		}
-		var ip [32]byte
-		err := readElement(r, &ip)
+	case TorV3Address:
+		var addr [32]byte
+		err := readElement(r, &addr)
 		if err != nil {
 			return err
 		}
-		na.IP = ip[:]
+		na.EncodedAddr = addr[:]
 
 	default:
 		msg := fmt.Sprintf("cannot decode unknown network address type %v",
@@ -124,21 +86,21 @@ func readNetAddressV2(op string, r io.Reader, pver uint32, na *NetAddressV2) err
 	return nil
 }
 
-// writeNetAddressV2 serializes an address manager network address to the
-// provided writer.
-func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) error {
-	err := writeElement(w, uint64(na.Timestamp.Unix()))
+// writeNetAddressV2 serializes a version 2 network address to the provided
+// writer.
+func writeNetAddressV2(op string, w io.Writer, pver uint32, na *NetAddressV2) error {
+	err := writeElement(w, (*uint64Time)(&na.Timestamp))
 	if err != nil {
 		return err
 	}
 
-	err = writeElements(w, na.Services, na.Type)
+	err = writeElements(w, &na.Services, &na.Type)
 	if err != nil {
 		return err
 	}
 
-	netAddrIP := na.IP
-	addrLen := len(netAddrIP)
+	encodedAddr := na.EncodedAddr
+	addrLen := len(encodedAddr)
 
 	switch na.Type {
 	case IPv4Address:
@@ -146,40 +108,17 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) err
 			msg := fmt.Sprintf("invalid IPv4 address length: %d", addrLen)
 			return messageError(op, ErrInvalidMsg, msg)
 		}
-		var ip [4]byte
-		copy(ip[:], netAddrIP)
-		err = writeElement(w, ip)
-		if err != nil {
-			return err
-		}
 
 	case IPv6Address:
 		if addrLen != 16 {
 			msg := fmt.Sprintf("invalid IPv6 address length: %d", addrLen)
 			return messageError(op, ErrInvalidMsg, msg)
 		}
-		var ip [16]byte
-		copy(ip[:], net.IP(netAddrIP).To16())
-		err = writeElement(w, ip)
-		if err != nil {
-			return err
-		}
 
-	case TORv3Address:
-		if pver < TORv3Version {
-			msg := fmt.Sprintf("TORv3 addresses require protocol version %d "+
-				"or higher", TORv3Version)
-			return messageError(op, ErrMsgInvalidForPVer, msg)
-		}
-		if len(netAddrIP) != 32 {
-			msg := fmt.Sprintf("invalid TORv3 address length: %d", len(netAddrIP))
+	case TorV3Address:
+		if len(encodedAddr) != 32 {
+			msg := fmt.Sprintf("invalid TorV3 address length: %d", len(encodedAddr))
 			return messageError(op, ErrInvalidMsg, msg)
-		}
-		var ip [32]byte
-		copy(ip[:], netAddrIP)
-		err = writeElement(w, ip)
-		if err != nil {
-			return err
 		}
 
 	default:
@@ -188,7 +127,12 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) err
 		return messageError(op, ErrUnknownNetAddrType, msg)
 	}
 
-	return writeElement(w, na.Port)
+	_, err = w.Write(encodedAddr)
+	if err != nil {
+		return err
+	}
+
+	return writeElement(w, &na.Port)
 }
 
 // BtcDecode decodes r using the wire protocol encoding into the receiver.
@@ -209,9 +153,10 @@ func (msg *MsgAddrV2) BtcDecode(r io.Reader, pver uint32) error {
 		return err
 	}
 
+	// Require at least one address per message.
 	if count == 0 {
-		return messageError(op, ErrTooFewAddrs,
-			"no addresses for message [count 0, min 1]")
+		const msg = "no addresses for message [count 0, min 1]"
+		return messageError(op, ErrTooFewAddrs, msg)
 	}
 
 	// Limit to max addresses per message.
@@ -243,16 +188,18 @@ func (msg *MsgAddrV2) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
+	// Require at least one address per message.
 	count := len(msg.AddrList)
+	if count == 0 {
+		const msg = "no addresses for message [count 0, min 1]"
+		return messageError(op, ErrTooFewAddrs, msg)
+	}
+
+	// Limit to max addresses per message.
 	if count > MaxAddrPerV2Msg {
 		msg := fmt.Sprintf("too many addresses for message [count %v, max %v]",
 			count, MaxAddrPerV2Msg)
 		return messageError(op, ErrTooManyAddrs, msg)
-	}
-
-	if count == 0 {
-		return messageError(op, ErrTooFewAddrs,
-			"no addresses for message [count 0, min 1]")
 	}
 
 	err := WriteVarInt(w, pver, uint64(count))
@@ -260,8 +207,8 @@ func (msg *MsgAddrV2) BtcEncode(w io.Writer, pver uint32) error {
 		return err
 	}
 
-	for _, na := range msg.AddrList {
-		err = writeNetAddressV2(op, w, pver, na)
+	for i := range msg.AddrList {
+		err = writeNetAddressV2(op, w, pver, &msg.AddrList[i])
 		if err != nil {
 			return err
 		}
@@ -276,9 +223,9 @@ func (msg *MsgAddrV2) Command() string {
 	return CmdAddrV2
 }
 
-// maxNetAddressPayloadV2 returns the max payload size for an address manager
-// network address based on the protocol version.
-func maxNetAddressPayloadV2(pver uint32) uint32 {
+// maxNetAddressPayloadV2 returns the max payload size for a network address
+// based on the protocol version.
+func maxNetAddressPayloadV2() uint32 {
 	const (
 		timestampSize   = 8
 		servicesSize    = 8
@@ -286,13 +233,9 @@ func maxNetAddressPayloadV2(pver uint32) uint32 {
 		portSize        = 2
 	)
 
-	maxAddressSize := uint32(16) // IPv6 is 16 bytes
-	if pver >= TORv3Version {
-		maxAddressSize = 32
-	}
-
-	return timestampSize + servicesSize + addressTypeSize +
-		maxAddressSize + portSize
+	const maxAddressSize = 32 // TorV3 is a 32-byte pubkey
+	return timestampSize + servicesSize + addressTypeSize + maxAddressSize +
+		portSize
 }
 
 // MaxPayloadLength returns the maximum length the payload can be for the
@@ -302,13 +245,15 @@ func (msg *MsgAddrV2) MaxPayloadLength(pver uint32) uint32 {
 		return 0
 	}
 	return uint32(VarIntSerializeSize(MaxAddrPerV2Msg)) +
-		(MaxAddrPerV2Msg * maxNetAddressPayloadV2(pver))
+		(MaxAddrPerV2Msg * maxNetAddressPayloadV2())
 }
 
 // NewMsgAddrV2 returns a new wire addrv2 message that conforms to the
 // Message interface.  See MsgAddrV2 for details.
-func NewMsgAddrV2() *MsgAddrV2 {
-	return &MsgAddrV2{
-		AddrList: make([]NetAddressV2, 0, MaxAddrPerV2Msg),
-	}
+//
+// The provided slice is expected to have a minimum of one address and a maximum
+// of [MaxAddrPerV2Msg].  The message will fail to decode and encode if it does
+// not satisfy those requirements at the time of decoding and encoding.
+func NewMsgAddrV2(addrs []NetAddressV2) *MsgAddrV2 {
+	return &MsgAddrV2{addrs}
 }

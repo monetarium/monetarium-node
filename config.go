@@ -26,6 +26,7 @@ import (
 	"github.com/decred/go-socks/socks"
 	"github.com/decred/slog"
 	flags "github.com/jessevdk/go-flags"
+	"github.com/monetarium/monetarium-node/addrmgr"
 	"github.com/monetarium/monetarium-node/connmgr"
 	"github.com/monetarium/monetarium-node/database"
 	_ "github.com/monetarium/monetarium-node/database/ffldb"
@@ -171,6 +172,7 @@ type config struct {
 	DisableSeeders bool     `long:"noseeders" description:"Disable seeding for peer discovery"`
 	DisableDNSSeed bool     `long:"nodnsseed" description:"DEPRECATED: use --noseeders"`
 	ExternalIPs    []string `long:"externalip" description:"Add a public-facing IP to the list of local external IPs that mond will advertise to other peers"`
+	OnionAddr      string   `long:"onionaddr" description:"Advertise the given Tor v3 hidden service address (hostname or hostname:port) as this node's own address to onion peers.  Requires a running Tor hidden service forwarding to the listen port and may not be used together with --noonion"`
 	NoDiscoverIP   bool     `long:"nodiscoverip" description:"Disable automatic network address discovery of local external IPs"`
 	Upnp           bool     `long:"upnp" description:"Use UPnP to map our listening port outside of NAT"`
 
@@ -554,8 +556,11 @@ func parseNetworkInterfaces(cfg *config) error {
 		ipv6.Proxy = cfg.Proxy
 	}
 
-	// Set Onion interface state.
-	if v6Addrs > 0 && (cfg.Proxy != "" || cfg.OnionProxy != "") {
+	// Set Onion interface state.  The onion network is reachable either when
+	// listening on IPv6 through a Tor proxy, as before, or when the node
+	// explicitly serves a Tor hidden service via --onionaddr.
+	if (v6Addrs > 0 && (cfg.Proxy != "" || cfg.OnionProxy != "")) ||
+		cfg.OnionAddr != "" {
 		onion := &cfg.onionNetInfo
 		onion.Reachable = !cfg.DisableListen && !cfg.NoOnion
 		onion.Limited = v4Addrs == 0
@@ -1328,6 +1333,49 @@ func loadConfig(appName string) (*config, []string, error) {
 		cfg.onionlookup = func(a string) ([]net.IP, error) {
 			return nil, errors.New("tor has been disabled")
 		}
+	}
+
+	// The address of any Tor v3 hidden service this node serves is appended
+	// to the externally advertised addresses so that it is advertised through
+	// the same code path as --externalip.  That is safe since explicitly
+	// configuring the node's public address already disables automatic
+	// address discovery.
+	//
+	// The address is validated here so that a typo surfaces at startup
+	// instead of being silently dropped by the address manager later.
+	if cfg.OnionAddr != "" {
+		onionAddr := normalizeAddresses([]string{cfg.OnionAddr},
+			cfg.params.DefaultPort, 0)[0]
+		host, _, err := net.SplitHostPort(onionAddr)
+		if err != nil {
+			str := "%s: invalid onion address '%s': %w"
+			err := fmt.Errorf(str, funcName, cfg.OnionAddr, err)
+			return nil, nil, err
+		}
+
+		if !addrmgr.IsOnionHost(host) {
+			str := "%s: --onionaddr '%s' must be a Tor v3 onion hostname"
+			err := fmt.Errorf(str, funcName, cfg.OnionAddr)
+			return nil, nil, err
+		}
+		if _, err := addrmgr.DecodeOnionV3(host); err != nil {
+			str := "%s: --onionaddr '%s' is not a valid Tor v3 onion " +
+				"hostname: %v"
+			err := fmt.Errorf(str, funcName, cfg.OnionAddr, err)
+			return nil, nil, err
+		}
+		if cfg.NoOnion {
+			str := "%s: --onionaddr may not be used together with --noonion"
+			err := fmt.Errorf(str, funcName)
+			return nil, nil, err
+		}
+		if cfg.Proxy == "" && cfg.OnionProxy == "" {
+			mondLog.Warnf("--onionaddr set but no proxy configured; "+
+				"the node will advertise %s but cannot dial onion peers",
+				onionAddr)
+		}
+
+		cfg.ExternalIPs = append(cfg.ExternalIPs, onionAddr)
 	}
 
 	// Warn if old testnet directory is present.

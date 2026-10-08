@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2016-2024 The Decred developers
+// Copyright (c) 2016-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -30,7 +30,7 @@ import (
 
 const (
 	// MaxProtocolVersion is the max protocol version the peer supports.
-	MaxProtocolVersion = wire.TORv3Version
+	MaxProtocolVersion = wire.AddrV2Version
 
 	// outputBufferSize is the number of elements the output channels use.
 	outputBufferSize = 5000
@@ -886,10 +886,7 @@ func (p *Peer) PushAddrV2Msg(addresses []wire.NetAddressV2) []wire.NetAddressV2 
 		addrs = addrs[:wire.MaxAddrPerV2Msg]
 	}
 
-	msg := wire.NewMsgAddrV2()
-	msg.AddrList = addrs
-
-	p.QueueMessage(msg, nil)
+	p.QueueMessage(wire.NewMsgAddrV2(addrs), nil)
 	return addrs
 }
 
@@ -2065,14 +2062,14 @@ func (p *Peer) localVersionMsg() (*wire.MsgVersion, error) {
 	if p.cfg.Proxy != "" {
 		proxyaddress, _, err := net.SplitHostPort(p.cfg.Proxy)
 		// invalid proxy means poorly configured, be on the safe side.
-		if err != nil || net.IP(p.na.IP).String() == proxyaddress {
+		if err != nil || net.IP(p.na.EncodedAddr).String() == proxyaddress {
 			theirNA = wire.NewNetAddressIPPort(net.IP([]byte{0, 0, 0, 0}), 0,
 				peerNA.Services)
 		}
 	}
 	if theirNA == nil {
 		theirNA = wire.NewNetAddressTimestamp(peerNA.Timestamp, peerNA.Services,
-			peerNA.IP, peerNA.Port)
+			peerNA.EncodedAddr, peerNA.Port)
 	}
 
 	// Create a wire.NetAddress with only the services set to use as the

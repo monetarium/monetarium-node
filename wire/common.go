@@ -452,6 +452,9 @@ func writeElement(w io.Writer, element interface{}) error {
 		}
 		return nil
 
+	case *uint64Time:
+		return binarySerializer.PutUint64(w, littleEndian, uint64(time.Time(*e).Unix()))
+
 	case uint16:
 		err := binarySerializer.PutUint16(w, littleEndian, e)
 		if err != nil {
