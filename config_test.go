@@ -102,7 +102,7 @@ func TestAltDNSNamesWithArg(t *testing.T) {
 func TestOnionAddrConfig(t *testing.T) {
 	appName := filepath.Base(os.Args[0])
 	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
-	const wantExternal = "xtjxdav6eckeyyar6f2vutmbfdo4ygluxlcswlysnul4sqztjcesuiyd.onion"
+	const wantExternal = routableOnionAddr
 
 	tests := []struct {
 		name      string
