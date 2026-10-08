@@ -1353,15 +1353,15 @@ func loadConfig(appName string) (*config, []string, error) {
 			return nil, nil, err
 		}
 
-		if !addrmgr.IsOnionHost(host) {
+		if !strings.HasSuffix(strings.ToLower(host), ".onion") {
 			str := "%s: --onionaddr '%s' must be a Tor v3 onion hostname"
 			err := fmt.Errorf(str, funcName, cfg.OnionAddr)
 			return nil, nil, err
 		}
-		if _, err := addrmgr.DecodeOnionV3(host); err != nil {
+		if addrType, _ := addrmgr.EncodeHost(host); addrType != addrmgr.TorV3Address {
 			str := "%s: --onionaddr '%s' is not a valid Tor v3 onion " +
-				"hostname: %v"
-			err := fmt.Errorf(str, funcName, cfg.OnionAddr, err)
+				"hostname"
+			err := fmt.Errorf(str, funcName, cfg.OnionAddr)
 			return nil, nil, err
 		}
 		if cfg.NoOnion {

@@ -2252,11 +2252,11 @@ func (s *server) AnnounceIsCurrent() {
 		// Get address that best matches the remote peer and push it if it
 		// is routable.  pushAddrMsg filters addresses the peer already
 		// knows about.
-		remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+		remoteAddr := sp.NA()
 		addrTypeFilter := natfSupported(sp.ProtocolVersion())
 		lna := s.addrManager.GetBestLocalAddress(remoteAddr, addrTypeFilter)
 		if lna.IsRoutable() {
-			sp.pushAddrMsg([]*addrmgr.NetAddress{lna})
+			sp.pushAddrMsg(sp.ProtocolVersion(), []*addrmgr.NetAddress{lna})
 		}
 	})
 }
