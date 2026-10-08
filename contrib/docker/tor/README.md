@@ -14,11 +14,13 @@ in the network over Tor:
   Tor is enabled it requests the full-address listing, which includes onion
   addresses.
 - The node **announces its own hidden service address** (`--onionaddr`) to onion
-  peers via the `addr2` wire message.
+  peers via the `addrv2` wire message.
 
-The image builds the node from the **local source tree** (the build context)
-rather than from a published tag, so it works with the Tor v3 / ADDRV2 support
-before that support has been tagged and released.
+The image builds the node from the **local source tree** (the build context).
+Before building, merge the onion discovery and HTTPS seeder changes, publish
+their changed Go submodules, and bump the consuming module requirements.
+The Docker build disables workspace mode and resolves those published versions;
+it requires a node that supports `--onionaddr` and protocol version 14.
 
 ## Security Properties
 
@@ -106,6 +108,6 @@ the node binary (`monetarium-node`).
 - The hidden service private key lives under `$TOR_DATA_DIR/hidden_service`, so
   keeping the volume means the node keeps the **same onion address** across
   restarts.  Deleting the volume mints a new one.
-- The onion address is announced only to peers that negotiate the `addr2`
+- The onion address is announced only to peers that negotiate the `addrv2`
   message (pver >= 14); older peers never learn it.
 - The image contains only the node binary and Tor; `monctl` is not included.

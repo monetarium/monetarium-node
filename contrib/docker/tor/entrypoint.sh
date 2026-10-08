@@ -10,7 +10,7 @@ set -eu
 #   - --onion pointing at the local Tor SOCKS proxy so that .onion peers
 #     discovered from the HTTPS seeders can actually be dialed,
 #   - --onionaddr set to this container's own hidden service address so it is
-#     announced to onion peers via the addr2 message,
+#     announced to onion peers via the addrv2 message,
 #   - the HTTPS seeders enabled so the node discovers peers over clearnet and
 #     requests the full-address (onion included) listing since Tor is usable.
 ###############################################################################
@@ -25,7 +25,7 @@ TOR_DATA_DIR=${TOR_DATA_DIR:-"$MONETARIUM_DATA/tor"}
 TOR_SERVICE_DIR="$TOR_DATA_DIR/hidden_service"
 
 # P2P port that the hidden service forwards to.  Mainnet is 9508 and testnet
-# is 19508; combine MON_ONION_PORT with a --testnet argument accordingly.
+# is 19508; combine ONION_P2P_PORT with a --testnet argument accordingly.
 ONION_P2P_PORT=${ONION_P2P_PORT:-9508}
 
 # SOCKS port Tor listens on for onion dialing.
@@ -59,15 +59,15 @@ tor_pid=$!
 echo "Started tor (pid $tor_pid)"
 
 # Forward SIGTERM/SIGINT to the node and tor for a graceful shutdown.
+# shellcheck disable=SC2329 # Invoked by the signal trap.
 term_handler() {
-    rc=$?
     if [ -n "${node_pid:-}" ]; then
         kill -TERM "$node_pid" 2>/dev/null || true
     fi
     if [ -n "${tor_pid:-}" ]; then
         kill -TERM "$tor_pid" 2>/dev/null || true
     fi
-    exit "$rc"
+    exit 143
 }
 trap term_handler TERM INT
 
@@ -85,22 +85,19 @@ fi
 onion_host=$(tr -d ' \t\r\n' < "$TOR_SERVICE_DIR/hostname")
 echo "Hidden service ready: $onion_host:$ONION_P2P_PORT"
 
-# Build the node arguments and start the node.
-node_args() {
-    echo "--appdata=$MONETARIUM_DATA"
-    echo "--onion=127.0.0.1:$ONION_SOCKS_PORT"
-    echo "--onionaddr=$onion_host:$ONION_P2P_PORT"
-    if [ "${MON_NO_FILE_LOGGING:-true}" != "false" ]; then
-        echo "--nofilelogging"
-    fi
-}
-# shellcheck disable=SC2086
-monetarium-node $(node_args) "$@" &
+# Preserve argument boundaries, including data directories containing spaces.
+if [ "${MON_NO_FILE_LOGGING:-true}" != "false" ]; then
+    set -- --nofilelogging "$@"
+fi
+monetarium-node "--appdata=$MONETARIUM_DATA" \
+    "--onion=127.0.0.1:$ONION_SOCKS_PORT" \
+    "--onionaddr=$onion_host:$ONION_P2P_PORT" "$@" &
 node_pid=$!
 echo "Started monetarium-node (pid $node_pid)"
 
 # Wait for the node and stop tor once it exits.
-wait "$node_pid"
-rc=$?
+rc=0
+wait "$node_pid" || rc=$?
 kill -TERM "$tor_pid" 2>/dev/null || true
+wait "$tor_pid" || true
 exit "$rc"

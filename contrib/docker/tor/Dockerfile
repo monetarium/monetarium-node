@@ -12,14 +12,12 @@
 FROM golang@sha256:7772cb5322baa875edd74705556d08f0eeca7b9c4b5367754ce3f2f00041ccee AS builder
 RUN apk add --no-cache git ca-certificates
 
-# Build from the local source tree (the build context) so the in-tree replaces
-# of addrmgr, chaincfg, connmgr, peer, and wire resolve against this checkout.
-# This makes it possible to build a node that includes the Tor v3 (addr2)
-# support before it has been tagged and published.
+# Build from a source tree whose module requirements reference published
+# addrv2/Tor v3 and HTTPS seeder releases.  See README.md for prerequisites.
 WORKDIR /src
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux \
+RUN GOWORK=off CGO_ENABLED=0 GOOS=linux \
     go build -trimpath -tags safe,netgo,timetzdata \
       -ldflags="-s -w" \
       -o /out/monetarium-node .
