@@ -6,10 +6,13 @@ package indexers
 
 import (
 	"bytes"
+	"math/big"
 	"testing"
+	"time"
 
 	"github.com/monetarium/monetarium-node/chaincfg/chainhash"
 	"github.com/monetarium/monetarium-node/cointype"
+	"github.com/monetarium/monetarium-node/database"
 	"github.com/monetarium/monetarium-node/txscript"
 	"github.com/monetarium/monetarium-node/wire"
 )
@@ -411,4 +414,98 @@ func newHashFromStr(hexStr string) *chainhash.Hash {
 		panic(err)
 	}
 	return hash
+}
+
+// flushingTestChain is a test chain whose UTXO lookups flush the database the
+// same way block processing does when the UTXO cache is flushed while the
+// chain lock is held.
+type flushingTestChain struct {
+	*testChain
+	t       *testing.T
+	db      database.DB
+	unspent map[wire.OutPoint]*big.Int
+}
+
+// FetchUtxoEntrySKADetails flushes the database before returning the mocked
+// UTXO details.  The flush waits for all open database transactions, so it
+// can't complete when the caller holds one.
+func (tc *flushingTestChain) FetchUtxoEntrySKADetails(outpoint wire.OutPoint) (*big.Int, int64, uint32, bool, error) {
+	done := make(chan error, 1)
+	go func() { done <- tc.db.Flush() }()
+	select {
+	case err := <-done:
+		if err != nil {
+			tc.t.Errorf("unexpected flush error: %v", err)
+		}
+	case <-time.After(time.Second):
+		tc.t.Errorf("database flush blocked by a transaction open during " +
+			"a UTXO lookup")
+	}
+
+	amount, ok := tc.unspent[outpoint]
+	if !ok {
+		return nil, 0, 0, true, nil
+	}
+	return amount, 100, 1, false, nil
+}
+
+// TestSSFeeIndexLookupUTXOLockOrder ensures LookupUTXO does not query the
+// chain while it holds a database transaction, since that inverts the lock
+// order used by block processing and can deadlock the node.
+func TestSSFeeIndexLookupUTXOLockOrder(t *testing.T) {
+	db := setupDB(t)
+	chain, err := newTestChain()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	hash160 := bytes.Repeat([]byte{0x11}, 20)
+	coinType := cointype.CoinType(1)
+	spentOp := wire.OutPoint{Hash: chainhash.Hash{0x01}, Index: 0}
+	unspentOp := wire.OutPoint{Hash: chainhash.Hash{0x02}, Index: 1}
+	unspentAmount := new(big.Int).Exp(big.NewInt(10), big.NewInt(20), nil)
+
+	err = db.Update(func(dbTx database.Tx) error {
+		bucket, err := dbTx.Metadata().CreateBucketIfNotExists(ssfeeIndexKey)
+		if err != nil {
+			return err
+		}
+		key, err := makeSSFeeIndexKey(ssfeeTypeStaker, coinType, hash160)
+		if err != nil {
+			return err
+		}
+		return bucket.Put(key, serializeOutPoints([]wire.OutPoint{spentOp, unspentOp}))
+	})
+	if err != nil {
+		t.Fatalf("failed to populate ssfee index: %v", err)
+	}
+
+	idx := &SSFeeIndex{
+		db: db,
+		chain: &flushingTestChain{
+			testChain: chain,
+			t:         t,
+			db:        db,
+			unspent:   map[wire.OutPoint]*big.Int{unspentOp: unspentAmount},
+		},
+	}
+
+	op, value, height, index, err := idx.LookupUTXO(false, coinType, hash160)
+	if err != nil {
+		t.Fatalf("unexpected lookup error: %v", err)
+	}
+	if op == nil || *op != unspentOp {
+		t.Fatalf("unexpected outpoint: got %v, want %v", op, unspentOp)
+	}
+	if value.Cmp(unspentAmount) != 0 || height != 100 || index != 1 {
+		t.Fatalf("unexpected UTXO details: value=%v height=%d index=%d",
+			value, height, index)
+	}
+
+	// The miner key has no entries, so no UTXO is returned.
+	op, value, _, _, err = idx.LookupUTXO(true, coinType, hash160)
+	if err != nil || op != nil || value != nil {
+		t.Fatalf("unexpected miner lookup result: op=%v value=%v err=%v",
+			op, value, err)
+	}
 }
