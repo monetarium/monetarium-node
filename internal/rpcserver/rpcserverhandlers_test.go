@@ -4602,7 +4602,7 @@ func TestHandleGetInfo(t *testing.T) {
 		result: &types.InfoChainResult{
 			Version: int32(1000000*version.Major + 10000*version.Minor +
 				100*version.Patch),
-			ProtocolVersion: int32(wire.SKABigIntVersion),
+			ProtocolVersion: int32(wire.ProtocolVersion),
 			Blocks:          int64(block432100.Header.Height),
 			TimeOffset:      int64(0),
 			Connections:     int32(4),
@@ -4788,7 +4788,7 @@ func TestHandleGetNetworkInfo(t *testing.T) {
 				100*version.Patch),
 			SubVersion: fmt.Sprintf("%d.%d.%d", version.Major, version.Minor,
 				version.Patch),
-			ProtocolVersion: int32(wire.SKABigIntVersion),
+			ProtocolVersion: int32(wire.ProtocolVersion),
 			TimeOffset:      int64(0),
 			Connections:     int32(4),
 			Networks: []types.NetworksResult{{

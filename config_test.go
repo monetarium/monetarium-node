@@ -32,6 +32,11 @@ func TestMain(m *testing.M) {
 //
 // These args and env variables will then get parsed during configuration load.
 
+// routableOnionAddr is a live Tor v3 onion hostname whose checksum is valid.
+// It must decode, so it also guards the checksum computation during config
+// loading.
+const routableOnionAddr = "xtjxdav6eckeyyar6f2vutmbfdo4ygluxlcswlysnul4sqztjcesuiyd.onion"
+
 // TestLoadConfig ensures that basic configuration loading succeeds.
 func TestLoadConfig(t *testing.T) {
 	appName := filepath.Base(os.Args[0])
@@ -90,4 +95,67 @@ func TestAltDNSNamesWithArg(t *testing.T) {
 			hostnames)
 	}
 	os.Args = old
+}
+
+// TestOnionAddrConfig ensures the --onionaddr option is validated up front.
+func TestOnionAddrConfig(t *testing.T) {
+	appName := filepath.Base(os.Args[0])
+	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
+	const wantExternal = routableOnionAddr
+
+	tests := []struct {
+		name      string
+		args      []string
+		wantErr   bool
+		wantAddr  string
+		wantOnion bool
+	}{{
+		name:      "valid onion address with port",
+		args:      []string{"--onionaddr=" + wantExternal + ":9508"},
+		wantAddr:  wantExternal + ":9508",
+		wantOnion: true,
+	}, {
+		name:      "valid onion address without port uses the default",
+		args:      []string{"--onionaddr=" + wantExternal},
+		wantAddr:  wantExternal + ":9508",
+		wantOnion: true,
+	}, {
+		name:    "hostname without onion suffix",
+		args:    []string{"--onionaddr=www.example.com:9508"},
+		wantErr: true,
+	}, {
+		name:    "onion hostname with a bad checksum",
+		args:    []string{"--onionaddr=zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz.onion:9508"},
+		wantErr: true,
+	}, {
+		name:    "onion address combined with noonion",
+		args:    []string{"--onionaddr=" + wantExternal + ":9508", "--noonion"},
+		wantErr: true,
+	}}
+
+	for i, test := range tests {
+		oldArgs := os.Args
+		os.Args = append(os.Args, test.args...)
+		cfg, _, err := loadConfig(appName)
+		os.Args = oldArgs
+
+		if test.wantErr {
+			if err == nil {
+				t.Errorf("test %d %q: expected an error, got nil", i, test.name)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("test %d %q: unexpected error: %v", i, test.name, err)
+			continue
+		}
+		if cfg.OnionAddr != test.wantAddr {
+			t.Errorf("test %d %q: unexpected onion address -- got %q, want %q",
+				i, test.name, cfg.OnionAddr, test.wantAddr)
+		}
+		if test.wantOnion && !cfg.onionNetInfo.Reachable {
+			t.Errorf("test %d %q: expected onion network to be reachable", i,
+				test.name)
+		}
+	}
 }

@@ -922,13 +922,14 @@ func (m *SyncManager) handleMixMsg(mmsg *mixMsg) error {
 }
 
 // maybeUpdateIsCurrent potentially updates the manager to signal it believes
-// the chain is considered synced.
+// the chain is considered synced.  It returns whether the manager transitioned
+// from not current to current.
 //
 // This function MUST be called with the is current mutex held (for writes).
-func (m *SyncManager) maybeUpdateIsCurrent() {
+func (m *SyncManager) maybeUpdateIsCurrent() bool {
 	// Nothing to do when already considered synced.
 	if m.isCurrent {
-		return
+		return false
 	}
 
 	// The chain is considered synced once both the blockchain believes it is
@@ -937,7 +938,27 @@ func (m *SyncManager) maybeUpdateIsCurrent() {
 	syncHeight := m.SyncHeight()
 	if best.Height >= syncHeight && m.cfg.Chain.IsCurrent() {
 		m.isCurrent = true
+		return true
 	}
+	return false
+}
+
+// updateIsCurrent potentially updates the manager to signal it believes the
+// chain is considered synced, notifies the peer notifier whenever the manager
+// transitions from not current to current, and returns whether or not the
+// manager believes the chain is current.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) updateIsCurrent() bool {
+	m.isCurrentMtx.Lock()
+	becameCurrent := m.maybeUpdateIsCurrent()
+	isCurrent := m.isCurrent
+	m.isCurrentMtx.Unlock()
+
+	if becameCurrent {
+		m.cfg.PeerNotifier.AnnounceIsCurrent()
+	}
+	return isCurrent
 }
 
 // maybeUpdateBestAnnouncedBlock potentially updates the block with the most
@@ -1015,9 +1036,7 @@ func (m *SyncManager) processBlock(block *dcrutil.Block) (int64, error) {
 		m.syncHeightMtx.Unlock()
 	}
 
-	m.isCurrentMtx.Lock()
-	m.maybeUpdateIsCurrent()
-	m.isCurrentMtx.Unlock()
+	m.updateIsCurrent()
 
 	return forkLen, nil
 }
@@ -1090,9 +1109,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 			m.syncHeight = newBestHeaderHeight
 			m.syncHeightMtx.Unlock()
 
-			m.isCurrentMtx.Lock()
-			m.maybeUpdateIsCurrent()
-			m.isCurrentMtx.Unlock()
+			m.updateIsCurrent()
 
 			for peer := range m.peers {
 				if peer.syncCandidate {
@@ -2099,11 +2116,7 @@ func (m *SyncManager) ProcessBlock(block *dcrutil.Block) error {
 //
 // This function is safe for concurrent access.
 func (m *SyncManager) IsCurrent() bool {
-	m.isCurrentMtx.Lock()
-	m.maybeUpdateIsCurrent()
-	isCurrent := m.isCurrent
-	m.isCurrentMtx.Unlock()
-	return isCurrent
+	return m.updateIsCurrent()
 }
 
 // Run starts the sync manager and all other goroutines necessary for it to

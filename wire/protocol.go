@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,7 +17,7 @@ const (
 	InitialProcotolVersion uint32 = 1
 
 	// ProtocolVersion is the latest protocol version this package supports.
-	ProtocolVersion uint32 = 13
+	ProtocolVersion uint32 = 14
 
 	// NodeBloomVersion is the protocol version which added the SFNodeBloom
 	// service flag (unused).
@@ -70,6 +70,9 @@ const (
 	//   VAR: [CoinType:1][Value:8 bytes][Version:2][PkScript:var]
 	//   SKA: [CoinType:1][ValLen:1][Value:N bytes][Version:2][PkScript:var]
 	SKABigIntVersion uint32 = 13
+
+	// AddrV2Version is the protocol version which adds the addrv2 message.
+	AddrV2Version uint32 = 14
 )
 
 // ServiceFlag identifies services supported by a Decred peer.
