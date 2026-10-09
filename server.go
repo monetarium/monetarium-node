@@ -3466,15 +3466,28 @@ func (s *server) rebroadcastHandler(ctx context.Context) {
 // the required services and adds the discovered peers to the address manager.
 // Each seeder is contacted in a separate goroutine.
 func (s *server) querySeeders(ctx context.Context) {
-	// Add peers discovered through DNS to the address manager.
+	// Add peers discovered through the HTTPS seeders to the address manager.
 	seeders := s.chainParams.Seeders()
 	errs := make(chan error, len(seeders))
+
+	// The seeders omit every address that is not an IP address unless the full
+	// set is explicitly requested, so onion addresses are only ever discovered
+	// when this node is actually able to reach them via Tor.  Requesting them
+	// unconditionally would just hand every clearnet-only node a set of peers
+	// it can never dial, which burns attempt counters in the address manager.
+	filters := []func(f *connmgr.HttpsSeederFilters){
+		connmgr.SeedFilterServices(defaultRequiredServices),
+	}
+	torEnabled := !cfg.NoOnion && (cfg.OnionProxy != "" || cfg.Proxy != "")
+	if torEnabled {
+		filters = append(filters, connmgr.SeedFilterFull())
+	}
+
 	seed := func(seeder string) {
 		ctx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
 
-		addrs, err := connmgr.SeedAddrs(ctx, seeder, mondDial,
-			connmgr.SeedFilterServices(defaultRequiredServices))
+		addrs, err := connmgr.SeedAddrs(ctx, seeder, mondDial, filters...)
 		if err != nil {
 			srvrLog.Infof("seeder '%s' error: %v", seeder, err)
 			errs <- err
@@ -3487,18 +3500,25 @@ func (s *server) querySeeders(ctx context.Context) {
 			return
 		}
 
+		converted, err := seedWireToAddrmgrNetAddressesV2(addrs)
+		if err != nil || len(converted) == 0 {
+			srvrLog.Infof("seeder '%s' returned no usable addresses: %v",
+				seeder, err)
+			errs <- err
+			return
+		}
+
 		// Lookup the IP of the https seeder to use as the source of the
 		// seeded addresses.  In the incredibly rare event that the lookup
 		// fails after it just succeeded, fall back to using the first
 		// returned address as the source.
-		srcAddr := wireToAddrmgrNetAddress(addrs[0])
+		srcAddr := converted[0]
 		srcIPs, err := mondLookup(seeder)
 		if err == nil && len(srcIPs) > 0 {
 			const httpsPort = 443
 			srcAddr = addrmgr.NewNetAddressFromIPPort(srcIPs[0], httpsPort, 0)
 		}
-		addresses := wireToAddrmgrNetAddresses(addrs)
-		s.addrManager.AddAddresses(addresses, srcAddr)
+		s.addrManager.AddAddresses(converted, srcAddr)
 		errs <- nil
 	}
 
@@ -3525,6 +3545,43 @@ func (s *server) querySeeders(ctx context.Context) {
 		if backoff < 10*time.Second {
 			backoff += time.Second
 		}
+	}
+}
+
+// seedWireToAddrmgrNetAddressesV2 converts seeder addrv2 entries individually.
+// Invalid entries are skipped so one malformed response entry does not discard
+// all usable peers returned by the seeder.
+func seedWireToAddrmgrNetAddressesV2(netAddrs []wire.NetAddressV2) ([]*addrmgr.NetAddress, error) {
+	converted := make([]*addrmgr.NetAddress, 0, len(netAddrs))
+	for i := range netAddrs {
+		wireAddr := &netAddrs[i]
+		addrType := seedWireToAddrmgrNetAddressType(wireAddr.Type)
+		addr, err := addrmgr.NewNetAddressFromParams(addrType,
+			wireAddr.EncodedAddr, wireAddr.Port, wireAddr.Timestamp,
+			wireAddr.Services)
+		if err != nil {
+			srvrLog.Debugf("Skipping invalid v2 address from seeder: type=%d port=%d: %v",
+				wireAddr.Type, wireAddr.Port, err)
+			continue
+		}
+		converted = append(converted, addr)
+	}
+	if len(converted) == 0 && len(netAddrs) > 0 {
+		return nil, fmt.Errorf("no usable v2 addresses")
+	}
+	return converted, nil
+}
+
+func seedWireToAddrmgrNetAddressType(addrType wire.NetAddressType) addrmgr.NetAddressType {
+	switch addrType {
+	case wire.IPv4Address:
+		return addrmgr.IPv4Address
+	case wire.IPv6Address:
+		return addrmgr.IPv6Address
+	case wire.TorV3Address:
+		return addrmgr.TorV3Address
+	default:
+		return addrmgr.UnknownAddressType
 	}
 }
 

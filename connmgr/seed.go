@@ -7,16 +7,20 @@ package connmgr
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/monetarium/monetarium-node/crypto/rand"
 	"github.com/monetarium/monetarium-node/wire"
+	"golang.org/x/crypto/sha3"
 )
 
 const (
@@ -29,9 +33,10 @@ const (
 // DialFunc is the signature of the Dialer function.
 type DialFunc func(context.Context, string, string) (net.Conn, error)
 
-// HttpsSeederFilters houses filter parameters for use when making a request to
-// an HTTPS seeder.  It can be configured via the various exported functions
-// that start with the prefix SeedFilter.
+// HttpsSeederFilters houses the parameters for use when making a request to an
+// HTTPS seeder.  Most of them are configured as query parameter filters via the
+// various exported functions that start with the prefix SeedFilter.  It also
+// carries the optional TLS configuration provided via SeedTLSConfig.
 type HttpsSeederFilters struct {
 	ipVersion    uint16
 	hasIPVersion bool
@@ -39,6 +44,8 @@ type HttpsSeederFilters struct {
 	hasPver      bool
 	services     wire.ServiceFlag
 	hasServices  bool
+	full         bool
+	tlsConfig    *tls.Config
 }
 
 // SeedFilterIPVersion configures a request to an HTTPS seeder to filter all
@@ -73,6 +80,28 @@ func SeedFilterServices(services wire.ServiceFlag) func(f *HttpsSeederFilters) {
 	}
 }
 
+// SeedFilterFull configures a request to an HTTPS seeder to return the full
+// set of good peers instead of the reduced set the seeder returns by default.
+//
+// The reduced default omits every address that is not an IP address, which
+// means Tor onion addresses are only ever reported when this filter is set.
+// The HTTPS seeder may choose to ignore this request.
+func SeedFilterFull() func(f *HttpsSeederFilters) {
+	return func(f *HttpsSeederFilters) {
+		f.full = true
+	}
+}
+
+// SeedTLSConfig configures a custom TLS configuration for the HTTPS request to
+// the seeder.  It does not affect the request query parameters and exists
+// primarily for callers that need to trust a custom certificate authority, such
+// as tests.  When it is not set, the system defaults are used.
+func SeedTLSConfig(config *tls.Config) func(f *HttpsSeederFilters) {
+	return func(f *HttpsSeederFilters) {
+		f.tlsConfig = config
+	}
+}
+
 // node defines a single JSON object returned by the https seeders.
 type node struct {
 	Host            string `json:"host"`
@@ -92,7 +121,7 @@ type node struct {
 // The available filters can be set via the exported functions that start with
 // the prefix SeedFilter.  See the documentation for each function for more
 // details.
-func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...func(f *HttpsSeederFilters)) ([]*wire.NetAddress, error) {
+func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...func(f *HttpsSeederFilters)) ([]wire.NetAddressV2, error) {
 	// Set any caller provided filters.
 	var seederFilters HttpsSeederFilters
 	for _, f := range filters {
@@ -121,12 +150,16 @@ func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...f
 		servicesStr := strconv.FormatUint(uint64(seederFilters.services), 10)
 		queryParams.Add("services", servicesStr)
 	}
+	if seederFilters.full {
+		queryParams.Add("full", "1")
+	}
 	req.URL.RawQuery = queryParams.Encode()
 
 	// Make the request.
 	client := &http.Client{
 		Transport: &http.Transport{
-			DialContext: dialFn,
+			DialContext:     dialFn,
+			TLSClientConfig: seederFilters.tlsConfig,
 		},
 	}
 	resp, err := client.Do(req)
@@ -163,7 +196,7 @@ func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...f
 	}
 
 	// Convert the response to net addresses.
-	addrs := make([]*wire.NetAddress, 0, len(nodes))
+	addrs := make([]wire.NetAddressV2, 0, len(nodes))
 	for _, node := range nodes {
 		host, portStr, err := net.SplitHostPort(node.Host)
 		if err != nil {
@@ -175,19 +208,27 @@ func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...f
 			log.Warnf("seeder returned invalid port %q", node.Host)
 			continue
 		}
-		ip := net.ParseIP(host)
-		if ip == nil {
-			log.Warnf("seeder returned a hostname that is not an IP address %q",
-				host)
-			continue
-		}
-
 		// Set the timestamp to a value randomly selected between 3 and 7 days
 		// ago in order to improve the ranking of peers discovered from seeders
 		// since they are a more authoritative source than other random peers.
 		ts := time.Now().Add(-1 * (duration3Days + rand.Duration(duration4Days)))
-		na := wire.NewNetAddressTimestamp(ts, wire.ServiceFlag(node.Services),
-			ip, uint16(port))
+		services := wire.ServiceFlag(node.Services)
+		addrType, addrBytes := encodeSeedHost(host)
+		var na wire.NetAddressV2
+		switch addrType {
+		case wire.IPv4Address:
+			na = wire.NewNetAddressV2(wire.IPv4Address, addrBytes,
+				uint16(port), ts, services)
+		case wire.IPv6Address:
+			na = wire.NewNetAddressV2(wire.IPv6Address, addrBytes,
+				uint16(port), ts, services)
+		case wire.TorV3Address:
+			na = wire.NewNetAddressV2(wire.TorV3Address, addrBytes,
+				uint16(port), ts, services)
+		default:
+			log.Warnf("seeder returned an unsupported hostname %q", host)
+			continue
+		}
 		addrs = append(addrs, na)
 	}
 
@@ -199,4 +240,28 @@ func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...f
 	}
 
 	return addrs, nil
+}
+
+func encodeSeedHost(host string) (wire.NetAddressType, []byte) {
+	if len(host) == 62 && strings.HasSuffix(host, ".onion") {
+		payload, err := base32.StdEncoding.WithPadding(base32.NoPadding).
+			DecodeString(strings.ToUpper(host[:56]))
+		if err == nil && len(payload) == 35 && payload[34] == 3 {
+			input := append([]byte(".onion checksum"), payload[:32]...)
+			input = append(input, 3)
+			digest := sha3.Sum256(input)
+			if string(payload[32:34]) == string(digest[:2]) {
+				return wire.TorV3Address, payload[:32]
+			}
+		}
+	}
+
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return wire.UnknownAddressType, nil
+	}
+	if ipv4 := ip.To4(); ipv4 != nil {
+		return wire.IPv4Address, ipv4
+	}
+	return wire.IPv6Address, ip.To16()
 }
