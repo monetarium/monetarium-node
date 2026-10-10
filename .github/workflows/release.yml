@@ -59,8 +59,27 @@ jobs:
           name: monetarium-node-${{ matrix.goos }}-${{ matrix.goarch }}
           path: monetarium-node-*
 
+  # The build job uses a go.work, which hides go.mod files that still point at
+  # old submodule versions. Install the tag the way users do to catch that.
+  verify-module:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Install tagged module outside any workspace
+        env:
+          GOWORK: 'off'
+          GOPRIVATE: github.com/monetarium
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          cd "$(mktemp -d)"
+          GOBIN="$PWD/bin" go install "github.com/monetarium/monetarium-node@${TAG}"
+
   release:
-    needs: build
+    needs: [build, verify-module]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
