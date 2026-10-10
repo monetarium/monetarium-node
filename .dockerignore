@@ -1,7 +1,3 @@
 *~
 vendor
 Dockerfile*
-.git/
-go.work
-go.work.sum
-monetarium-node
