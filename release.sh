@@ -7,8 +7,8 @@
 #
 # Steps:
 #   node:    bump all internal requires + internal/version to vX.Y.Z, build,
-#            test, commit, tag every module + root, push main and tags in one
-#            atomic push, verify `go install` from outside the workspace, then
+#            test, commit, tag every module + root, push main and submodule
+#            tags in one atomic push, then the root tag on its own, verify `go install` from outside the workspace, then
 #            commit the post-tag `go mod tidy` (go.sum can only be filled once
 #            the tags exist).
 #   wallet,  bump monetarium-node requires, tidy, set version constants, build
@@ -128,15 +128,23 @@ bump_requires() {
 	perl -pi -e 's{(\Q'"$NODE_MOD"'\E(?:/[\w./-]+)?) v\d+\.\d+\.\d+(?=\s|$)}{$1 '"$VERSION"'}g' "$@"
 }
 
-# Create an annotated tag at HEAD unless it already exists there.
-tag_head() {
-	local dir=$1 tag=$2 at
+# Create an annotated tag at the given commit (default HEAD) unless it already
+# exists there.
+tag_commit() {
+	local dir=$1 tag=$2 commit at
+	commit=$(git -C "$dir" rev-parse "${3:-HEAD}^{commit}")
 	if at=$(git -C "$dir" rev-parse -q --verify "refs/tags/$tag^{commit}"); then
-		[ "$at" = "$(git -C "$dir" rev-parse HEAD)" ] ||
-			die "$dir: local tag $tag exists but not at HEAD; delete it (git tag -d $tag) and rerun"
+		[ "$at" = "$commit" ] ||
+			die "$dir: local tag $tag exists at another commit; delete it (git tag -d $tag) and rerun"
 		return
 	fi
-	git -C "$dir" tag -a "$tag" -m "$TAG_MSG"
+	git -C "$dir" tag -a "$tag" -m "$TAG_MSG" "$commit"
+}
+
+remote_has_tag() {
+	local refs
+	refs=$("${GIT[@]}" -C "$1" ls-remote --tags --refs origin "refs/tags/$2") || exit 1
+	[ -n "$refs" ]
 }
 
 # Make sure the repo is on a clean main that matches origin, apart from commits
@@ -172,7 +180,10 @@ preflight() {
 	local expected count
 	expected=$(node_modules | wc -l | tr -d ' ')
 	count=$(remote_tag_count "$NODE_DIR")
-	if [ "$count" -ne 0 ] && [ "$count" -ne "$expected" ]; then
+	# expected-1 without the root tag: a previous run pushed the submodule
+	# tags but not the root tag yet, which is resumable.
+	if [ "$count" -ne 0 ] && [ "$count" -ne "$expected" ] &&
+		! { [ "$count" -eq $((expected - 1)) ] && ! remote_has_tag "$NODE_DIR" "$VERSION"; }; then
 		die "monetarium-node has $count of $expected $VERSION tags on origin (partial release); pick a newer version"
 	fi
 	if [ "$count" -eq 0 ]; then
@@ -184,6 +195,17 @@ preflight() {
 	fi
 }
 
+# Push the root tag on its own: GitHub creates no push events (so release.yml
+# never runs) when more than three tags are pushed at once.
+push_node_root_tag() {
+	local count
+	log "node: pushing $VERSION"
+	"${GIT[@]}" -C "$NODE_DIR" push origin "refs/tags/$VERSION"
+	count=$(remote_tag_count "$NODE_DIR")
+	[ "$count" -eq "$1" ] ||
+		die "node: expected $1 $VERSION tags on origin, found $count"
+}
+
 release_node() {
 	local expected count mod tags=()
 	expected=$(node_modules | wc -l | tr -d ' ')
@@ -192,6 +214,10 @@ release_node() {
 
 	if [ "$count" -eq "$expected" ]; then
 		log "node: $VERSION already tagged on origin, skipping to verification"
+	elif [ "$count" -eq $((expected - 1)) ]; then
+		log "node: submodule tags already on origin, pushing the root tag"
+		tag_commit "$NODE_DIR" "$VERSION" "$(node_tag_name chaincfg)"
+		push_node_root_tag "$expected"
 	else
 		if [ "$(git log -1 --format=%s)" != "$NODE_BUMP_MSG" ]; then
 			log "node: bumping internal deps and version to $VERSION"
@@ -216,17 +242,14 @@ release_node() {
 		fi
 
 		while read -r mod; do
-			tag_head "$NODE_DIR" "$(node_tag_name "$mod")"
-			tags+=("refs/tags/$(node_tag_name "$mod")")
+			tag_commit "$NODE_DIR" "$(node_tag_name "$mod")"
+			[ "$mod" = . ] || tags+=("refs/tags/$(node_tag_name "$mod")")
 		done <<<"$(node_modules)"
 
-		confirm "Push node main + ${#tags[@]} $VERSION tags to origin?"
-		log "node: pushing main and ${#tags[@]} tags"
+		confirm "Push node main + $expected $VERSION tags to origin?"
+		log "node: pushing main and ${#tags[@]} submodule tags"
 		"${GIT[@]}" push --atomic origin main "${tags[@]}"
-
-		count=$(remote_tag_count "$NODE_DIR")
-		[ "$count" -eq "$expected" ] ||
-			die "node: expected $expected $VERSION tags on origin, found $count"
+		push_node_root_tag "$expected"
 	fi
 
 	log "node: verifying go install $NODE_MOD@$VERSION outside the workspace"
@@ -294,7 +317,7 @@ release_downstream() {
 		git commit --quiet -m "$DOWNSTREAM_MSG"
 	fi
 
-	tag_head "$dir" "$VERSION"
+	tag_commit "$dir" "$VERSION"
 	confirm "Push $name main + $VERSION tag to origin?"
 	log "$name: pushing main and $VERSION"
 	"${GIT[@]}" push --atomic origin main "refs/tags/$VERSION"
