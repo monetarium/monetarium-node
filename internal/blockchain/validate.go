@@ -507,7 +507,7 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 		} else {
 			// Augmented SSFee: fraud proof must be non-null
 			// Actual fraud proof validation (checking it matches the UTXO) happens later
-			// in validateSSFeeTxns() where the UTXO viewpoint is available
+			// in CheckTransactionInputs() where the UTXO viewpoint is available
 			if isNullFraudProof(tx.TxIn[0]) {
 				str := "SSFee transaction with real input has null fraud proof"
 				return ruleError(ErrBadTxInput, str)
@@ -515,7 +515,8 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 		}
 
 		// SignatureScript length must be zero for both null and real inputs.
-		// SSFee outputs are anyone-can-spend, so no signature is needed.
+		// No signature is needed: CheckTransactionInputs requires a real input
+		// to spend an SSFee output and the transaction to pay back to its script.
 		slen := len(tx.TxIn[0].SignatureScript)
 		if slen != 0 {
 			str := fmt.Sprintf("SSFee transaction script length is not "+
@@ -523,8 +524,17 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 			return ruleError(ErrBadTxInput, str)
 		}
 
-		// Additional validation (UTXO existence, coin type matching, etc.)
-		// happens in validateSSFeeTxns() where the UTXO viewpoint is available.
+		// An output of a transaction with an expiry needs coinbase maturity,
+		// so an SSFee that augments the output of another owner could
+		// otherwise keep the owner from spending it.
+		if tx.Expiry != wire.NoExpiryValue {
+			str := fmt.Sprintf("SSFee transaction has expiry %d", tx.Expiry)
+			return ruleError(ErrSSFeeExpiry, str)
+		}
+
+		// Additional validation of a real input (UTXO existence, the type and
+		// script of the spent output) happens in CheckTransactionInputs() where
+		// the UTXO viewpoint is available.
 
 	case isVote:
 		// Check script length of stake base signature.
@@ -2534,9 +2544,9 @@ func (b *BlockChain) validateBlockSpaceAllocation(block *dcrutil.Block, maxBlock
 	return nil
 }
 
-// getSSFeeType extracts the type of SSFee transaction from its OP_RETURN output.
+// SSFeeType extracts the type of SSFee transaction from its OP_RETURN output.
 // Returns "SF" for staker fees, "MF" for miner fees, or an error if not found.
-func getSSFeeType(tx *wire.MsgTx) (string, error) {
+func SSFeeType(tx *wire.MsgTx) (string, error) {
 	for _, out := range tx.TxOut {
 		markerType := stake.HasSSFeeMarker(out.PkScript)
 		switch markerType {
@@ -2547,6 +2557,55 @@ func getSSFeeType(tx *wire.MsgTx) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("SSFee transaction missing valid OP_RETURN marker (SF or MF)")
+}
+
+// spentSSFeeType returns the type (SF or MF) of the SSFee transaction that
+// created the output spent by the provided real SSFee input.  The fraud proof of
+// the input locates that transaction in the stake tree of the block at its
+// height on the branch that ends with the parent of the passed node.  The block
+// is read once per height and kept in srcBlocks, so augmented SSFee transactions
+// of one block that spend outputs of the same block do not read it again.
+//
+// NOTE: The fraud proof MUST have already been checked against the spent
+// output, which CheckTransactionInputs does for every input of a block being
+// connected, along with the rule that a stake transaction does not spend an
+// output of its own block, and the spent output MUST have been created by an
+// SSFee transaction.
+func (b *BlockChain) spentSSFeeType(node *blockNode, txIn *wire.TxIn,
+	srcBlocks map[int64]*dcrutil.Block) (string, error) {
+
+	height := int64(txIn.BlockHeight)
+	srcBlock := srcBlocks[height]
+	if srcBlock == nil {
+		srcNode := node.parent.Ancestor(height)
+		if srcNode == nil {
+			return "", AssertError(fmt.Sprintf("SSFee input %v refers to "+
+				"height %d which is not an ancestor of block %s (height %d)",
+				txIn.PreviousOutPoint, height, node.hash, node.height))
+		}
+		var err error
+		srcBlock, err = b.fetchBlockByNode(srcNode)
+		if err != nil {
+			return "", err
+		}
+		srcBlocks[height] = srcBlock
+	}
+
+	stxns := srcBlock.STransactions()
+	if int(txIn.BlockIndex) >= len(stxns) ||
+		*stxns[txIn.BlockIndex].Hash() != txIn.PreviousOutPoint.Hash {
+
+		return "", AssertError(fmt.Sprintf("SSFee input %v does not match "+
+			"stake transaction %d of block %s", txIn.PreviousOutPoint,
+			txIn.BlockIndex, srcBlock.Hash()))
+	}
+	feeType, err := SSFeeType(stxns[txIn.BlockIndex].MsgTx())
+	if err != nil {
+		return "", AssertError(fmt.Sprintf("SSFee input %v spends an output "+
+			"of a transaction without an SSFee marker: %v",
+			txIn.PreviousOutPoint, err))
+	}
+	return feeType, nil
 }
 
 // validateSSFeeTxns validates that SSFee transactions properly distribute
@@ -2569,11 +2628,15 @@ func getSSFeeType(tx *wire.MsgTx) (string, error) {
 // - Staker SSFee (SF) can distribute any coin type including VAR
 // - Staker SSFee (SF) pays the consolidation script of a voter
 // - Miner SSFee (MF) distributes non-VAR only (VAR miner fees go to coinbase)
+// - Miner SSFee (MF) distributes a positive miner fee for its coin type
 // - All coin types with staker fees have corresponding SSFee transactions
 // - All non-VAR coin types with miner fees have corresponding SSFee transactions
 //
-// Note: Null-input SSFee transactions skip script validation in checkBlockScripts.
-// Augmented SSFee transactions undergo normal script validation for their real inputs.
+// Note: All SSFee transactions skip script validation in checkBlockScripts since
+// their signature scripts must be empty.  CheckTransactionInputs checks the real
+// input of an augmented SSFee with checkAugmentedSSFeeInput, and this function
+// also requires the spent output to come from an SSFee transaction of the same
+// type (SF or MF).
 func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 	votes []*dcrutil.Tx, ssFeeTxns []*wire.MsgTx, totalFees wire.FeesByType, subsidySplitVariant standalone.SubsidySplitVariant) error {
 
@@ -2586,12 +2649,12 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 	// In Monetarium, consolidation addresses are mandatory from genesis - all votes
 	// must include a consolidation address output. We extract for all votes to validate
 	// that batched SSFees correctly group voters by consolidation address.
-	voterConsolidation := make(map[int][]byte) // voterIdx → hash160
+	voterConsolidation := make(map[int][]byte) // voterIdx → consolidation script
 	voterStakes := make(map[int]int64)         // voterIdx → stake amount
 	totalVoterStake := int64(0)
 
 	for i, vote := range votes {
-		hash160, err := stake.ExtractSSFeeConsolidationAddr(vote.MsgTx())
+		script, err := stake.ExtractSSFeeConsolidationScript(vote.MsgTx())
 		if err != nil {
 			// Consolidation addresses are mandatory in Monetarium from genesis.
 			// All votes must include a consolidation address output.
@@ -2599,7 +2662,7 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 				fmt.Sprintf("vote %d missing required consolidation address: %v",
 					i, err))
 		}
-		voterConsolidation[i] = hash160
+		voterConsolidation[i] = script
 
 		// Calculate voter stake from commitment outputs (indices 2+ until OP_RETURN)
 		voterStake := calculateVoterStake(vote.MsgTx())
@@ -2618,13 +2681,15 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 	// Build expected equal-per-vote distribution by consolidation address.
 	// Every vote gets the same fee share regardless of ticket price.
 	// Since consolidation addresses are mandatory, this always runs for batched validation.
-	expectedDistribution := make(map[string]int64)       // key: "coinType_hash160hex" for VAR
-	expectedDistributionSKA := make(map[string]*big.Int) // key: "coinType_hash160hex" for SKA
+	expectedDistribution := make(map[string]int64)       // key: "coinType_scripthex" for VAR
+	expectedDistributionSKA := make(map[string]*big.Int) // key: "coinType_scripthex" for SKA
 
-	// Pre-calculate group voter counts (same for all coin types)
-	groupVoterCounts := make(map[string]int64) // key: hash160hex
-	for _, hash160 := range voterConsolidation {
-		key := hex.EncodeToString(hash160)
+	// Pre-calculate group voter counts (same for all coin types).  Every
+	// P2PKH script has the same bytes around its hash160, so sorting these
+	// keys orders P2PKH groups as sorting their hash160s did.
+	groupVoterCounts := make(map[string]int64) // key: scripthex
+	for _, script := range voterConsolidation {
+		key := hex.EncodeToString(script)
 		groupVoterCounts[key]++
 	}
 
@@ -2654,14 +2719,14 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 
 		// Calculate equal-per-vote fee for each group
 		// First sorted group gets remainder for deterministic results
-		for i, hash160Hex := range sortedKeys {
-			voterCount := groupVoterCounts[hash160Hex]
+		for i, scriptHex := range sortedKeys {
+			voterCount := groupVoterCounts[scriptHex]
 			groupFee := new(big.Int).Mul(feePerVoter, big.NewInt(voterCount))
 			// First group gets remainder
 			if i == 0 && remainder.Sign() > 0 {
 				groupFee.Add(groupFee, remainder)
 			}
-			distKey := makeDistributionKey(coinType, hash160Hex)
+			distKey := makeDistributionKey(coinType, scriptHex)
 
 			// Store in appropriate map based on coin type
 			if coinType.IsVAR() {
@@ -2679,6 +2744,7 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 	distributedStakerFees := make(map[cointype.CoinType]int64)
 	actualDistribution := make(map[string]int64)       // Track per-consolidation-address distribution for VAR
 	actualDistributionSKA := make(map[string]*big.Int) // Track per-consolidation-address distribution for SKA
+	srcBlocks := make(map[int64]*dcrutil.Block)        // Blocks read for the type of a spent SSFee output
 
 	// Validate each SSFee transaction
 	for _, ssFeeTx := range ssFeeTxns {
@@ -2689,7 +2755,7 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 		}
 
 		// Determine SSFee type (SF for staker, MF for miner)
-		feeType, err := getSSFeeType(ssFeeTx)
+		feeType, err := SSFeeType(ssFeeTx)
 		if err != nil {
 			return ruleError(ErrStakeFees, err.Error())
 		}
@@ -2782,8 +2848,14 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 			if coinType.IsSKA() {
 				// SKA: use bigint comparison throughout
 				expectedFeeSKA := minerFeesByType.GetBig(coinType)
-				if expectedFeeSKA == nil {
-					expectedFeeSKA = new(big.Int)
+				// A miner SSFee must distribute a miner fee.  Otherwise it
+				// could augment the payout of another miner for free, and
+				// wallets that apply coinbase maturity to it would have to
+				// wait for that maturity again.
+				if expectedFeeSKA == nil || expectedFeeSKA.Sign() <= 0 {
+					return ruleError(ErrStakeFees,
+						fmt.Sprintf("miner SSFee for coin type %d in a block "+
+							"without miner fees in it", coinType))
 				}
 				expectedTotalSKA := new(big.Int).Set(expectedFeeSKA)
 				if !isNullInput && inputValueSKA != nil {
@@ -2829,9 +2901,9 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 			// NOTE: With batched consolidation, we create ONE SSFee per unique consolidation
 			// address per coin type. Multiple voters with same address share one SSFee.
 
-			// Extract recipient hash160 from the payment output
+			// Read the recipient script from the payment output
 			// SKA uses bigint, VAR uses int64
-			var recipientHash160 []byte
+			var recipientScript []byte
 			var totalOutputValue int64
 			var totalOutputValueSKA *big.Int
 			if coinType.IsSKA() {
@@ -2844,20 +2916,14 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 					continue
 				}
 
-				recipientHash160, err = extractHash160FromPkScript(out.PkScript)
-				if err != nil {
+				// The payment must use the consolidation script of a voter,
+				// checked below, with script version 0.
+				if out.Version != 0 {
 					return ruleError(ErrStakeFees,
-						fmt.Sprintf("invalid SSFee payment script: %v", err))
+						fmt.Sprintf("staker SSFee payment script version %d "+
+							"is not 0", out.Version))
 				}
-
-				// The payment must use the consolidation script of its
-				// recipient.  The hash160 is 20 bytes, so this cannot fail.
-				payScript, _ := stake.ConsolidationAddrToPkScript(recipientHash160)
-				if out.Version != 0 || !bytes.Equal(out.PkScript, payScript) {
-					return ruleError(ErrStakeFees,
-						fmt.Sprintf("staker SSFee payment script is not the "+
-							"consolidation script of %x", recipientHash160))
-				}
+				recipientScript = out.PkScript
 
 				// Get the output value based on coin type
 				if coinType.IsSKA() {
@@ -2882,18 +2948,12 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 				}
 			}
 
-			// Verify recipient matches at least one voter's consolidation address
-			validRecipient := false
-			for _, voterHash160 := range voterConsolidation {
-				if bytes.Equal(recipientHash160, voterHash160) {
-					validRecipient = true
-					break
-				}
-			}
-			if !validRecipient {
+			// Verify recipient matches at least one voter's consolidation script
+			recipientHex := hex.EncodeToString(recipientScript)
+			if groupVoterCounts[recipientHex] == 0 {
 				return ruleError(ErrStakeFees,
-					fmt.Sprintf("SSFee recipient %x does not match any voter consolidation address",
-						recipientHash160))
+					fmt.Sprintf("SSFee recipient script %x does not match any voter consolidation script",
+						recipientScript))
 			}
 
 			// Calculate the fee distributed by this SSFee transaction
@@ -2947,7 +3007,7 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 			}
 
 			// Track per-consolidation-address distribution for detailed validation
-			distKey := makeDistributionKey(coinType, hex.EncodeToString(recipientHash160))
+			distKey := makeDistributionKey(coinType, recipientHex)
 			if coinType.IsSKA() {
 				// Track SKA distribution using bigint
 				existing := actualDistributionSKA[distKey]
@@ -2959,6 +3019,23 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 			} else {
 				// Track VAR distribution using int64
 				actualDistribution[distKey] = addInt64Safe(actualDistribution[distKey], thisFee)
+			}
+		}
+
+		// An augmented SSFee must spend an output of an SSFee of its own type.
+		// This runs after the checks above since it reads the block holding
+		// that output.
+		if !isNullInput {
+			spentFeeType, err := b.spentSSFeeType(node, ssFeeTx.TxIn[0],
+				srcBlocks)
+			if err != nil {
+				return err
+			}
+			if spentFeeType != feeType {
+				str := fmt.Sprintf("%s SSFee transaction %s spends output %v "+
+					"of an %s SSFee transaction", feeType, ssFeeTx.TxHash(),
+					ssFeeTx.TxIn[0].PreviousOutPoint, spentFeeType)
+				return ruleError(ErrBadSSFeeInput, str)
 			}
 		}
 	}
@@ -3033,10 +3110,10 @@ func (b *BlockChain) validateSSFeeTxns(block *dcrutil.Block, node *blockNode,
 	return nil
 }
 
-// makeDistributionKey creates a unique key for (coinType, hash160) consolidation address.
+// makeDistributionKey creates a unique key for a (coinType, consolidation script) pair.
 // This is used to track expected vs actual SSFee distributions in batched consolidation.
-func makeDistributionKey(coinType cointype.CoinType, hash160Hex string) string {
-	return fmt.Sprintf("%d_%s", coinType, hash160Hex)
+func makeDistributionKey(coinType cointype.CoinType, scriptHex string) string {
+	return fmt.Sprintf("%d_%s", coinType, scriptHex)
 }
 
 // calculateVoterStake sums commitment outputs from a vote transaction.
@@ -3054,45 +3131,6 @@ func calculateVoterStake(voteTx *wire.MsgTx) int64 {
 		stake += output.Value
 	}
 	return stake
-}
-
-// extractHash160FromPkScript extracts the hash160 from a P2PKH or P2SH script.
-// P2PKH: OP_DUP OP_HASH160 OP_DATA_20 <hash160> OP_EQUALVERIFY OP_CHECKSIG (25 bytes)
-// P2SH:  OP_HASH160 OP_DATA_20 <hash160> OP_EQUAL (23 bytes)
-// Returns the 20-byte hash160 or an error if the script format is unsupported.
-func extractHash160FromPkScript(pkScript []byte) ([]byte, error) {
-	// OP_SSGEN-tagged P2PKH: 26 bytes (used by SSFee outputs)
-	// OP_SSGEN OP_DUP OP_HASH160 OP_DATA_20 <hash160> OP_EQUALVERIFY OP_CHECKSIG
-	if len(pkScript) == 26 &&
-		pkScript[0] == txscript.OP_SSGEN &&
-		pkScript[1] == txscript.OP_DUP &&
-		pkScript[2] == txscript.OP_HASH160 &&
-		pkScript[3] == 0x14 { // OP_DATA_20
-		hash160 := make([]byte, 20)
-		copy(hash160, pkScript[4:24])
-		return hash160, nil
-	}
-
-	// P2PKH: 25 bytes
-	if len(pkScript) == 25 &&
-		pkScript[0] == txscript.OP_DUP &&
-		pkScript[1] == txscript.OP_HASH160 &&
-		pkScript[2] == 0x14 { // OP_DATA_20
-		hash160 := make([]byte, 20)
-		copy(hash160, pkScript[3:23])
-		return hash160, nil
-	}
-
-	// P2SH: 23 bytes
-	if len(pkScript) == 23 &&
-		pkScript[0] == txscript.OP_HASH160 &&
-		pkScript[1] == 0x14 { // OP_DATA_20
-		hash160 := make([]byte, 20)
-		copy(hash160, pkScript[2:22])
-		return hash160, nil
-	}
-
-	return nil, fmt.Errorf("unsupported script type (len=%d)", len(pkScript))
 }
 
 // checkDupTxs ensures blocks do not contain duplicate transactions which
@@ -3870,6 +3908,61 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint,
 		false, 0, prevHeader, isTreasuryEnabled, isAutoRevocationsEnabled)
 }
 
+// checkAugmentedSSFeeInput performs checks on the real input of an SSFee
+// transaction.  It ensures the referenced output exists, was created by an SSFee
+// transaction, that the transaction has at least one output other than an
+// OP_RETURN output, and that every such output pays to the same script, with the
+// same script version, as the output being spent.  The OP_RETURN outputs skipped
+// here are the same ones that validateSSFeeTxns skips when it sums the payments.
+// validateSSFeeTxns also requires the spent output to come from an SSFee
+// transaction of the same type, since that needs the block holding it.
+//
+// NOTE: The caller MUST have already determined that the provided transaction
+// is an SSFee transaction with a real input.
+func checkAugmentedSSFeeInput(msgTx *wire.MsgTx, view *UtxoViewpoint) error {
+	txIn := msgTx.TxIn[0]
+	entry := view.LookupEntry(txIn.PreviousOutPoint)
+	if entry == nil || entry.IsSpent() {
+		str := fmt.Sprintf("output %v referenced from transaction %s:0 "+
+			"either does not exist or has already been spent",
+			txIn.PreviousOutPoint, msgTx.TxHash())
+		return ruleError(ErrMissingTxOut, str)
+	}
+
+	if entry.TransactionType() != stake.TxTypeSSFee {
+		str := fmt.Sprintf("SSFee transaction %s spends output %v of a "+
+			"transaction of type %d, which is not an SSFee transaction",
+			msgTx.TxHash(), txIn.PreviousOutPoint, entry.TransactionType())
+		return ruleError(ErrBadSSFeeInput, str)
+	}
+
+	var hasPayment bool
+	for txOutIdx, txOut := range msgTx.TxOut {
+		if len(txOut.PkScript) > 0 && txOut.PkScript[0] == txscript.OP_RETURN {
+			continue
+		}
+		if txOut.Version != entry.ScriptVersion() ||
+			!bytes.Equal(txOut.PkScript, entry.PkScript()) {
+
+			str := fmt.Sprintf("SSFee transaction %s output %d pays to "+
+				"script %x (version %d) instead of the script %x (version %d) "+
+				"of the output %v it spends", msgTx.TxHash(), txOutIdx,
+				txOut.PkScript, txOut.Version, entry.PkScript(),
+				entry.ScriptVersion(), txIn.PreviousOutPoint)
+			return ruleError(ErrBadSSFeeInput, str)
+		}
+		hasPayment = true
+	}
+	if !hasPayment {
+		str := fmt.Sprintf("SSFee transaction %s spends output %v but has no "+
+			"output other than an OP_RETURN output", msgTx.TxHash(),
+			txIn.PreviousOutPoint)
+		return ruleError(ErrBadSSFeeInput, str)
+	}
+
+	return nil
+}
+
 // CheckTransactionInputs performs a series of checks on the inputs to a
 // transaction to ensure they are valid.  An example of some of the checks
 // include verifying all inputs exist, ensuring the coinbase seasoning
@@ -3880,10 +3973,10 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint,
 // inputs, it also calculates the total fees for the transaction and returns
 // that value.
 //
-// Note: Null-input SSFee transactions are not processed here as they have no
-// inputs to check, like coinbase/treasurybase transactions.  All SSFee
-// transactions are also validated through validateSSFeeTxns to ensure proper
-// fee distribution.
+// Note: Null-input SSFee transactions are not processed here, like
+// coinbase/treasurybase transactions.  The real input of an augmented SSFee is
+// checked here, and all SSFee transactions are validated separately through
+// validateSSFeeTxns to ensure proper fee distribution.
 //
 // NOTE: The transaction MUST have already been sanity checked with the
 // standalone.CheckTransactionSanity function prior to calling this function.
@@ -3916,11 +4009,16 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	// Augmented SSFee (real input) must have its inputs validated.
 	// All SSFee are validated through validateSSFeeTxns for fee distribution.
 	txType := stake.DetermineTxType(msgTx)
-	if txType == stake.TxTypeSSFee {
+	isSSFee := txType == stake.TxTypeSSFee
+	if isSSFee {
 		if len(msgTx.TxIn) > 0 && msgTx.TxIn[0].PreviousOutPoint.Index == wire.MaxPrevOutIndex {
 			return big.NewInt(0), nil // Null-input SSFee - no inputs to validate
 		}
-		// Augmented SSFee - fall through to validate its inputs
+		// Augmented SSFee - check the input it spends, then fall through to
+		// validate it like any other input.
+		if err := checkAugmentedSSFeeInput(msgTx, view); err != nil {
+			return big.NewInt(0), err
+		}
 	}
 
 	// -------------------------------------------------------------------
@@ -4191,19 +4289,13 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 			stake.IsVoteScript(utxoEntry.ScriptVersion(),
 				utxoEntry.PkScript()) {
 
-			// Check if this is an augmented SSFee transaction (SSFee spending SSFee)
-			// These are exempt from maturity because the resulting output will also
-			// require maturity before being spent externally.
-			isAugmentedSSFee := false
-			if stake.IsSSFee(msgTx) {
-				// An augmented SSFee spends a previous SSFee output
-				// Check if the UTXO being spent is also an SSFee output (OP_SSGEN tagged)
-				if stake.IsVoteScript(utxoEntry.ScriptVersion(), utxoEntry.PkScript()) {
-					isAugmentedSSFee = true
-					log.Tracef("Exempting augmented SSFee from maturity check: tx %v spends SSFee output %v",
-						txHash, txIn.PreviousOutPoint)
-				}
-			}
+			// An SSFee transaction that spends an SSFee output is exempt from
+			// maturity because the resulting output will also require maturity
+			// before being spent by any other transaction.
+			isAugmentedSSFee := isSSFee &&
+				utxoEntry.TransactionType() == stake.TxTypeSSFee &&
+				stake.IsVoteScript(utxoEntry.ScriptVersion(),
+					utxoEntry.PkScript())
 
 			// Apply maturity check unless this is an augmented SSFee
 			if !isAugmentedSSFee {
@@ -4314,7 +4406,6 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	// - For augmented SSFee: output value = input value + collected fees
 	// - Total SSFee fees match expected distribution (50% of block fees)
 	// - No inflation is created
-	isSSFee := stake.IsSSFee(msgTx)
 	if isSSFee {
 		// Return 0 fee - SSFee fees are distributed not burned, and proper
 		// fee accounting happens in validateSSFeeTxns() with full block context
